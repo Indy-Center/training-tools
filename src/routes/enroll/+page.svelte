@@ -134,6 +134,7 @@
 
 			<form
 				method="POST"
+				action="?/enroll"
 				use:enhance={() => {
 					submitting = true;
 					return async ({ update }) => {

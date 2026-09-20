@@ -51,8 +51,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 	};
 };
 
+/**
+ * Both actions are **named**, and that is not a style choice: SvelteKit throws
+ * "When using named actions, the default action cannot be used" if `default`
+ * appears alongside any named action, which breaks every POST to this route.
+ * Adding `withdraw` next to a `default` action is exactly how that happened.
+ */
 export const actions: Actions = {
-	default: async ({ locals, request, platform }) => {
+	enroll: async ({ locals, request, platform }) => {
 		const { session, rosterMember } = await requireHomeController(locals);
 
 		// One course at a time. Guards against a double submit and against a second
