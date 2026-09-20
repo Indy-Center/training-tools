@@ -62,6 +62,19 @@ survived with `removed_at` set — history kept, as intended.
 Also: `/` returns 200 signed out with the CTA; `/stats` and `/enroll` 302 to
 identity.
 
+## Verified in production
+
+Deployed as version `2269c570`, cron registered as `schedule: */15 * * * *`.
+
+**The scheduled trigger fired on its own** — production `roster_members` was
+empty at 12:00:10 and held 157 rows at 12:01:14, with no manual invocation.
+Counts match local exactly: 110 home, 47 visiting, 157 active, 7 mentors.
+
+`155 of 157 members carry a Discord id` from VATUSA, which is worth knowing for
+DEV-110 — identity's `attributes.discordId` is not the only source.
+
+Pages: `/` 200 signed out; `/stats`, `/enroll`, `/dashboard` all 302 to identity.
+
 ## Open / next
 
 - **Still no GitHub repo**, so still no CI and no automatic deploys. The cron
