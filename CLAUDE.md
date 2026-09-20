@@ -29,6 +29,22 @@ surprises you.
    `page.url.href`). Bare paths get a 400. Never derive it from
    `window.location`, which is undefined during SSR.
 
+## Roster ownership
+
+This app is the ARTCC's roster and (eventually) certification system of record.
+`roster_members` is a soft-removed **mirror** of the VATUSA roster, refreshed by
+the cron in `src/worker.ts`.
+
+- Training data we own keys on `cid` and **never** takes a foreign key onto
+  `roster_members` — a VATUSA removal must not delete training history.
+- Active-roster queries filter `removedAt IS NULL`.
+- **D1 allows only 100 bound parameters per query.** The facility has ~157
+  members, so `IN (...)`/`NOT IN (...)` over the full CID list throws at
+  runtime. It typechecks and passes unit tests, so it only shows up when the
+  cron runs. See `src/lib/server/roster/sync.ts` for the patterns that avoid it.
+- The sync refuses to apply on a failed fetch _or_ an empty roster; a stale
+  mirror beats one that marks the whole facility departed.
+
 ## Conventions
 
 - **Svelte 5 runes** (`$props`, `$state`, `$derived`, snippets). No stores;

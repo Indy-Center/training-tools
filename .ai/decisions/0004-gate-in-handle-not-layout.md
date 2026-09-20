@@ -1,8 +1,13 @@
 # 0004 — Route gating lives in `handle`, never in a layout load
 
-- **Status:** accepted
+- **Status:** accepted; public-path list superseded by
+  [0007](0007-home-page-flow-branching.md)
 - **Date:** 2026-09-20
 - **Ticket:** DEV-109
+
+> **Superseded in part:** `/stats` is no longer public. `PUBLIC_PATHS` is now
+> `['/']` and nothing else. The argument for gating in `handle` rather than a
+> layout load is unchanged and still the important part of this page.
 
 ## Context
 

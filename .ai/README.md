@@ -27,9 +27,16 @@ New to the repo? Read, in order:
 
 1. [`decisions/0001-identity-via-service-binding.md`](decisions/0001-identity-via-service-binding.md)
    — the constraint that shapes everything else.
-2. [`research/identity-integration.md`](research/identity-integration.md) — how
+2. [`decisions/0006-training-tools-owns-the-roster.md`](decisions/0006-training-tools-owns-the-roster.md)
+   — what this app is responsible for, and what that implies.
+3. [`research/identity-integration.md`](research/identity-integration.md) — how
    auth actually works, including a widespread misconception about it.
-3. [`research/org-conventions.md`](research/org-conventions.md) — CI, branching,
+4. [`research/org-conventions.md`](research/org-conventions.md) — CI, branching,
    env vars, the D1 migration loop.
-4. [`research/jira-dev-99-scope.md`](research/jira-dev-99-scope.md) — where this
+5. [`research/vatusa-roster.md`](research/vatusa-roster.md) — the roster feed,
+   and D1's 100-parameter limit.
+6. [`research/jira-dev-99-scope.md`](research/jira-dev-99-scope.md) — where this
    app is going.
+
+Note that 0006 and 0007 supersede parts of 0002 and 0004. The superseded files
+say so at the top; read the newer one when they disagree.

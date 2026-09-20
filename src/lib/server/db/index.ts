@@ -1,11 +1,7 @@
 import { drizzle as drizzleFactory } from 'drizzle-orm/d1';
+import * as roster from '$lib/db/schema/roster';
 
-/**
- * No tables yet — DEV-108 (enrollment form) adds the first ones under
- * src/lib/db/schema/ and re-exports them here. The client is wired up now so
- * the binding, migration loop and CI step are proven before a feature needs them.
- */
-const schema = {};
+const schema = { ...roster };
 
 export type Database = ReturnType<typeof drizzle>;
 

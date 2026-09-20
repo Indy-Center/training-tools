@@ -1,8 +1,16 @@
 # 0002 — Cloudflare Worker + D1, upstream adapter
 
-- **Status:** accepted
+- **Status:** partly superseded by
+  [0006](0006-training-tools-owns-the-roster.md)
 - **Date:** 2026-09-20
 - **Ticket:** DEV-107
+
+> **Superseded:** the "upstream adapter" and "D1 plumbing with no tables"
+> choices below no longer hold. DEV-112 needed a roster cron, which needs a
+> custom worker entry, so the app moved to `@indy-center/adapter-cloudflare` and
+> grew its first table. The reasoning here was sound at the time — we genuinely
+> needed neither cron nor RPC. Everything else on this page still applies,
+> including the migration workflow.
 
 ## Context
 

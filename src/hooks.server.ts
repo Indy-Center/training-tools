@@ -7,10 +7,12 @@ import { loginUrl } from '$lib/identity-links';
 /**
  * Paths reachable without a session. Everything else redirects to identity.
  *
- * `/` and `/stats` stay public deliberately: DEV-111 frames waitlist numbers as
- * transparency for prospective members, who by definition have not signed in.
+ * Only `/` is public, and only so it can render a sign-in call to action —
+ * redirecting straight to identity would give anonymous visitors no landing
+ * page at all. This app is training-only, so there is nothing else worth
+ * showing before sign-in.
  */
-const PUBLIC_PATHS = ['/', '/stats'];
+const PUBLIC_PATHS = ['/'];
 
 function isPublic(pathname: string): boolean {
 	return PUBLIC_PATHS.some((p) => pathname === p || (p !== '/' && pathname.startsWith(p + '/')));

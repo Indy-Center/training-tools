@@ -32,8 +32,11 @@
 		}
 	];
 
+	// Signed out, every destination here is gated, so advertising them would just
+	// bounce people to identity. The landing page's sign-in CTA is the whole
+	// navigation until they're authenticated.
 	const links = $derived([
-		...BASE_LINKS,
+		...(user ? BASE_LINKS : []),
 		...(user
 			? [
 					{

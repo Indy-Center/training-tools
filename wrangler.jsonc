@@ -14,7 +14,10 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "training-tools",
 	"account_id": "afd63515948c9b2188ce14ef1504b2c1",
-	"main": ".svelte-kit/cloudflare/_worker.js",
+	// Our own entry, not the adapter output: it adds the roster cron (and later
+	// the RPC export). The org adapter fork always writes its build to
+	// .svelte-kit/cloudflare/_worker.js, which src/worker.ts imports.
+	"main": "src/worker.ts",
 	"compatibility_date": "2026-09-20",
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
@@ -28,6 +31,9 @@
 		"PUBLIC_IDENTITY_URL": "https://auth.flyindycenter.com"
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
+	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157
+	// members, so every 15 minutes is ample.
+	"triggers": { "crons": ["*/15 * * * *"] },
 	"services": [{ "binding": "IDENTITY", "service": "identity" }],
 	"d1_databases": [
 		{
