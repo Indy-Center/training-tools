@@ -28,7 +28,16 @@
 		"enabled": true
 	},
 	"vars": {
-		"PUBLIC_IDENTITY_URL": "https://auth.flyindycenter.com"
+		"PUBLIC_IDENTITY_URL": "https://auth.flyindycenter.com",
+		// The training waitlist the staff actually work. Enrollments are recorded
+		// in D1 first and filed here second — see
+		// .ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
+		//
+		// JIRA_USER_EMAIL and JIRA_API_TOKEN are secrets, not vars:
+		//   wrangler secret put JIRA_USER_EMAIL
+		//   wrangler secret put JIRA_API_TOKEN
+		"JIRA_BASE_URL": "https://zidartcc.atlassian.net",
+		"JIRA_PROJECT_KEY": "TRK"
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
 	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157

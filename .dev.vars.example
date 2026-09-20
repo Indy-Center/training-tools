@@ -8,3 +8,18 @@
 # See README.md "Local development".
 
 PUBLIC_IDENTITY_URL=http://localhost:8787
+
+# Jira, for filing enrollments into the TRK waitlist.
+#
+# Create a token at https://id.atlassian.com/manage-profile/security/api-tokens
+# and use the Atlassian account email it belongs to. In production these two are
+# Worker secrets (`wrangler secret put`), not vars.
+#
+# Leave them unset and the app still works: enrollments save to D1 and are filed
+# by the cron once credentials exist. Handy for working on the form without
+# creating real issues.
+#
+# NOTE: pointed at the real TRK project, so a local submission creates a real
+# issue on the training staff's board. Delete what you create while testing.
+JIRA_USER_EMAIL=
+JIRA_API_TOKEN=

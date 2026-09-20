@@ -12,9 +12,14 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | Route            | Auth     | Purpose                                                    |
 | ---------------- | -------- | ---------------------------------------------------------- |
 | `GET /`          | public   | Sign-in CTA signed out; the DEV-112 flow signed in         |
-| `GET /enroll`    | required | Enrollment request (placeholder — DEV-108)                 |
+| `GET /enroll`    | required | Enrollment form, or the state of an open request           |
+| `POST /enroll`   | required | Submit an enrollment; `?/withdraw` withdraws an open one   |
 | `GET /stats`     | required | Waitlist numbers and expected wait (placeholder — DEV-111) |
 | `GET /dashboard` | required | The signed-in user's training overview                     |
+
+`/enroll` additionally requires **home** roster membership, enforced in both the
+load and the actions — `hooks.server.ts` only checks for a session, and a form
+action runs before any load.
 
 `/` is the **only** public path, and only so it can render the sign-in CTA.
 
@@ -36,6 +41,11 @@ controllers, so rating-first would misroute people already training with us.
 | Trigger        | Does                                                                |
 | -------------- | ------------------------------------------------------------------- |
 | `*/15 * * * *` | Refreshes the VATUSA roster mirror (`src/worker.ts` → `syncRoster`) |
+| `*/15 * * * *` | Files enrollments that never reached Jira (`reconcileEnrollments`)  |
+
+Both run on the same schedule but are guarded separately: VATUSA being down must
+not stop enrollments reaching the staff board, and Jira being down must not stop
+the roster refreshing.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
@@ -57,9 +67,22 @@ gate lives in `src/hooks.server.ts`, not in a layout load —
 | Var                   | Value                                                              |
 | --------------------- | ------------------------------------------------------------------ |
 | `PUBLIC_IDENTITY_URL` | `https://auth.flyindycenter.com` (override locally in `.dev.vars`) |
+| `JIRA_BASE_URL`       | `https://zidartcc.atlassian.net`                                   |
+| `JIRA_PROJECT_KEY`    | `TRK` — the Student Tracking waitlist                              |
 
-**No secrets.** Service bindings aren't internet-reachable, so auth needs no
-client id, client secret or signing key.
+| Secret            | What it is                                          |
+| ----------------- | --------------------------------------------------- |
+| `JIRA_USER_EMAIL` | Atlassian account the API token belongs to          |
+| `JIRA_API_TOKEN`  | Classic API token, from id.atlassian.com → Security |
+
+**Auth needs no secrets** — service bindings aren't internet-reachable, so there
+is no client id, client secret or signing key. The Jira secrets are unrelated to
+auth: Atlassian isn't on our Cloudflare account, so it's reached over plain
+HTTPS with basic auth.
+
+Set them with `npx wrangler secret put JIRA_API_TOKEN`. Leave them unset and the
+app still works: enrollments save to D1 and the cron files them once credentials
+exist.
 
 ## Project layout
 
@@ -70,16 +93,20 @@ src/
 ├── app.d.ts                   App.Locals / App.Platform (IDENTITY is optional here on purpose)
 ├── lib/
 │   ├── config.ts              facility id, VATSIM rating thresholds
+│   ├── courses.ts             the six courses + their Jira option ids (client-safe)
+│   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
 │   ├── training-flow.ts       pure roster+rating → branch logic (DEV-112)
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            Panel, Badge, PageHero, Logo, ActionButton, header/
-│   ├── db/schema/             drizzle tables (roster_members)
+│   ├── db/schema/             drizzle tables (roster_members, enrollments)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── server/
 │   │   ├── identity.ts        reads fic_session, calls the IDENTITY binding
 │   │   ├── vatusa.ts          VATUSA roster fetch (no API key needed)
 │   │   ├── roster/            roster lookup + the reconciling sync
+│   │   ├── enrollments/       submit, withdraw, and the Jira reconcile pass
+│   │   ├── jira/              Jira client, field ids, issue payload builder
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
@@ -101,6 +128,26 @@ history. See [`.ai/decisions/0006-training-tools-owns-the-roster.md`](.ai/decisi
 **D1 allows only 100 bound parameters per query** and the facility has more
 members than that, so never write `IN (...)` over the full CID list. The sync
 documents the patterns that avoid it.
+
+### Enrollments
+
+**This app owns the enrollment record; Jira owns the queue.** Submitting the
+form writes an `enrollments` row and commits it, _then_ files a Student
+Enrollment issue in Jira project `TRK` and writes the key back. A Jira outage
+therefore delays the filing rather than losing the request — the cron retries
+anything with a null `jiraIssueKey`, capped at 5 attempts.
+
+A new request has status **`waitlist`**, which is TRK's initial status. Note the
+workflow changed once during DEV-108 (a triage step in front of the waitlist was
+removed), so re-verify the statuses before relying on them — and read them by
+creating a test issue, not by listing the board, which hides any status no issue
+is currently sitting in. Details and the full field/option id map are in
+[`.ai/research/jira-student-tracking.md`](.ai/research/jira-student-tracking.md);
+the reasoning is in
+[`.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md`](.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md).
+
+One open enrollment per CID — you train one course at a time. Students can
+withdraw, which comments on the Jira issue rather than transitioning it.
 
 ## Local development
 
@@ -176,6 +223,15 @@ To populate a local roster, run the cron by hand:
 npx wrangler dev --test-scheduled --port 8788
 curl http://localhost:8788/__scheduled      # logs {fetched, added, restored, removed}
 ```
+
+The same trigger runs the enrollment reconcile, which is how to exercise the
+Jira retry path without a browser session: insert a row with a null
+`jira_issue_key`, fire `/__scheduled`, and watch it pick up a key.
+
+**Local dev points at the real `TRK` project**, so a test submission creates a
+real issue on the training staff's board. Delete what you create. Leaving
+`JIRA_API_TOKEN` unset avoids this entirely — enrollments still save, they just
+stay unfiled.
 
 **Never run `wrangler d1 delete` or `wrangler d1 create` to fix local state** —
 both operate on production.

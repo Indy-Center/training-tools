@@ -35,7 +35,9 @@ New to the repo? Read, in order:
    env vars, the D1 migration loop.
 5. [`research/vatusa-roster.md`](research/vatusa-roster.md) — the roster feed,
    and D1's 100-parameter limit.
-6. [`research/jira-dev-99-scope.md`](research/jira-dev-99-scope.md) — where this
+6. [`research/jira-student-tracking.md`](research/jira-student-tracking.md) —
+   the training waitlist we file into, its workflow and its field ids.
+7. [`research/jira-dev-99-scope.md`](research/jira-dev-99-scope.md) — where this
    app is going.
 
 Note that 0006 and 0007 supersede parts of 0002 and 0004. The superseded files

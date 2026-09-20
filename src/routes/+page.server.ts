@@ -1,4 +1,5 @@
 import { getRosterMember } from '$lib/server/roster';
+import { getOpenEnrollment } from '$lib/server/enrollments';
 import { resolveTrainingFlow } from '$lib/training-flow';
 import type { PageServerLoad } from './$types';
 
@@ -10,7 +11,7 @@ import type { PageServerLoad } from './$types';
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
-	if (!session) return { flow: null, rosterMember: null };
+	if (!session) return { flow: null, rosterMember: null, hasOpenEnrollment: false };
 
 	const rosterMember = await getRosterMember(locals.db, session.user.cid);
 
@@ -22,8 +23,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		ratingShort: rosterMember?.ratingShort ?? session.user.vatsimData.vatsim?.rating?.short ?? null
 	});
 
+	// Only the enroll branch renders a call to action that depends on this, so
+	// don't spend the query on anyone else.
+	const hasOpenEnrollment =
+		flow === 'enroll' ? (await getOpenEnrollment(locals.db, session.user.cid)) !== null : false;
+
 	return {
 		flow,
+		hasOpenEnrollment,
 		rosterMember: rosterMember
 			? {
 					membership: rosterMember.membership,

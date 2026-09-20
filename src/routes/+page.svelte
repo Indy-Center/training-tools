@@ -69,19 +69,33 @@
 		<div class="mx-auto max-w-3xl px-4 py-10">
 			{#if data.flow === 'enroll'}
 				<!-- Rostered home controller: the one branch that can actually train here. -->
-				<Panel title="Enroll in training" icon={IconClipboard}>
+				<Panel
+					title={data.hasOpenEnrollment ? 'Your training request' : 'Enroll in training'}
+					icon={IconClipboard}
+				>
 					<div class="space-y-4 px-4 py-5 text-sm text-gray-300">
-						<p>
-							You're on the Indy Center roster, so you can request training for a new position.
-							We'll pull your CID, name and rating from your VATSIM account — there's nothing to
-							fill in twice.
-						</p>
+						{#if data.hasOpenEnrollment}
+							<p>
+								You have a training request in with us. You can check where it stands, or withdraw
+								it if your plans have changed.
+							</p>
+						{:else}
+							<p>
+								You're on the Indy Center roster, so you can request training for a new position.
+								We'll pull your CID, name and rating from your VATSIM account — there's nothing to
+								fill in twice.
+							</p>
+						{/if}
 						<a
 							href="/enroll"
 							class="inline-flex cursor-pointer items-center space-x-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700"
 						>
 							<IconClipboard class="h-5 w-5" />
-							<span>Start an enrollment request</span>
+							<span>
+								{data.hasOpenEnrollment
+									? 'View your enrollment request'
+									: 'Start an enrollment request'}
+							</span>
 						</a>
 					</div>
 				</Panel>
