@@ -76,11 +76,50 @@ on the org fork use `.env`. This repo uses `.dev.vars` because the upstream
 adapter reads config through `platform.env`, which Wrangler populates from
 `wrangler.jsonc` `vars` overridden by `.dev.vars`.
 
+### Production secrets go in Cloudflare, never through CI
+
+**Verified 2026-09-20** against
+<https://tech.flyindycenter.com/patterns/ci-shape/>, which is unambiguous:
+
+> "That token deploys the Worker; it isn't the Worker's own secrets. Runtime
+> secrets such as identity's VATSIM Connect client secret are Worker secrets,
+> set with `npx wrangler secret put`, and never appear in a workflow or in
+> `wrangler.jsonc`."
+
+community-website's README says the same in its own words: "Production secrets
+(OAuth credentials, Sentry DSN, etc.) live in Cloudflare — set each with
+`wrangler secret put`."
+
+So: set each secret once with `npx wrangler secret put`. `wrangler deploy` does
+**not** clear existing secrets, so CI redeploys over the top without ever seeing
+them. `npx wrangler secret list` shows names only.
+
+`cloudflare/wrangler-action@v3` does support a `secrets:` input that would push
+them from GitHub — **do not use it here.** "Never appear in a workflow" rules it
+out, and it would put the credential in two places.
+
+`CLOUDFLARE_WORKERS_API_KEY` is the one repo secret, and it is only a deploy
+credential: a Cloudflare API token with **Workers Scripts:Edit, plus D1:Edit**
+for projects with a database.
+
+One trap: a `vars` entry in `wrangler.jsonc` sharing a name with a secret
+clobbers the secret on deploy. Keep the names disjoint — in this repo
+`JIRA_BASE_URL`/`JIRA_PROJECT_KEY` are vars, `JIRA_USER_EMAIL`/`JIRA_API_TOKEN`
+are secrets.
+
+### Other
+
 Ports: identity `wrangler dev` → **8787, and it must be 8787** (VATSIM's
 redirect URI is hardcoded). SvelteKit `vite dev` → 5173, auto-incrementing.
 Start identity first.
 
 Node 22, matching CI. Wrangler is a per-project devDependency, run via `npx`.
+
+The portal's page index, useful because the nav is not obvious from the landing
+page: `/start-here/{architecture,access,first-contribution}`,
+`/development/{setup,running-identity,environment,cheat-sheet}`,
+`/patterns/{auth,worker-patterns,rpc-vs-queue,ci-shape,readme-template}`,
+`/agreements/{definition-of-done,jira,branching,ci-checks}`.
 
 ## D1 + drizzle
 

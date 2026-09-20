@@ -53,6 +53,10 @@ off. Collapsing them would lose that distinction the moment DEV-111 starts
 reading statuses back, and "why did this person leave the waitlist" is exactly
 the question a waitlist report gets asked.
 
+> The training team reached the same conclusion independently later that day and
+> added a `Withdrawn` status to TRK, so the distinction now exists on both
+> sides rather than only in our schema.
+
 `certification-update` is **not** a closed status. The request is still in
 flight there, so someone in it cannot start a second course.
 
@@ -76,13 +80,19 @@ empty.
   default in the other direction.
 - The student-facing status copy is per-status now rather than a two-way
   branch, since there are six states a student can legitimately be in.
-- **Withdrawal still comments on the issue rather than transitioning it**, even
-  though a suitable transition now demonstrably exists (`9`, "Remove from
-  Waitlist" → `Removed`, available from `Waitlist`). Two reasons: it is only
+- **Withdrawal comments on the issue rather than transitioning it.** A suitable
+  transition exists (`9`, "Remove from Waitlist" → `Removed`) but is only
   reachable from `Waitlist`, so it would silently do nothing for someone already
-  in training; and moving a student off the staff board without staff involvement
-  is a policy call the training team should make, not one this app should assume.
-  Flagged for them — if they want it, it is a small change.
+  in training; and moving a student off the staff board without staff
+  involvement is a policy call for the training team, not one this app should
+  assume. Flagged for them.
+
+  > **Answered the same day.** The training team added a dedicated `Withdrawn`
+  > status (`10110`) reachable from **any** status, and asked for withdrawals to
+  > transition to it. The app now comments **and** transitions. `Removed` stays
+  > what staff do; `Withdrawn` is what the student does. Both concerns above are
+  > satisfied — it works from In Training, and it is no longer us guessing at
+  > policy.
 
 ## Watch out
 
