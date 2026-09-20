@@ -93,15 +93,22 @@ cp .dev.vars.example .dev.vars   # points PUBLIC_IDENTITY_URL at localhost:8787
 npm run dev                      # http://localhost:5173
 ```
 
-> **If you appear permanently signed out locally**, the `IDENTITY` service
-> binding probably isn't resolving. Service bindings are wired through
-> Wrangler's dev registry, which `vite dev` may not join. Auth degrades silently
-> to "logged out" by design, so this looks like a broken login rather than a
-> config problem — check the server console for the
-> `IDENTITY binding unavailable` warning.
->
-> Workaround: use `npm run preview`, which builds and serves through a real
-> `wrangler dev` and definitely joins the registry.
+`vite dev` joins Wrangler's dev registry, so the `IDENTITY` service binding
+resolves against your local identity — no `wrangler dev` needed for auth to work.
+
+Two things to know when it misbehaves:
+
+- **`.dev.vars` is read at startup only.** Create it _before_ `npm run dev`, and
+  restart after editing. If sign-in sends you to `auth.flyindycenter.com`
+  instead of `localhost:8787`, the file wasn't loaded — and production identity
+  will reject a `localhost` return URL with a 400.
+- **If identity isn't running**, the binding resolves but the call fails with
+  `Worker "identity" not found` in the server console, and the request is
+  treated as logged out. Auth degrades silently by design, so check the console
+  before assuming login is broken.
+
+Also watch the port: if 5173 is taken, Vite silently moves to 5174 and you may
+be testing a stale server.
 
 Signed-out pages (`/`, `/stats`) work without identity running at all.
 

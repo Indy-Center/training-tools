@@ -42,12 +42,27 @@ an auth smoke test).
   `const`, not `$derived`). Fixed here; noted in ADR 0003 so nobody "corrects"
   it back while diffing against the original.
 
+## Verified locally
+
+- Public routes return 200; `/dashboard` 302s to identity's `/login` with a
+  correctly-encoded absolute `return_url`. The gate works.
+- **The `IDENTITY` binding resolves under `vite dev`** — it joins Wrangler's dev
+  registry, so no `wrangler dev` is needed for local auth. With identity not
+  running you get `Worker "identity" not found`, which is a clearer signal than
+  expected.
+- `.dev.vars` overrides `wrangler.jsonc` `vars`, at startup only.
+
+Not yet verified end-to-end: an actual sign-in round trip. That needs identity
+running locally with VATSIM dev credentials, which only a maintainer has.
+
 ## Open / next
 
-- **Unverified: whether the `IDENTITY` binding resolves under `vite dev`.**
-  If it doesn't, local auth silently behaves as permanently-logged-out; use
-  `npm run preview` (real `wrangler dev`) instead. Documented in the README.
-  Needs a human with identity running locally to settle it.
+- **Cloudflare provisioning is not done.** `wrangler whoami` reports not
+  authenticated, and `wrangler login` needs an interactive browser. Still to do:
+  `npx wrangler login`, `npx wrangler d1 create training-db`, paste the real id
+  over `PLACEHOLDER_RUN_WRANGLER_D1_CREATE` in `wrangler.jsonc`, then
+  `npm run deploy`. Also: create `Indy-Center/training-tools` and add the
+  `CLOUDFLARE_WORKERS_API_KEY` repo secret.
 - Nobody holds `training:admin` yet. Grant before any staff-facing feature.
 - DEV-108 is next and needs a product decision first: **is D1 the waitlist, or
   is Jira the waitlist with D1 mirroring it?** See

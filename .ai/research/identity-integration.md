@@ -130,10 +130,17 @@ hardcoded to it. It needs `COOKIE_DOMAIN=localhost`, which flips three things at
 once: cookies work on localhost, loopback `return_url`s are accepted, and dev
 fixtures become available.
 
-Service bindings resolve through Wrangler's dev registry. Whether that reaches a
-`vite dev` process reliably is the open question — see the README's local
-development section, and fall back to `npm run preview` (which runs the real
-`wrangler dev`) if the binding comes back undefined.
+**Verified 2026-09-20: `vite dev` does join Wrangler's dev registry**, so the
+`IDENTITY` binding resolves without needing `wrangler dev`. With identity not
+running, the binding is present but the call fails with
+`Worker "identity" not found. Make sure it is running locally.` — which is a
+useful signal, because it distinguishes "binding missing" from "identity down".
+
+`getPlatformProxy()` reads `.dev.vars` and it overrides `wrangler.jsonc` `vars`,
+which is how `PUBLIC_IDENTITY_URL` gets pointed at localhost. It is read **at
+startup only** — create the file before `npm run dev` and restart after editing.
+Without it, sign-in redirects to production identity, which rejects a localhost
+`return_url` with a 400.
 
 ## Sources
 
