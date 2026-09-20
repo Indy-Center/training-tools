@@ -52,17 +52,41 @@ an auth smoke test).
   expected.
 - `.dev.vars` overrides `wrangler.jsonc` `vars`, at startup only.
 
-Not yet verified end-to-end: an actual sign-in round trip. That needs identity
-running locally with VATSIM dev credentials, which only a maintainer has.
+## Verified in production
+
+Deployed to `training.flyindycenter.com` (version `77d1f485`). D1 `training-db`
+created as `1bd45e96-48f1-4041-980e-9ca0e2dd3b1b`.
+
+- `/` and `/stats` return 200 signed out; `/dashboard` 302s to
+  `auth.flyindycenter.com/login` with a correct absolute `return_url`.
+- **The IDENTITY binding works in production.** Confirmed via `wrangler tail`:
+  a request carrying a bogus `fic_session` logged `GET /dashboard - Ok` with
+  _no_ `getSessionContext threw` and no `binding unavailable` warning — so the
+  RPC call genuinely reached identity, which returned `null` for the unknown
+  token. Worth doing it this way: because auth degrades silently, the 302 alone
+  would have looked identical with a completely broken binding.
+
+Not verified: a real VATSIM sign-in round trip, which needs a human to
+authenticate. Everything up to the redirect is confirmed.
+
+## Two traps in the toolchain (both fixed, don't re-introduce)
+
+- **`wrangler types` poisons `npm run check` once a build exists.** It points
+  `Cloudflare.GlobalProps` at `.svelte-kit/cloudflare/_worker.js`, dragging the
+  adapter's bundled output into the type program — ~1300 errors in code we
+  didn't write. Fixed with `checkJs: false`. All our source is TS/Svelte, so
+  nothing of ours goes unchecked.
+- **`src/worker-configuration.d.ts` is gitignored but referenced in tsconfig
+  `types`.** On a clean CI checkout it wouldn't exist. `npm run check` now runs
+  `cf-typegen` first. Verified in both states: fresh checkout (643 files) and
+  post-build (676 files), 0 errors each. community-website has the same latent
+  hole but never hits it — its CI doesn't run `check` at all.
 
 ## Open / next
 
-- **Cloudflare provisioning is not done.** `wrangler whoami` reports not
-  authenticated, and `wrangler login` needs an interactive browser. Still to do:
-  `npx wrangler login`, `npx wrangler d1 create training-db`, paste the real id
-  over `PLACEHOLDER_RUN_WRANGLER_D1_CREATE` in `wrangler.jsonc`, then
-  `npm run deploy`. Also: create `Indy-Center/training-tools` and add the
-  `CLOUDFLARE_WORKERS_API_KEY` repo secret.
+- **The GitHub repo does not exist yet.** Create `Indy-Center/training-tools`,
+  push `main`, and add the `CLOUDFLARE_WORKERS_API_KEY` repo secret or the
+  deploy workflow will fail on first run. Deploys have only been manual so far.
 - Nobody holds `training:admin` yet. Grant before any staff-facing feature.
 - DEV-108 is next and needs a product decision first: **is D1 the waitlist, or
   is Jira the waitlist with D1 mirroring it?** See

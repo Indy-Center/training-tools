@@ -33,7 +33,7 @@
 		{
 			"binding": "DB",
 			"database_name": "training-db",
-			"database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+			"database_id": "1bd45e96-48f1-4041-980e-9ca0e2dd3b1b",
 			"migrations_dir": "./drizzle/migrations"
 		}
 	]

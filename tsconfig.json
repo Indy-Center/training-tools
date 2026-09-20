@@ -2,7 +2,12 @@
 	"extends": "./.svelte-kit/tsconfig.json",
 	"compilerOptions": {
 		"allowJs": true,
-		"checkJs": true,
+		// Off deliberately. `wrangler types` points Cloudflare.GlobalProps at
+		// .svelte-kit/cloudflare/_worker.js, so once a build exists the adapter's
+		// bundled output gets pulled into the type program. Checking that bundle
+		// reports ~1300 errors in code we neither wrote nor can fix. All our own
+		// source is TypeScript or Svelte, so nothing of ours goes unchecked.
+		"checkJs": false,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
