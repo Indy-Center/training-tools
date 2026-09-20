@@ -21,6 +21,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run format:check
-      - run: npm run check
+      # build must precede check: src/worker.ts imports the adapter's output at
+      # .svelte-kit/cloudflare/_worker.js, which does not exist in a fresh
+      # checkout, so type-checking first fails with "Cannot find module".
       - run: npm run build
+      - run: npm run check
       - run: npm test

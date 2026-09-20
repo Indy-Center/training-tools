@@ -189,8 +189,13 @@ npm test
 CI runs exactly this sequence; run it before opening a PR:
 
 ```bash
-npm run format:check && npm run check && npm run build && npm test
+npm run format:check && npm run build && npm run check && npm test
 ```
+
+**`build` comes before `check` on purpose.** `src/worker.ts` imports the
+adapter's output at `.svelte-kit/cloudflare/_worker.js`, so on a fresh clone
+type-checking before building fails with `Cannot find module`. Keep that order
+if you edit the workflow.
 
 ## Deployment
 

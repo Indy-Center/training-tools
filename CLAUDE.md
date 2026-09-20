@@ -70,8 +70,12 @@ the cron in `src/worker.ts`.
 ## Before opening a PR
 
 ```bash
-npm run format:check && npm run check && npm run build && npm test
+npm run format:check && npm run build && npm run check && npm test
 ```
 
-That is exactly what CI runs. The org's definition of done also includes "the
+That is exactly what CI runs. **`build` must come before `check`** —
+`src/worker.ts` imports the adapter output at
+`.svelte-kit/cloudflare/_worker.js`, so checking first fails on a clean
+checkout. A working tree with build artifacts hides this, so verify
+order-dependent changes in a fresh `git clone` + `npm ci`, not in place. The org's definition of done also includes "the
 README still describes reality" — update it when behaviour changes.

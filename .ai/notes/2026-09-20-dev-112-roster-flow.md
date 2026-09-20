@@ -75,14 +75,64 @@ DEV-110 — identity's `attributes.discordId` is not the only source.
 
 Pages: `/` 200 signed out; `/stats`, `/enroll`, `/dashboard` all 302 to identity.
 
+## The Discord id find, and DEV-43
+
+VATUSA's roster carries a `discord_id`, and coverage is high: **155 of 157**
+active members (108 of 110 home controllers). It comes from the member's own
+VATUSA Discord linkage.
+
+That matters beyond DEV-110, because **DEV-43** ("Add Discord user ID and
+TeamSpeak Identity to Identity") plans a link-code/auth flow to collect exactly
+this. Flagged on that ticket: for rostered controllers the ids can likely be
+seeded from VATUSA rather than asking ~155 people to authorise something they
+have effectively already done.
+
+It narrows that ticket rather than closing it — VATUSA gives us **nothing** for
+TeamSpeak identities, and **nothing** for non-rostered users (community members,
+prospective controllers, leavers), who still need the flow. Two open policy
+questions left for them: which source wins when VATUSA and Identity disagree,
+and whether a VATUSA-sourced id counts as verified or as a suggestion the user
+confirms.
+
+## The repo now exists, and CI caught something we didn't
+
+`Indy-Center/training-tools` is live and public; local `main` is in sync via a
+remote named `github`. `CLOUDFLARE_WORKERS_API_KEY` is already set — Build and
+Deploy went green on its first run.
+
+**CI failed on both DEV-112 commits** while passing on the bootstrap commit, and
+the cause is worth remembering:
+
+`src/worker.ts` imports `../.svelte-kit/cloudflare/_worker.js`, which the
+adapter only writes during `npm run build`. The workflow ran `check` _before_
+`build`, so on a fresh checkout svelte-check failed with
+`Cannot find module '../.svelte-kit/cloudflare/_worker.js'`.
+
+It passed locally every time because a previous build had already left that file
+on disk. The custom worker entry introduced the dependency in this session, so
+the bootstrap commit was genuinely unaffected — this was a real regression, not
+a flake.
+
+Fixed by running `build` before `check` in `ci.yml`, and reproduced/verified in
+a clean `git clone` + `npm ci` rather than in the working tree. Keep that order.
+
+**Lesson:** a working tree with build artifacts is not a clean checkout. For
+anything order-dependent, clone to a temp dir and run the workflow's exact
+sequence.
+
 ## Open / next
 
-- **Still no GitHub repo**, so still no CI and no automatic deploys. The cron
-  only runs once deployed.
-- The four branches are only verified by unit test — **nobody has seen the
-  signed-in page render**, since that needs a real VATSIM session.
-- `/enroll` and `/stats` are placeholders (DEV-108, DEV-111).
-- RPC surface deferred. When a consumer appears, export a `WorkerEntrypoint`
-  from `src/worker.ts` and publish types the way identity does.
+- **Nobody has seen the signed-in page render.** The four branches are unit
+  tested and the roster data is real, but confirming the actual pages needs a
+  VATSIM session.
 - Visiting-controller copy is a guess at policy. Worth a training-staff read
   before it's real: it currently says visitors can't enroll and should transfer.
+- `/enroll` and `/stats` are placeholders (DEV-108, DEV-111).
+- DEV-108 still needs the product call: **is D1 the waitlist, or is Jira the
+  waitlist with D1 mirroring it?** See
+  [`../research/jira-dev-99-scope.md`](../research/jira-dev-99-scope.md).
+- RPC surface deferred. When a consumer appears, export a `WorkerEntrypoint`
+  from `src/worker.ts` and publish types the way identity does.
+- Nobody holds `training:admin` yet. Grant before any staff-facing feature.
+- Branch protection / PR flow isn't set up — these commits went straight to
+  `main`. The org's stated flow is feature branch → PR → one approval.
