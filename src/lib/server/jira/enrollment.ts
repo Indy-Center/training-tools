@@ -109,13 +109,7 @@ export async function createEnrollmentIssue(
 	});
 }
 
-/**
- * Note a withdrawal on the issue.
- *
- * A comment rather than a transition: transition ids on this workflow are
- * unverified, and closing someone's request out from under the training staff
- * is their call to make, not ours.
- */
+/** Leave a note on the issue — context a status change on its own cannot carry. */
 export async function commentOnIssue(
 	config: JiraConfig,
 	issueKey: string,
@@ -124,5 +118,52 @@ export async function commentOnIssue(
 	await jiraRequest(config, `/issue/${encodeURIComponent(issueKey)}/comment`, {
 		method: 'POST',
 		body: { body: adf(text) }
+	});
+}
+
+/** The TRK status a student's own withdrawal moves the issue to. */
+export const WITHDRAWN_STATUS = 'Withdrawn';
+
+type JiraTransition = { id: string; name: string; to: { id: string; name: string } };
+
+/**
+ * Move an issue to a named status.
+ *
+ * Resolves the transition by its **target status name**, asking Jira what is
+ * available, rather than hardcoding a transition id. The TRK workflow changed
+ * twice during DEV-108 — a triage step disappeared and two statuses appeared —
+ * so an id baked into this file is a latent bug waiting for the next edit. A
+ * name that no longer exists fails loudly with the available options in the
+ * message, which is a far better failure than silently firing the wrong
+ * transition.
+ *
+ * Throws if the transition is not available from the issue's current status;
+ * callers decide whether that is fatal.
+ */
+export async function transitionIssueToStatus(
+	config: JiraConfig,
+	issueKey: string,
+	statusName: string
+): Promise<void> {
+	const path = `/issue/${encodeURIComponent(issueKey)}/transitions`;
+
+	const { transitions } = await jiraRequest<{ transitions: JiraTransition[] }>(config, path, {
+		method: 'GET'
+	});
+
+	const match = transitions.find(
+		(transition) => transition.to.name.toLowerCase() === statusName.toLowerCase()
+	);
+
+	if (!match) {
+		throw new JiraError(
+			`No transition to "${statusName}" from ${issueKey}'s current status. Available: ` +
+				(transitions.map((t) => t.to.name).join(', ') || '(none)')
+		);
+	}
+
+	await jiraRequest(config, path, {
+		method: 'POST',
+		body: { transition: { id: match.id } }
 	});
 }

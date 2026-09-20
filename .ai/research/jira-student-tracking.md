@@ -38,16 +38,30 @@ Waitlist ──Assign Teacher──> In Training ──> Rating Exam ──> Cer
 | Certification Update | `10070` |
 | Completed            | `10068` |
 | Removed              | `10067` |
+| Withdrawn            | `10110` |
+
+`Withdrawn` was added by the ARTCC later on 2026-09-20 so a student's own
+withdrawal is distinguishable from staff removing them. It is reachable from
+**any** status, unlike the others.
+
+**Do not hardcode transition ids.** `transitionIssueToStatus()` asks Jira what
+is available and matches on the target status name, because this workflow
+changed three times in a single day.
 
 **A created issue lands in `Waitlist`** — it is the initial status, so filing an
 issue really does put someone in the queue.
 
-Transitions available from `Waitlist`: `8` "Assign Teacher" → In Training, `9`
-"Remove from Waitlist" → Removed.
+Transitions from `Waitlist`: `8` "Assign Teacher" → In Training, `9` "Remove
+from Waitlist" → Removed, `3` "Withdrawn" → Withdrawn.
 
-`Removed` is where staff put someone they take off the waitlist. We keep our own
-`withdrawn` separate from it, because a student stepping back and staff removing
-them are different events and a waitlist report will want to tell them apart.
+**"Assign Teacher" has a validator**: it 400s with `"Assign a teacher first"`
+unless the `Teacher` field (`customfield_10250`) is already set. Worth knowing
+before automating anything that moves an issue into training — the transition
+list offers it whether or not it will succeed.
+
+`Removed` is where staff put someone they take off the waitlist; `Withdrawn` is
+where the student put themselves. Keeping them apart is the point — a waitlist
+report will want to tell "we removed them" from "they left".
 
 ### The only way to read this reliably
 
@@ -136,12 +150,8 @@ enrollments filed by a bot account rather than an individual.
 
 - Whether the issues should be reported by a service account instead of a
   person, so the board doesn't attribute every enrollment to one staff member.
-- Whether a student withdrawing should transition the issue to `Removed`
-  (transition `9`) rather than just commenting on it. The transition exists and
-  works, but only from `Waitlist`, and taking someone off the staff board
-  without staff involvement is the training team's call.
-- Whether a removal should be communicated to the student by this app, and what
-  it should say.
+- Whether a removal or withdrawal should be communicated to the student by this
+  app, and what it should say.
 - Adding new `Course of Training` options programmatically, which the
   markdown-driven course work will need. Jira has a field-options API for
   select custom fields; untested here.

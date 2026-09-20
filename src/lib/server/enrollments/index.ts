@@ -8,7 +8,12 @@ import {
 import type { CourseCode } from '$lib/courses';
 import type { NotificationPreference } from '$lib/db/schema/enrollments';
 import { resolveJiraConfig, JiraError } from '$lib/server/jira/client';
-import { commentOnIssue, createEnrollmentIssue } from '$lib/server/jira/enrollment';
+import {
+	commentOnIssue,
+	createEnrollmentIssue,
+	transitionIssueToStatus,
+	WITHDRAWN_STATUS
+} from '$lib/server/jira/enrollment';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
 
@@ -167,11 +172,16 @@ async function recordFailure(db: Database, id: string, error: string): Promise<v
  * Withdraw an open enrollment.
  *
  * Scoped by CID as well as id so a guessed id cannot withdraw someone else's
- * request. Comments on the Jira issue rather than transitioning it — closing
- * the issue is the training staff's call.
+ * request.
  *
- * A failed comment does not fail the withdrawal: the student's intent is
- * recorded either way, and the row is the record we own.
+ * Moves the Jira issue to `Withdrawn` **and** comments on it. The status is
+ * what gets it off the staff's active board; the comment is what says a student
+ * did this themselves rather than staff removing them, which `Removed` would
+ * otherwise be confused with.
+ *
+ * Neither failing fails the withdrawal, and they are guarded separately so a
+ * refused transition still leaves the explanatory comment. The D1 row is the
+ * record we own and it is already committed by that point.
  */
 export async function withdrawEnrollment(
 	db: Database,
@@ -197,6 +207,8 @@ export async function withdrawEnrollment(
 
 	const config = resolveJiraConfig(env);
 	if (config && withdrawn.jiraIssueKey) {
+		// The comment goes first: if only one of the two lands, an explanation on
+		// an open issue is more use to staff than a silent status change.
 		try {
 			await commentOnIssue(
 				config,
@@ -205,6 +217,12 @@ export async function withdrawEnrollment(
 			);
 		} catch (err) {
 			console.error('[training-tools] jira withdrawal comment failed', id, err);
+		}
+
+		try {
+			await transitionIssueToStatus(config, withdrawn.jiraIssueKey, WITHDRAWN_STATUS);
+		} catch (err) {
+			console.error('[training-tools] jira withdrawal transition failed', id, err);
 		}
 	}
 
