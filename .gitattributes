@@ -1,0 +1,6 @@
+# Keep LF in the repo and in every working copy. Without this, a Windows
+# checkout gets CRLF and `npm run format:check` fails against Prettier's
+# endOfLine: "lf" default.
+* text=auto eol=lf
+
+*.png binary

@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local development.
+#
+# Wrangler loads .dev.vars over the `vars` block in wrangler.jsonc, which is how
+# we point at a locally-running identity instead of the production one. Bindings
+# (D1, the IDENTITY service binding) are NOT env vars — they live in wrangler.jsonc.
+#
+# Run identity on port 8787 with COOKIE_DOMAIN=localhost before starting this app.
+# See README.md "Local development".
+
+PUBLIC_IDENTITY_URL=http://localhost:8787

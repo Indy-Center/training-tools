@@ -1,0 +1,31 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local agent/editor state
+.claude
+
+# Env
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Generated Cloudflare types
+src/worker-configuration.d.ts
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*

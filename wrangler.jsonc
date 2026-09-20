@@ -1,0 +1,40 @@
+/**
+ * Cloudflare Worker config for training.flyindycenter.com.
+ *
+ * Two things here are load-bearing for auth and must not be changed casually:
+ *   - `routes` keeps us on a *.flyindycenter.com subdomain, which is the only
+ *     place the browser will send identity's `fic_session` cookie.
+ *   - `services.IDENTITY` is the RPC binding to the identity Worker. It is not
+ *     internet-reachable and needs no secret, but it only resolves on the
+ *     IndyCenter Cloudflare account.
+ *
+ * See .ai/decisions/0001-identity-via-service-binding.md
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "training-tools",
+	"account_id": "afd63515948c9b2188ce14ef1504b2c1",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-09-20",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"PUBLIC_IDENTITY_URL": "https://auth.flyindycenter.com"
+	},
+	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
+	"services": [{ "binding": "IDENTITY", "service": "identity" }],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "training-db",
+			"database_id": "PLACEHOLDER_RUN_WRANGLER_D1_CREATE",
+			"migrations_dir": "./drizzle/migrations"
+		}
+	]
+}

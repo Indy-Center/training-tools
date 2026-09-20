@@ -1,0 +1,16 @@
+# Package Managers
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+bun.lockb
+
+# Generated
+.svelte-kit
+.wrangler
+.claude
+src/worker-configuration.d.ts
+drizzle/migrations
+
+# Copied verbatim from community-website
+static/
