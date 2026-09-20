@@ -263,24 +263,76 @@ The fix belongs in community-website: migrate it onto identity, the way `charts`
 already is. Then the `fic_session` cookie on `.flyindycenter.com` is shared and
 training picks it up with no button press and no code change here.
 
+Already tracked as
+**[DEV-5](https://zidartcc.atlassian.net/browse/DEV-5)** — "Migrate Community
+Website to Identity", sitting in the backlog. Nothing new to file; this session
+just gave it a concrete user-visible symptom, which is noted on the ticket.
+
 Quick way to confirm the mechanism works today: sign in at
 `charts.flyindycenter.com`, then load training — it should already know you.
 
+## Shipped to production
+
+The requester committed and pushed during the session — `97c1c6c` (the form),
+`9a5b65f` (the action-name fix), `ba9dbd4` (withdraw transitions), `1b98ce4`
+(notes) — so CI applied the migration and deployed. Production now has the
+`enrollments` table alongside `roster_members`, and both Jira secrets.
+
+End-to-end in production, as left at the end of the session:
+
+| Rows in production `enrollments` | 3, all `withdrawn` |
+| -------------------------------- | ------------------ |
+| Filed to Jira                    | 2                  |
+| Never filed                      | 1                  |
+
+The unfiled one is the submission made **before** the secrets were set. It saved
+to D1 with a null issue key exactly as designed, and the reconcile pass then
+correctly left it alone once it was withdrawn — `withdrawnAt` excludes it, so no
+issue gets filed for a request the student already pulled. The failure path and
+the withdrawal path met each other in production and behaved.
+
+Two things to know about that data:
+
+- The three rows are **test submissions**, and their Jira issues have since been
+  deleted, so the stored keys point at nothing. Harmless today because nothing
+  reads statuses back, but they should be cleared before DEV-111 starts counting
+  enrollments, or the numbers will be wrong from day one.
+- `TRK-44` predates the withdraw-transition change, so it was only commented on.
+  Only `TRK-50` exercised the new behaviour in production, and it is gone now —
+  the transition itself is verified against live Jira separately (TRK-46 to 49).
+
 ## Open / next
 
-- The enrollment path is confirmed end to end in production. Still unrendered by
-  a human: the **four home-page branches** from the previous session, and the
-  withdraw button itself (the transition is verified against Jira directly, but
-  not by clicking it).
-- **Migrate community-website onto identity** so a single sign-in covers both
-  sites. Not filed yet — worth its own story, and it is work in that repo, not
-  this one.
-- D1 migration has not been applied to production (`npm run db:migrate` /
-  CI `--remote`). Production still has only `roster_members`.
-- Nothing is committed. The whole session is sitting in the working tree.
-- Withdrawal comments on the Jira issue rather than transitioning it, even
-  though `Remove from Waitlist` exists and works. Left as a policy call for the
-  training team — see ADR 0009.
+- **Clear the three test enrollment rows from production** before DEV-111
+  counts anything. Their Jira issues are already deleted.
+- Enrollment and withdrawal are confirmed in production. Still unrendered by a
+  human: the **four home-page branches** from the previous session.
+- **[DEV-5](https://zidartcc.atlassian.net/browse/DEV-5)** (migrate
+  community-website onto identity) is what makes a single sign-in cover both
+  sites. Work in that repo; nothing to do here.
+- **DEV-108 is still In Progress.** Everything it asked for works; what is left
+  is whether the training team wants course placement and the agreement step
+  (DEV-114) inside this ticket or after it.
+- Enrollments are filed under a personal API token — **DEV-117**, blocked by
+  IND-40 → IND-5.
 - Still unverified: whether the Cloudflare account is on Workers Paid, which
   DEV-113 depends on.
-- Branch protection / PR flow still not set up; these commits went to `main`.
+- Branch protection / PR flow still not set up; these commits went straight to
+  `main` again.
+
+## Where this landed
+
+A working enrollment form in production, filing into the board the training
+staff already use, with the record owned here so a Jira outage delays a
+submission rather than losing it.
+
+Three bugs found along the way, all the same shape: **the thing I had not
+actually exercised was the thing that was broken.** The form POST nobody had
+clicked, the workflow entry point nobody had created an issue to see, the
+`In Training` transition from a state the test never reached. Verifying
+everything adjacent to a path is not verifying the path.
+
+The Jira workflow changed three times in one day, which is why nothing in the
+code hardcodes a transition id and why
+[`../research/jira-student-tracking.md`](../research/jira-student-tracking.md)
+carries a verified-on date rather than being treated as settled.
