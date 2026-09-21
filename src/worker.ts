@@ -2,6 +2,7 @@ import sv from '../.svelte-kit/cloudflare/_worker.js';
 import { drizzle } from '$lib/server/db';
 import { syncRoster } from '$lib/server/roster';
 import { reconcileEnrollments } from '$lib/server/enrollments';
+import { grantArrivalCertifications } from '$lib/server/certifications';
 
 /**
  * Custom worker entry.
@@ -23,18 +24,48 @@ export default {
 				const db = drizzle(env.DB);
 
 				// Guarded separately: VATUSA being down must not stop enrollments
-				// reaching the staff board, and Jira being down must not stop the
-				// roster refreshing. They share a schedule, not a fate.
+				// reaching the staff board, Jira being down must not stop the roster
+				// refreshing, and VATSIM being down must not stop either. They share a
+				// schedule, not a fate.
+				//
+				// Order matters once: the certification pass reads roster rows the sync
+				// has just written, so a brand-new arrival is certified in the same run
+				// rather than waiting another fifteen minutes.
 				let failure: unknown = null;
 
 				try {
 					const result = await syncRoster(db);
-					console.log('[training-tools] roster sync', JSON.stringify(result));
+					// Counts only. The CID lists the sync also returns are for the
+					// certification job; logging them would be 157 lines of noise on a
+					// first population.
+					console.log(
+						'[training-tools] roster sync',
+						JSON.stringify({
+							fetched: result.fetched,
+							added: result.added,
+							restored: result.restored,
+							removed: result.removed
+						})
+					);
 				} catch (err) {
 					// Surfaced in `wrangler tail` and Workers observability. The sync
 					// throws rather than half-applying, so the previous mirror stands.
 					console.error('[training-tools] roster sync failed', err);
 					failure = err;
+				}
+
+				try {
+					const result = await grantArrivalCertifications(db);
+					// Quiet when there is nobody new to look at, which is the normal case.
+					if (result.pending > 0) {
+						console.log('[training-tools] arrival certifications', JSON.stringify(result));
+					}
+				} catch (err) {
+					// VATSIM being unreachable must not stop the roster refreshing or
+					// enrollments reaching the board. Unstamped members are simply
+					// re-examined on the next tick.
+					console.error('[training-tools] arrival certifications failed', err);
+					failure ??= err;
 				}
 
 				try {
