@@ -14,6 +14,14 @@ export type EnrollmentIssueInput = {
 	submittedRating?: string | null;
 	availability?: string | null;
 	notificationPreference?: NotificationPreference | null;
+	/**
+	 * The course we suggested, set only when the student chose a different one.
+	 *
+	 * Goes in the description rather than a custom field: it is a note for
+	 * whoever picks the request up, not something the board filters on, and
+	 * adding a field to TRK is the training team's call rather than ours.
+	 */
+	suggestedCourse?: CourseCode | null;
 };
 
 /**
@@ -68,6 +76,18 @@ export function buildEnrollmentIssuePayload(
 		`Submitted through training.flyindycenter.com by ${enrollment.submittedName} (CID ${enrollment.cid}).`,
 		`VATSIM rating at time of enrollment: ${rating}.`
 	];
+
+	// Flagged, not blocked. The app's picture of someone's training is inferred
+	// from the certifications it holds, and the student may simply be right — so
+	// this is a note for whoever picks the request up, not a rejection.
+	if (enrollment.suggestedCourse && enrollment.suggestedCourse !== enrollment.course) {
+		const suggested = findCourse(enrollment.suggestedCourse);
+		descriptionLines.push(
+			`Note: based on their certifications we suggested ${
+				suggested?.label ?? enrollment.suggestedCourse
+			}, and they chose ${course.label} instead. Worth confirming placement.`
+		);
+	}
 
 	const fields: Record<string, unknown> = {
 		project: { key: projectKey },

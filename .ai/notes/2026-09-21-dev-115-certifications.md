@@ -144,20 +144,119 @@ the barrel _and_ in the `schema` spread in `$lib/server/db/index.ts`. Miss the
 second and the table silently has no query builder — it typechecks, and only the
 call site fails.
 
+## Filed and closed
+
+| Issue   | What                                                                 |
+| ------- | -------------------------------------------------------------------- |
+| DEV-123 | The `training:certifications:edit` role in identity — blocks DEV-122 |
+| DEV-124 | Discord on grant/revoke — blocked by DEV-113                         |
+| DEV-125 | Expose certifications to identity and others                         |
+| DEV-114 | Closed, superseded by DEV-119                                        |
+
+DEV-122 went to **Blocked/Waiting**, not Done. The code is finished, but no one
+can sign in and click it, and calling it Done would claim a verification that has
+not happened.
+
+**DEV-125's direction was decided the same day: training-tools pushes to
+identity.** The data is ours; broadcasting it through identity keeps the number
+of interfaces low, since consumers already bind to identity. It also avoids a
+circular binding, where identity would call down into an app that calls up into
+it. The cost is a second copy, handled the way the Jira reconcile is — commit
+locally, push after, retry from the cron on failure.
+
+## DEV-119 — guided enrollment
+
+Same session, after DEV-115. ADR
+[0011](../decisions/0011-site-copy-in-repo-course-content-elsewhere.md).
+
+- `$lib/course-placement.ts` suggests a course from what someone holds.
+- `/enroll` preselects it, shows what they hold, and explains the suggestion.
+- A "before you enroll" block and a required agreement, both markdown.
+- `agreedAt`, `agreedTermsVersion` and `suggestedCourse` on the enrollment.
+- A choice that differs from the suggestion is noted on the Jira issue.
+
+### The copy decision
+
+Asked "should we render markdown, or is that overkill?", with the context that
+courses, modules, lessons and grade sheets will come from markdown later.
+
+Decided with the requester: **general site copy as markdown in this repo;
+course-specific content not in this repo at all** — friction for training staff,
+and the repo is public. The line: what you read _before_ enrolling is public,
+what you see _during_ training is not.
+
+The requester also caught that per-course blurbs would be throwaway: the course
+generator will own course descriptions. So "what this course covers" reuses
+`courses.ts`, which [0008](../decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md)
+already set up as the one record a generator writes to.
+
+### Found by checking the build output rather than the code
+
+**Maintainer comments were shipping to students.** `marked` passes HTML comments
+through, so every `.md` file's "DRAFT — replace this" and "bump TERMS_VERSION"
+notes were sitting in the page source. The plugin now strips comments before
+rendering.
+
+It would not have shown in the browser — comments do not render — so it was only
+findable by grepping `.svelte-kit/output`. The same grep confirmed the two claims
+the plugin rests on: the headings arrive as HTML, and `marked` is in no bundle.
+
+### A bug the placement tests caught
+
+The first ladder walk returned the lowest credential the controller was
+_eligible_ for. S-GC has no prerequisites, so it is eligible forever, and an A-LC
+holder was being suggested S-GC. Placement now climbs from the certification
+they hold, and takes a missing endorsement first when the next certification
+requires one.
+
+The shape worth remembering: **eligibility is not progression.** "What can I
+hold" and "what should I do next" are different questions, and the first is easy
+to mistake for the second.
+
+### drizzle numbered over a hand-written migration
+
+`db:generate` produced a second `0003`, colliding with the import. drizzle counts
+from its own journal and does not see SQL it did not write. Renumbered to `0004`
+and advanced the journal; documented in the README, since every future data
+migration will hit it.
+
+### Two sessions on one file
+
+A second Claude session was working the same page concurrently, after the
+requester lost track of this one. It wrote the suggestion banner, the
+"Suggested" badge and the agreement panel — good work, kept. The collision
+surfaced as two "before you enroll" panels, then as **none**, when both sessions
+removed theirs; the what-happens-next and written-exam copy was briefly rendered
+nowhere. Restored at the top of the form.
+
+Worth knowing as a failure mode: when a file changes under you, re-read the
+whole file before editing, not just the region you meant to touch.
+
+## Still unverified
+
+**Neither `/enroll` nor `/certifications` has been rendered signed in.** Both
+need a session, and there is no identity Worker in this workspace. The README's
+local-development section describes running identity alongside — that is the
+route to clicking through both, and it needs VATSIM Connect credentials from a
+maintainer plus a real sign-in, which is a human's job rather than an agent's.
+
+Until then, both pages are verified only as far as: build, typecheck, unit tests,
+signed-out redirects, and the action gates rejecting a sessionless POST.
+
 ## Open / next
 
-- **DEV-119** — course placement and the review step, which this unblocks. It
-  consumes `canHold()` and `rank` directly.
-- **Three stories to file**: the identity role and its auto-assignment; Discord
-  notification on grant/revoke (blocked on DEV-113); and exposing certifications
-  to identity and community-website, which is the RPC surface
-  [0006](../decisions/0006-training-tools-owns-the-roster.md) deferred — it now
-  has two prospective consumers, so the contract can finally be designed against
-  something real.
-- **DEV-114 to be closed** as superseded by DEV-119.
+- **Click through `/enroll` and `/certifications` signed in.** The one step that
+  counts, and the one not yet done.
+- **The copy is placeholder.** Every `.md` file is drafted by engineering and
+  marked DRAFT. The training team writes the real wording.
+- **Where course content lives**, before anyone writes a lesson. A private
+  `@indy-center/curriculum` package is probably the least painful. See 0011.
+- **Repo-managed or admin-edited curriculum?** 0008 and the DEV-99 research
+  disagree, and the two need different renderers. Unresolved.
 - **An S2 arrival granted A-LC will not hold S-LC**, where someone who trained up
-  to A-LC would. Raised on DEV-115 for the training team rather than decided.
-- **Regenerate migration `0003` if this branch sits unmerged**, or grants the
-  training staff make on community-website in the meantime are lost.
+  to A-LC would — and placement will then suggest T-RC. Raised with the training
+  team.
+- **Regenerate migration `0003` if this branch sits unmerged**, or grants made on
+  community-website in the meantime are lost.
 - `NavigationLinks.svelte` still links to `/students` and `/admin`, **neither of
-  which exists**. Untouched here; instructors and admins see dead links.
+  which exists**.

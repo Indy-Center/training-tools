@@ -107,6 +107,8 @@ src/
 │   ├── config.ts              facility id, VATSIM rating thresholds
 │   ├── certifications.ts      credential catalogue + the GCAP rating table (client-safe)
 │   ├── certification-grant.ts pure arrival-grant logic (DEV-115)
+│   ├── content/               site copy as markdown, compiled at build time (DEV-119)
+│   ├── course-placement.ts    pure "which course is next" logic (DEV-119)
 │   ├── courses.ts             the six courses + their Jira option ids (client-safe)
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
@@ -201,7 +203,35 @@ the reasoning is in
 [`.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md`](.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md).
 
 One open enrollment per CID — you train one course at a time. Students can
-withdraw, which comments on the Jira issue rather than transitioning it.
+withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
+— kept distinct from `Removed`, which is what staff do.
+
+**The form suggests a course; it never restricts one** (DEV-119). The suggestion
+comes from the certifications this app holds, walking the `rank` ladder and each
+credential's `requires` — so an advanced-ground controller is sent to S-LC before
+A-LC, because A-LC requires it. If the student picks something else, the
+suggestion is stored and a note is added to the Jira issue for staff to confirm
+placement. It is recomputed server-side on submit rather than read from the
+form, so the flag cannot be switched off by the person it is about.
+
+The student must accept the terms in `agreement.md` to submit. The enrollment
+records **when** and **which version** (`agreedAt`, `agreedTermsVersion`), since
+the wording will change and an acceptance date alone cannot say what was agreed.
+
+### Site copy
+
+General prose — what happens after you enroll, the written exam, the agreement —
+is markdown under `src/lib/content/`, compiled to HTML **at build time** by a
+small plugin in `vite.config.ts`. `marked` stays a devDependency and never ships;
+HTML comments in `.md` files are stripped, so they are safe for notes to editors.
+
+**Course content does not live here.** This repo is public, and lesson plans,
+grade sheets and exam material are neither for the public web nor something the
+training team should need a public PR to change. See
+[`.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md`](.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md).
+
+When you change `agreement.md` in a way that alters what a student agrees to,
+**bump `TERMS_VERSION`** in `src/lib/content/enrollment/index.ts`.
 
 ## Local development
 
@@ -270,6 +300,18 @@ npm run db:migrate:local   # applies to local state
 
 CI applies `--remote` before every deploy. To reset local state:
 `rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local`.
+
+**Hand-written data migrations collide with drizzle's numbering.** drizzle-kit
+numbers new files from its own `meta/_journal.json` and does not see SQL it did
+not generate, so after `0003_import_community_website_certifications.sql` it
+produced a second `0003`. Two files sharing a prefix apply in alphabetical order,
+which is luck rather than design.
+
+When you add a data migration by hand, then generate the next schema migration:
+rename drizzle's file past yours, rename its `meta/NNNN_snapshot.json` to match,
+and set that journal entry's `idx` and `tag` to the new number. drizzle then
+counts on from there. Only safe for a migration not yet applied anywhere — check
+`d1_migrations` first.
 
 To populate a local roster, run the cron by hand:
 
