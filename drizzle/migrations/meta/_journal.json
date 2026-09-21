@@ -15,6 +15,20 @@
       "when": 1789913135326,
       "tag": "0001_chunky_mikhail_rasputin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789976721558,
+      "tag": "0002_huge_vertigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789981850767,
+      "tag": "0004_enrollment_agreement",
+      "breakpoints": true
     }
   ]
 }

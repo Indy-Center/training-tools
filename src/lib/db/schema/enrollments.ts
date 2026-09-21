@@ -97,6 +97,30 @@ export const enrollmentsTable = sqliteTable(
 		submittedName: text('submitted_name').notNull(),
 		submittedRating: text('submitted_rating'),
 
+		/**
+		 * What the student agreed to, and which wording they saw.
+		 *
+		 * The version matters as much as the timestamp: the terms will be reworded,
+		 * and "they accepted on this date" is worth very little if nobody can say
+		 * what the text said that day. `TERMS_VERSION` in
+		 * `$lib/content/enrollment/` is bumped whenever the agreement changes.
+		 *
+		 * Nullable because the rows that predate DEV-119 were never shown terms —
+		 * backfilling a version onto them would be inventing a record.
+		 */
+		agreedAt: integer('agreed_at', { mode: 'timestamp' }),
+		agreedTermsVersion: text('agreed_terms_version'),
+
+		/**
+		 * The course we suggested, when it differs from the one they chose.
+		 *
+		 * Null when they took the suggestion, or when we had none. Only the
+		 * disagreement is worth storing — it is what training staff want flagged,
+		 * and DEV-114 asked for a wrong-looking choice to be surfaced rather than
+		 * blocked. The suggestion is inferred; the student may simply be right.
+		 */
+		suggestedCourse: text('suggested_course', { enum: COURSE_CODES }),
+
 		/** Null until the TRK issue exists. The reconcile pass selects on this. */
 		jiraIssueKey: text('jira_issue_key'),
 		jiraSyncedAt: integer('jira_synced_at', { mode: 'timestamp' }),

@@ -33,6 +33,11 @@ export type NewEnrollment = {
 	submittedRating?: string | null;
 	availability: string;
 	notificationPreference: NotificationPreference;
+	/** When they accepted the terms, and which wording they saw (DEV-119). */
+	agreedAt?: Date | null;
+	agreedTermsVersion?: string | null;
+	/** Only set when their choice differs from what we suggested. */
+	suggestedCourse?: CourseCode | null;
 };
 
 /**
@@ -98,6 +103,9 @@ export async function submitEnrollment(
 			notificationPreference: input.notificationPreference,
 			submittedName: input.submittedName,
 			submittedRating: input.submittedRating ?? null,
+			agreedAt: input.agreedAt ?? null,
+			agreedTermsVersion: input.agreedTermsVersion ?? null,
+			suggestedCourse: input.suggestedCourse ?? null,
 			createdAt: now,
 			updatedAt: now
 		})

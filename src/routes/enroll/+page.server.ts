@@ -1,7 +1,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getRosterMember } from '$lib/server/roster';
 import { getOpenEnrollment, submitEnrollment, withdrawEnrollment } from '$lib/server/enrollments';
+import { getHeldCredentials } from '$lib/server/certifications';
 import { validateEnrollment } from '$lib/enrollment';
+import { divergesFromSuggestion, resolvePlacement } from '$lib/course-placement';
+import { findCredential, highestCertification } from '$lib/certifications';
+import { TERMS_VERSION } from '$lib/content/enrollment';
 import { displayName, atcRating } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -27,7 +31,13 @@ async function requireHomeController(locals: App.Locals) {
 export const load: PageServerLoad = async ({ locals }) => {
 	const { session, rosterMember } = await requireHomeController(locals);
 
-	const enrollment = await getOpenEnrollment(locals.db, session.user.cid);
+	const [enrollment, held] = await Promise.all([
+		getOpenEnrollment(locals.db, session.user.cid),
+		getHeldCredentials(locals.db, session.user.cid)
+	]);
+
+	const heldCodes = held.map((row) => row.code);
+	const placement = resolvePlacement({ held: heldCodes });
 
 	return {
 		// Shown back to the student as "this is what we send on your behalf".
@@ -35,6 +45,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 			cid: session.user.cid,
 			name: displayName(session.user),
 			rating: rosterMember.ratingShort ?? atcRating(session.user) ?? null
+		},
+		/**
+		 * What we think they are due, and why.
+		 *
+		 * Suggest and confirm — the form still offers every course. We hold an
+		 * inferred picture of someone's training; the student and the staff hold
+		 * the real one.
+		 */
+		placement,
+		// Shown beside the suggestion so the student can see what it was based on.
+		credentials: {
+			certification: highestCertification(heldCodes)?.code ?? null,
+			endorsements: heldCodes.filter((code) => findCredential(code)?.kind === 'endorsement').sort()
 		},
 		// Deliberately excludes jiraIssueKey and jiraSyncError: whether the issue
 		// has been filed yet is our problem, not something to worry a student with.
@@ -76,18 +99,31 @@ export const actions: Actions = {
 			notificationPreference: data.get('notificationPreference') ?? undefined,
 			availability: data.get('availability') ?? undefined
 		};
+		const agreed = data.get('agreed') === 'on';
 
 		const validation = validateEnrollment(input);
-		if (!validation.ok) {
+
+		// Checked here rather than relying on the checkbox's `required`, for the
+		// same reason the rest of the form is: the browser attribute is a
+		// convenience and a POST can arrive without ever rendering the page.
+		if (!validation.ok || !agreed) {
 			return fail(400, {
-				errors: validation.errors,
+				errors: validation.ok ? {} : validation.errors,
+				agreedError: agreed ? undefined : 'Please confirm you have read what we ask of you.',
 				values: {
 					course: String(input.course ?? ''),
 					notificationPreference: String(input.notificationPreference ?? ''),
-					availability: String(input.availability ?? '')
+					availability: String(input.availability ?? ''),
+					agreed
 				}
 			});
 		}
+
+		// Recompute rather than trusting a hidden field — otherwise the flag that
+		// tells staff "this looks wrong" could be switched off by the person it is
+		// about.
+		const held = await getHeldCredentials(locals.db, session.user.cid);
+		const placement = resolvePlacement({ held: held.map((row) => row.code) });
 
 		await submitEnrollment(locals.db, platform?.env, {
 			cid: session.user.cid,
@@ -95,7 +131,12 @@ export const actions: Actions = {
 			submittedName: displayName(session.user),
 			submittedRating: rosterMember.ratingShort ?? atcRating(session.user) ?? null,
 			availability: validation.values.availability,
-			notificationPreference: validation.values.notificationPreference
+			notificationPreference: validation.values.notificationPreference,
+			agreedAt: new Date(),
+			agreedTermsVersion: TERMS_VERSION,
+			suggestedCourse: divergesFromSuggestion(placement, validation.values.course)
+				? placement.suggested
+				: null
 		});
 
 		// Redirect regardless of whether Jira accepted it: the request is recorded,

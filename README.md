@@ -9,17 +9,25 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 ## HTTP surface
 
-| Route            | Auth     | Purpose                                                    |
-| ---------------- | -------- | ---------------------------------------------------------- |
-| `GET /`          | public   | Sign-in CTA signed out; the DEV-112 flow signed in         |
-| `GET /enroll`    | required | Enrollment form, or the state of an open request           |
-| `POST /enroll`   | required | Submit an enrollment; `?/withdraw` withdraws an open one   |
-| `GET /stats`     | required | Waitlist numbers and expected wait (placeholder — DEV-111) |
-| `GET /dashboard` | required | The signed-in user's training overview                     |
+| Route                        | Auth     | Purpose                                                    |
+| ---------------------------- | -------- | ---------------------------------------------------------- |
+| `GET /`                      | public   | Sign-in CTA signed out; the DEV-112 flow signed in         |
+| `GET /enroll`                | required | Enrollment form, or the state of an open request           |
+| `POST /enroll`               | required | Submit an enrollment; `?/withdraw` withdraws an open one   |
+| `GET /stats`                 | required | Waitlist numbers and expected wait (placeholder — DEV-111) |
+| `GET /dashboard`             | required | The signed-in user's training overview                     |
+| `GET /certifications`        | staff    | Search the roster by CID or name                           |
+| `GET /certifications/{cid}`  | staff    | One controller's credentials and their full history        |
+| `POST /certifications/{cid}` | staff    | `?/setCertification`, `?/toggleEndorsement`                |
 
-`/enroll` additionally requires **home** roster membership, enforced in both the
-load and the actions — `hooks.server.ts` only checks for a session, and a form
-action runs before any load.
+`/enroll` additionally requires **home** roster membership, and `/certifications`
+requires `training:certifications:edit`. Both are enforced in the load **and** in
+every action — `hooks.server.ts` only checks for a session, and a form action
+runs before any load.
+
+**Nothing grants `training:certifications:edit` yet**, so `/certifications` is
+unreachable until identity implements and assigns the role. That is a release
+task, not a bug.
 
 `/` is the **only** public path, and only so it can render the sign-in CTA.
 
@@ -38,14 +46,18 @@ controllers, so rating-first would misroute people already training with us.
 
 ## Scheduled work
 
-| Trigger        | Does                                                                |
-| -------------- | ------------------------------------------------------------------- |
-| `*/15 * * * *` | Refreshes the VATUSA roster mirror (`src/worker.ts` → `syncRoster`) |
-| `*/15 * * * *` | Files enrollments that never reached Jira (`reconcileEnrollments`)  |
+| Trigger        | Does                                                                      |
+| -------------- | ------------------------------------------------------------------------- |
+| `*/15 * * * *` | Refreshes the VATUSA roster mirror (`src/worker.ts` → `syncRoster`)       |
+| `*/15 * * * *` | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`) |
+| `*/15 * * * *` | Files enrollments that never reached Jira (`reconcileEnrollments`)        |
 
-Both run on the same schedule but are guarded separately: VATUSA being down must
-not stop enrollments reaching the staff board, and Jira being down must not stop
-the roster refreshing.
+All three run on the same schedule but are guarded separately: VATUSA being down
+must not stop enrollments reaching the staff board, Jira being down must not stop
+the roster refreshing, and VATSIM being down must not stop either.
+
+Order matters once — the certification pass reads roster rows the sync has just
+written, so a brand-new arrival is certified in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
@@ -93,18 +105,25 @@ src/
 ├── app.d.ts                   App.Locals / App.Platform (IDENTITY is optional here on purpose)
 ├── lib/
 │   ├── config.ts              facility id, VATSIM rating thresholds
+│   ├── certifications.ts      credential catalogue + the GCAP rating table (client-safe)
+│   ├── certification-grant.ts pure arrival-grant logic (DEV-115)
+│   ├── content/               site copy as markdown, compiled at build time (DEV-119)
+│   ├── course-placement.ts    pure "which course is next" logic (DEV-119)
 │   ├── courses.ts             the six courses + their Jira option ids (client-safe)
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
 │   ├── training-flow.ts       pure roster+rating → branch logic (DEV-112)
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            Panel, Badge, PageHero, Logo, ActionButton, header/
-│   ├── db/schema/             drizzle tables (roster_members, enrollments)
+│   ├── db/schema/             drizzle tables (roster_members, enrollments, certifications)
 │   ├── types/vatusa.ts        VATUSA API shapes
+│   ├── types/vatsim.ts        VATSIM v2 API shapes
 │   ├── server/
 │   │   ├── identity.ts        reads fic_session, calls the IDENTITY binding
 │   │   ├── vatusa.ts          VATUSA roster fetch (no API key needed)
-│   │   ├── roster/            roster lookup + the reconciling sync
+│   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
+│   │   ├── roster/            roster lookup, search, and the reconciling sync
+│   │   ├── certifications/    grant/revoke, and the arrival pass
 │   │   ├── enrollments/       submit, withdraw, and the Jira reconcile pass
 │   │   ├── jira/              Jira client, field ids, issue payload builder
 │   │   └── db/                drizzle client factory
@@ -129,6 +148,43 @@ history. See [`.ai/decisions/0006-training-tools-owns-the-roster.md`](.ai/decisi
 members than that, so never write `IN (...)` over the full CID list. The sync
 documents the patterns that avoid it.
 
+### Certifications and endorsements
+
+**This app is the certification system of record for the ARTCC.** Both kinds live
+in one `certifications` table, separated by `kind`, keyed on `cid` with no
+foreign key onto `roster_members`.
+
+`$lib/certifications.ts` is the catalogue — the vocabulary, the top-down `rank`,
+the prerequisites (`requires`) and the GCAP rating table — as **data rather than
+branches**, so changing what the ARTCC issues is a config edit.
+
+Note two things that bite if you assume otherwise:
+
+- **S-LC is an endorsement, not a certification.** That is why the top-down
+  "hold one certification" rule needs no exception, and why S-LC renders beside
+  the ground certification for free.
+- **`rank` is the ladder; there is no `tier` field.** Tier 1 / Tier 2 are GCAP's
+  terms for classifying endorsements, so the word is left to mean that.
+
+**Rows are never deleted and there is no expiry column.** A credential is held
+while `revokedAt` is null and is history once it is set, so the grant/revoke
+columns are the audit trail. community-website expires certifications instead
+and bumps them each sync — a difference DEV-116's cutover has to reconcile.
+
+A **partial unique index** on `(cid, code) WHERE revoked_at IS NULL` is what
+stops a member who leaves and returns being granted a duplicate.
+
+Arrivals are granted automatically each cron run from their VATSIM rating, but
+only if they have controlled in the last six months — read from VATSIM API v2,
+which needs no API key. SUP and ADM are not controller ratings, so their earned
+rating is inferred from logged hours and always flagged for a TA. See
+[`.ai/decisions/0010-certifications-model.md`](.ai/decisions/0010-certifications-model.md)
+and [`.ai/research/vatsim-api.md`](.ai/research/vatsim-api.md).
+
+All grants and revocations go through `grantCredential` / `revokeCredential` in
+`$lib/server/certifications/` — the arrival job, the import and the staff edit
+page all call them, so there is one place to hook notifications onto later.
+
 ### Enrollments
 
 **This app owns the enrollment record; Jira owns the queue.** Submitting the
@@ -147,7 +203,35 @@ the reasoning is in
 [`.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md`](.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md).
 
 One open enrollment per CID — you train one course at a time. Students can
-withdraw, which comments on the Jira issue rather than transitioning it.
+withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
+— kept distinct from `Removed`, which is what staff do.
+
+**The form suggests a course; it never restricts one** (DEV-119). The suggestion
+comes from the certifications this app holds, walking the `rank` ladder and each
+credential's `requires` — so an advanced-ground controller is sent to S-LC before
+A-LC, because A-LC requires it. If the student picks something else, the
+suggestion is stored and a note is added to the Jira issue for staff to confirm
+placement. It is recomputed server-side on submit rather than read from the
+form, so the flag cannot be switched off by the person it is about.
+
+The student must accept the terms in `agreement.md` to submit. The enrollment
+records **when** and **which version** (`agreedAt`, `agreedTermsVersion`), since
+the wording will change and an acceptance date alone cannot say what was agreed.
+
+### Site copy
+
+General prose — what happens after you enroll, the written exam, the agreement —
+is markdown under `src/lib/content/`, compiled to HTML **at build time** by a
+small plugin in `vite.config.ts`. `marked` stays a devDependency and never ships;
+HTML comments in `.md` files are stripped, so they are safe for notes to editors.
+
+**Course content does not live here.** This repo is public, and lesson plans,
+grade sheets and exam material are neither for the public web nor something the
+training team should need a public PR to change. See
+[`.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md`](.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md).
+
+When you change `agreement.md` in a way that alters what a student agrees to,
+**bump `TERMS_VERSION`** in `src/lib/content/enrollment/index.ts`.
 
 ## Local development
 
@@ -216,6 +300,18 @@ npm run db:migrate:local   # applies to local state
 
 CI applies `--remote` before every deploy. To reset local state:
 `rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local`.
+
+**Hand-written data migrations collide with drizzle's numbering.** drizzle-kit
+numbers new files from its own `meta/_journal.json` and does not see SQL it did
+not generate, so after `0003_import_community_website_certifications.sql` it
+produced a second `0003`. Two files sharing a prefix apply in alphabetical order,
+which is luck rather than design.
+
+When you add a data migration by hand, then generate the next schema migration:
+rename drizzle's file past yours, rename its `meta/NNNN_snapshot.json` to match,
+and set that journal entry's `idx` and `tag` to the new number. drizzle then
+counts on from there. Only safe for a migration not yet applied anywhere — check
+`d1_migrations` first.
 
 To populate a local roster, run the cron by hand:
 

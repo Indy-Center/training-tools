@@ -4,14 +4,22 @@
 	import Panel from '$lib/components/Panel.svelte';
 	import Badge from '$lib/components/Badge.svelte';
 	import { COURSES, findCourse } from '$lib/courses';
+	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconClock from '~icons/mdi/clock-outline';
 	import IconBell from '~icons/mdi/bell-outline';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconAlert from '~icons/mdi/alert-circle';
+	import IconInformation from '~icons/mdi/information-outline';
+	import IconHandshake from '~icons/mdi/handshake-outline';
 
 	let { data, form } = $props();
+
+	// `||`, not `??`: a failed submission with no course picked comes back as an
+	// empty string, and falling back to the suggestion is kinder than showing
+	// nothing selected.
+	let selectedCourse = $derived(form?.values?.course || data.placement.suggested);
 
 	let submitting = $state(false);
 
@@ -144,6 +152,16 @@
 				}}
 				class="space-y-6"
 			>
+				<!-- DEV-119: read before choosing a course, not after. The agreement stays
+				     last, right before submit. {@html} is safe here because the HTML is
+				     compiled at build time from markdown in this repo — see vite.config.ts. -->
+				<Panel title="Before you enroll" icon={IconInformation}>
+					<div class="prose prose-sm max-w-none px-4 py-5 prose-invert prose-a:text-sky-400">
+						{@html ENROLLMENT_COPY.whatHappensNext}
+						{@html ENROLLMENT_COPY.writtenExam}
+					</div>
+				</Panel>
+
 				<Panel title="Your details" icon={IconAccount}>
 					<div class="px-4 py-5">
 						<p class="text-sm text-gray-400">
@@ -168,10 +186,34 @@
 
 				<Panel title="Course of training" icon={IconClipboard}>
 					<div class="px-4 py-5">
-						<p class="text-sm text-gray-400">
-							Pick the course you believe you're ready for. Training staff confirm placement, so
-							don't worry about getting it exactly right.
-						</p>
+						{#if data.credentials.certification || data.credentials.endorsements.length > 0}
+							<!-- The basis for the suggestion below. Without it, "we selected X"
+							     asks the student to trust a conclusion they can't check. -->
+							<div class="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-400">
+								<span>You currently hold</span>
+								{#if data.credentials.certification}
+									<Badge size="sm" color="sky" label={data.credentials.certification} />
+								{/if}
+								{#each data.credentials.endorsements as endorsement (endorsement)}
+									<Badge size="sm" color="purple" label={endorsement} />
+								{/each}
+							</div>
+						{/if}
+
+						{#if data.placement.suggested}
+							<div
+								class="flex items-start gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200"
+							>
+								<IconInformation class="mt-0.5 h-5 w-5 shrink-0" />
+								<span>
+									{data.placement.reason} We've selected it for you — pick something else if you think
+									it's wrong, and training staff will confirm.
+								</span>
+							</div>
+						{:else}
+							<!-- No suggestion is an honest answer, not an error: say why. -->
+							<p class="text-sm text-gray-400">{data.placement.reason}</p>
+						{/if}
 
 						{#if form?.errors?.course}
 							<p class="mt-3 text-sm text-red-400">{form.errors.course}</p>
@@ -186,12 +228,17 @@
 										type="radio"
 										name="course"
 										value={course.code}
-										checked={form?.values?.course === course.code}
+										checked={selectedCourse === course.code}
 										required
 										class="mt-1 border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
 									/>
 									<span class="min-w-0">
-										<span class="block text-sm font-medium text-white">{course.label}</span>
+										<span class="flex flex-wrap items-center gap-2 text-sm font-medium text-white">
+											{course.label}
+											{#if course.code === data.placement.suggested}
+												<Badge size="sm" color="sky" label="Suggested" />
+											{/if}
+										</span>
 										<span class="mt-0.5 block text-sm text-gray-400">{course.description}</span>
 									</span>
 								</label>
@@ -247,6 +294,35 @@
 								</label>
 							{/each}
 						</div>
+					</div>
+				</Panel>
+
+				<!-- Last before submit, so what they are agreeing to is what they just
+				     read. The version they saw is recorded on the enrollment. -->
+				<Panel title="Our agreement" icon={IconHandshake}>
+					<div class="px-4 py-5">
+						<div class="prose prose-sm max-w-none prose-invert prose-a:text-sky-400">
+							{@html ENROLLMENT_COPY.agreement}
+						</div>
+
+						{#if form?.agreedError}
+							<p class="mt-4 text-sm text-red-400">{form.agreedError}</p>
+						{/if}
+
+						<label
+							class="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-700/60 px-4 py-3 transition-colors duration-200 hover:bg-white/5 has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
+						>
+							<input
+								type="checkbox"
+								name="agreed"
+								checked={form?.values?.agreed ?? false}
+								required
+								class="mt-0.5 rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
+							/>
+							<span class="text-sm text-white">
+								I've read what's asked of me and what I can expect.
+							</span>
+						</label>
 					</div>
 				</Panel>
 

@@ -125,3 +125,40 @@ describe('toJiraDate', () => {
 		expect(toJiraDate(new Date('2026-01-05T23:59:59.000Z'))).toBe('2026-01-05');
 	});
 });
+
+describe('placement note (DEV-119)', () => {
+	function descriptionText(payload: ReturnType<typeof buildEnrollmentIssuePayload>) {
+		const doc = payload.fields.description as {
+			content: { content: { text: string }[] }[];
+		};
+		return doc.content.map((p) => p.content[0].text).join('\n');
+	}
+
+	// A choice that disagrees with the suggestion is flagged for whoever picks the
+	// request up, not blocked — the suggestion is inferred and may be wrong.
+	it('notes when the student chose differently from our suggestion', () => {
+		const text = descriptionText(
+			buildEnrollmentIssuePayload(
+				'TRK',
+				{ ...enrollment, course: 'E-RC', suggestedCourse: 'S-GC' },
+				now
+			)
+		);
+
+		expect(text).toContain('Simple Ground Control (S-GC)');
+		expect(text).toContain('Enroute Radar Control (E-RC)');
+		expect(text).toMatch(/confirming placement/);
+	});
+
+	it('says nothing when there was no disagreement', () => {
+		const text = descriptionText(buildEnrollmentIssuePayload('TRK', enrollment, now));
+		expect(text).not.toMatch(/suggested/);
+	});
+
+	it('says nothing when the suggestion matches the choice', () => {
+		const text = descriptionText(
+			buildEnrollmentIssuePayload('TRK', { ...enrollment, suggestedCourse: 'S-GC' }, now)
+		);
+		expect(text).not.toMatch(/suggested/);
+	});
+});
