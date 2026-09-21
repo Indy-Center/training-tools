@@ -13,6 +13,14 @@ export type RosterSyncResult = {
 	added: number;
 	restored: number;
 	removed: number;
+	/**
+	 * Who changed, not just how many. The arrival-certification job (DEV-115)
+	 * runs off these, so it can look at the handful of people who actually
+	 * arrived instead of re-scanning the facility.
+	 */
+	addedCids: string[];
+	restoredCids: string[];
+	removedCids: string[];
 };
 
 /** VATUSA sends "home" | "visit"; anything unexpected is treated as visiting. */
@@ -77,8 +85,11 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 		.from(rosterMembersTable);
 
 	const previousRemovedAt = new Map(existing.map((row) => [row.cid, row.removedAt]));
-	const added = rows.filter((row) => !previousRemovedAt.has(row.cid)).length;
-	const restored = rows.filter((row) => previousRemovedAt.get(row.cid) != null).length;
+	const addedCids = rows.filter((row) => !previousRemovedAt.has(row.cid)).map((row) => row.cid);
+	const restoredCids = rows
+		.filter((row) => previousRemovedAt.get(row.cid) != null)
+		.map((row) => row.cid);
+	const restoredCidSet = new Set(restoredCids);
 
 	for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 		const statements = rows.slice(i, i + CHUNK_SIZE).map((row) =>
@@ -102,7 +113,13 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 						lastActivityAt: row.lastActivityAt,
 						data: row.data,
 						syncedAt: row.syncedAt,
-						removedAt: null
+						removedAt: null,
+						// Someone coming back gets looked at again: they may have earned a
+						// rating elsewhere, or gone long enough without controlling that the
+						// answer has changed. Everyone else keeps their stamp, which is why
+						// it is absent from this clause for them — a roster refresh must not
+						// queue the whole facility for re-checking.
+						...(restoredCidSet.has(row.cid) ? { certificationsCheckedAt: null } : {})
 					}
 				})
 		);
@@ -122,8 +139,11 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 
 	return {
 		fetched: members.length,
-		added,
-		restored,
-		removed: removedRows.length
+		added: addedCids.length,
+		restored: restoredCids.length,
+		removed: removedRows.length,
+		addedCids,
+		restoredCids,
+		removedCids: removedRows.map((row) => row.cid)
 	};
 }

@@ -53,7 +53,21 @@ export const rosterMembersTable = sqliteTable(
 			.notNull()
 			.default(sql`(unixepoch())`),
 		/** Non-null once VATUSA stops listing them. Active queries filter this. */
-		removedAt: integer('removed_at', { mode: 'timestamp' })
+		removedAt: integer('removed_at', { mode: 'timestamp' }),
+
+		/**
+		 * When the arrival-certification job last looked at this member.
+		 *
+		 * Ours, not VATUSA's, so the sync upsert deliberately leaves it out of its
+		 * `set` clause — a roster refresh must not clear it. Without it, every
+		 * member who legitimately qualifies for nothing gets re-checked against the
+		 * VATSIM API every 15 minutes forever.
+		 *
+		 * This is bookkeeping *about* the mirror rather than training data, so it
+		 * does not breach the rule above; losing it to a mirror rebuild costs a
+		 * burst of re-checks and nothing else, because the grant is idempotent.
+		 */
+		certificationsCheckedAt: integer('certifications_checked_at', { mode: 'timestamp' })
 	},
 	(table) => [
 		index('roster_members_removed_at_idx').on(table.removedAt),
