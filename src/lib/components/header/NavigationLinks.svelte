@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { User } from '@indy-center/identity';
 	import { page } from '$app/state';
-	import { isInstructor, isTrainingAdmin } from '$lib/utils/permissions';
+	import { canEditCertifications, isInstructor, isTrainingAdmin } from '$lib/utils/permissions';
 	import IconHome from '~icons/mdi/home';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconChartBar from '~icons/mdi/chart-bar';
 	import IconSchool from '~icons/mdi/school';
+	import IconCertificate from '~icons/mdi/certificate';
 	import IconCog from '~icons/mdi/cog';
 
 	let {
@@ -43,6 +44,15 @@
 						label: 'My Training',
 						href: '/dashboard',
 						icon: IconSchool
+					}
+				]
+			: []),
+		...(user && canEditCertifications(roles)
+			? [
+					{
+						label: 'Certifications',
+						href: '/certifications',
+						icon: IconCertificate
 					}
 				]
 			: []),

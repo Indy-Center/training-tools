@@ -45,6 +45,30 @@ export async function getHeldCredentials(db: Database, cid: string): Promise<Cer
 		.where(and(eq(certificationsTable.cid, cid), isNull(certificationsTable.revokedAt)));
 }
 
+/**
+ * Every live credential, grouped by CID.
+ *
+ * For rendering a list of controllers. Reads the whole (small) table and groups
+ * in memory rather than filtering by the CIDs on screen — same reasoning as the
+ * roster sync: an `IN (...)` over a page of results creeps towards **D1's
+ * 100-bound-parameter limit**, and this binds none.
+ */
+export async function getLiveCredentialsByCid(db: Database): Promise<Map<string, string[]>> {
+	const rows = await db
+		.select({ cid: certificationsTable.cid, code: certificationsTable.code })
+		.from(certificationsTable)
+		.where(isNull(certificationsTable.revokedAt));
+
+	const byCid = new Map<string, string[]>();
+	for (const row of rows) {
+		const codes = byCid.get(row.cid);
+		if (codes) codes.push(row.code);
+		else byCid.set(row.cid, [row.code]);
+	}
+
+	return byCid;
+}
+
 /** Everything ever granted to one controller, revoked rows included. */
 export async function getCredentialHistory(db: Database, cid: string): Promise<Certification[]> {
 	return db.select().from(certificationsTable).where(eq(certificationsTable.cid, cid));
