@@ -80,8 +80,8 @@ export function resolvePlacement(input: PlacementInput): Placement {
 		return {
 			suggested: null,
 			reason: current
-				? `You already hold ${current.code}, our highest certification. Training staff will advise on anything further.`
-				: 'We could not work out which course you are due. Training staff will confirm your placement.'
+				? `You already hold ${current.code}, our highest certification. Contact the training staff to request adhock training.`
+				: 'Training staff will confirm your placement.'
 		};
 	}
 
@@ -105,7 +105,7 @@ export function resolvePlacement(input: PlacementInput): Placement {
 
 	return {
 		suggested: next.courseCode,
-		reason: `You hold ${current.code}, so ${next.name} is next.`
+		reason: `You hold ${current.code}, ${next.name} is next.`
 	};
 }
 
