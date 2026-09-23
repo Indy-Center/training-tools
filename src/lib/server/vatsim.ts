@@ -3,6 +3,9 @@ import type { VatsimAtcResponse, VatsimMemberStats } from '$lib/types/vatsim';
 
 const VATSIM_API_BASE_URL = 'https://api.vatsim.net/v2';
 
+/** A timed-out stats lookup returns null, the same as any other failure. */
+const STATS_TIMEOUT_MS = 5000;
+
 /**
  * VATSIM's public member API.
  *
@@ -52,14 +55,16 @@ export async function fetchLastAtcSessionEnd(cid: string): Promise<Date | null |
 /**
  * Cumulative ATC hours per rating tier.
  *
- * Only worth fetching for SUP and ADM, where the visible rating does not say
- * what the member earned as a controller.
+ * The arrival job fetches it for SUP and ADM, where the visible rating does not
+ * say what the member earned as a controller. The home page and `/enroll` fetch
+ * it for the consolidation check, which is why it has a timeout: a slow VATSIM
+ * must not hang a page render.
  */
 export async function fetchAtcHoursByRating(cid: string): Promise<AtcHoursByRating | null> {
 	const url = `${VATSIM_API_BASE_URL}/members/${cid}/stats`;
 
 	try {
-		const response = await fetch(url);
+		const response = await fetch(url, { signal: AbortSignal.timeout(STATS_TIMEOUT_MS) });
 		if (!response.ok) return null;
 
 		const body = (await response.json()) as VatsimMemberStats;

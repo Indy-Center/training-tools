@@ -5,6 +5,7 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import { COURSES, findCourse } from '$lib/courses';
 	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
+	import { STATUS_COLORS, STATUS_LABELS, statusDetail } from '$lib/enrollment-status';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconClock from '~icons/mdi/clock-outline';
@@ -23,40 +24,7 @@
 
 	let submitting = $state(false);
 
-	// Mirrors the TRK workflow, which a student sees in their own terms.
-	const STATUS_LABELS: Record<string, string> = {
-		waitlist: 'On the waitlist',
-		'in-training': 'In training',
-		'rating-exam': 'Rating exam',
-		'certification-update': 'Updating your certificate',
-		completed: 'Completed',
-		removed: 'Removed from the waitlist',
-		withdrawn: 'Withdrawn'
-	};
-
-	const STATUS_COLORS: Record<string, 'yellow' | 'sky' | 'green' | 'gray'> = {
-		waitlist: 'yellow',
-		'in-training': 'sky',
-		'rating-exam': 'sky',
-		'certification-update': 'sky',
-		completed: 'green',
-		removed: 'gray',
-		withdrawn: 'gray'
-	};
-
-	const STATUS_DETAIL: Record<string, string> = {
-		waitlist: '',
-		'in-training': 'You have a mentor assigned. They will arrange sessions with you directly.',
-		'rating-exam': 'Your training is done and your rating exam is being arranged. An Instructor will contact you to schedule.',
-		'certification-update': 'You passed — your certificate is being updated and reviewed. Complete your consolidation hours as required by the Training Policy.',
-		completed: 'Complete the consolidation hours and enroll in the next course.',
-		'completed-c1': 'Great work! You are fully qualified. Check out some other optional courses.',
-		removed: 'Your enrolment was cancled. Contact the training staff.'
-	};
-
-	let statusDetail = $derived(
-		STATUS_DETAIL[data.enrollment?.status ?? ''] ?? 'Training staff will reach out with next steps.'
-	);
+	let detail = $derived(statusDetail(data.enrollment?.status));
 
 	let openCourse = $derived(data.enrollment ? findCourse(data.enrollment.course) : undefined);
 
@@ -93,7 +61,7 @@
 					</div>
 
 					<p>
-						Submitted {dateFormat.format(new Date(data.enrollment.createdAt))}. {statusDetail}
+						Submitted {dateFormat.format(new Date(data.enrollment.createdAt))}. {detail}
 					</p>
 
 					{#if data.enrollment.availability}
@@ -107,7 +75,8 @@
 
 					<div class="border-t border-slate-700/60 pt-4">
 						<p class="text-gray-400">
-							Not quite ready? Withdrawing lets someone else take your place in line. You can submit a new request any time.
+							Not quite ready? Withdrawing lets someone else take your place in line. You can submit
+							a new request any time.
 						</p>
 						<form
 							method="POST"

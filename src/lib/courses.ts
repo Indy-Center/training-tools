@@ -37,7 +37,8 @@ export const COURSES = [
 		name: 'Simple Ground Control',
 		label: 'Simple Ground Control (S-GC)',
 		jiraOptionId: '10088',
-		description: 'Clearance delivery at all airports and ground control at our designated simple fields.'
+		description:
+			'Clearance delivery at all airports and ground control at our designated simple fields.'
 	},
 	{
 		code: 'A-GC',

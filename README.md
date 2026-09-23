@@ -9,21 +9,24 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 ## HTTP surface
 
-| Route                        | Auth     | Purpose                                                    |
-| ---------------------------- | -------- | ---------------------------------------------------------- |
-| `GET /`                      | public   | Sign-in CTA signed out; the DEV-112 flow signed in         |
-| `GET /enroll`                | required | Enrollment form, or the state of an open request           |
-| `POST /enroll`               | required | Submit an enrollment; `?/withdraw` withdraws an open one   |
-| `GET /stats`                 | required | Waitlist numbers and expected wait (placeholder — DEV-111) |
-| `GET /dashboard`             | required | The signed-in user's training overview                     |
-| `GET /certifications`        | staff    | Search the roster by CID or name                           |
-| `GET /certifications/{cid}`  | staff    | One controller's credentials and their full history        |
-| `POST /certifications/{cid}` | staff    | `?/setCertification`, `?/toggleEndorsement`                |
+| Route                        | Auth     | Purpose                                                     |
+| ---------------------------- | -------- | ----------------------------------------------------------- |
+| `GET /`                      | public   | Sign-in CTA signed out; the DEV-112 flow signed in          |
+| `GET /enroll`                | required | Enrollment form, or the state of an open request            |
+| `POST /enroll`               | required | Submit an enrollment; `?/withdraw` withdraws an open one    |
+| `GET /enroll/tier-2`         | required | The self-led Tier 2 course, for anyone with E-RC but not T2 |
+| `GET /stats`                 | required | Waitlist numbers and expected wait (placeholder — DEV-111)  |
+| `GET /dashboard`             | required | The signed-in user's training overview                      |
+| `GET /certifications`        | staff    | Search the roster by CID or name                            |
+| `GET /certifications/{cid}`  | staff    | One controller's credentials and their full history         |
+| `POST /certifications/{cid}` | staff    | `?/setCertification`, `?/toggleEndorsement`                 |
 
-`/enroll` additionally requires **home** roster membership, and `/certifications`
-requires `training:certifications:edit`. Both are enforced in the load **and** in
-every action — `hooks.server.ts` only checks for a session, and a form action
-runs before any load.
+`/enroll` and `/enroll/tier-2` are open only to members the home page sends
+there — both gate on `loadTrainingContext()`, the same call `/` renders from.
+`/certifications` requires `training:certifications:edit`. These are enforced in
+the load **and** in every action that needs it — `hooks.server.ts` only checks
+for a session, and a form action runs before any load. `?/withdraw` is only
+scoped to the caller's own request.
 
 **Nothing grants `training:certifications:edit` yet**, so `/certifications` is
 unreachable until identity implements and assigns the role. That is a release
@@ -31,18 +34,32 @@ task, not a bug.
 
 `/` is the **only** public path, and only so it can render the sign-in CTA.
 
-Signed in, `/` sorts the member into one of four branches based on the roster
-mirror and their rating:
+Signed in, `/` sorts the member into one of six branches based on the roster
+mirror, their rating, and — for home controllers — their consolidation hours:
 
-| Branch                   | Who                                        |
-| ------------------------ | ------------------------------------------ |
-| Enrollment entry point   | on the ZID roster as a **home** controller |
-| Visiting-controller copy | on the roster as a **visiting** controller |
-| Transfer-or-visit copy   | not rostered, holds S1+                    |
-| Become-a-controller copy | not rostered, OBS or unrated               |
+| Branch                   | Who                                                             |
+| ------------------------ | --------------------------------------------------------------- |
+| Enrollment entry point   | **home** controller who has consolidated; or their open request |
+| Consolidation progress   | **home** controller short of the hours at their current rating  |
+| Tier 2 course            | home **or** visiting, holds E-RC but not `T2-CTR`               |
+| Visiting-controller copy | any other **visiting** controller                               |
+| Transfer-or-visit copy   | not rostered, holds S1+                                         |
+| Become-a-controller copy | not rostered, OBS or unrated                                    |
 
 Roster membership is checked **before** rating — the roster contains OBS
 controllers, so rating-first would misroute people already training with us.
+
+Consolidation is hours logged at the member's **current** rating, from VATSIM's
+public stats endpoint, against `CONSOLIDATION_HOURS` in `src/lib/config.ts`. A
+rating not listed there has no requirement. If VATSIM cannot be reached the
+member is held back rather than let through.
+
+With a request open, the home page shows where it is: waitlist position for
+`waitlist`, the course's Moodle link (`MOODLE_COURSE_URLS`) for `in-training`,
+and a wait instruction for `rating-exam` and `certification-update`. **Until
+DEV-111 syncs statuses back from Jira, D1 only ever holds `waitlist`**, so the
+position overcounts and the other branches do not show yet. See
+[0012](.ai/decisions/0012-enrollment-eligibility.md).
 
 ## Scheduled work
 
@@ -109,7 +126,7 @@ src/
 ├── hooks.server.ts            db client + session load + the route gate
 ├── app.d.ts                   App.Locals / App.Platform (IDENTITY is optional here on purpose)
 ├── lib/
-│   ├── config.ts              facility id, VATSIM rating thresholds
+│   ├── config.ts              facility id, rating thresholds, consolidation hours
 │   ├── certifications.ts      credential catalogue + the GCAP rating table (client-safe)
 │   ├── certification-grant.ts pure arrival-grant logic (DEV-115)
 │   ├── content/               site copy as markdown, compiled at build time (DEV-119)
@@ -118,6 +135,8 @@ src/
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
 │   ├── training-flow.ts       pure roster+rating → branch logic (DEV-112)
+│   ├── enrollment-status.ts   status labels and next-step copy, shared by / and /enroll
+│   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            Panel, Badge, PageHero, Logo, ActionButton, header/
 │   ├── db/schema/             drizzle tables (roster_members, enrollments, certifications)
@@ -129,7 +148,8 @@ src/
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
 │   │   ├── roster/            roster lookup, search, and the reconciling sync
 │   │   ├── certifications/    grant/revoke, and the arrival pass
-│   │   ├── enrollments/       submit, withdraw, and the Jira reconcile pass
+│   │   ├── enrollments/       submit, withdraw, waitlist position, and the Jira reconcile pass
+│   │   ├── training-flow.ts   loadTrainingContext(): the one gate for /, /enroll, /enroll/tier-2
 │   │   ├── jira/              Jira client, field ids, issue payload builder
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary

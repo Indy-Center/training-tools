@@ -64,3 +64,7 @@ advertising them just bounces people through a login round trip.
 Whether visiting controllers should eventually be able to enroll for ZID
 certifications. Today they get copy pointing at a transfer. If that changes, it
 is a copy change plus one branch in `resolveTrainingFlow`.
+
+> Partly decided since: visiting C1+ controllers without Tier 2 are pointed at
+> the self-led Tier 2 course, and home controllers must consolidate before
+> enrolling. See [0012](0012-enrollment-eligibility.md).

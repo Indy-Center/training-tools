@@ -1,7 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { getRosterMember } from '$lib/server/roster';
-import { getOpenEnrollment, submitEnrollment, withdrawEnrollment } from '$lib/server/enrollments';
-import { getHeldCredentials } from '$lib/server/certifications';
+import { submitEnrollment, withdrawEnrollment } from '$lib/server/enrollments';
+import { loadTrainingContext } from '$lib/server/training-flow';
 import { validateEnrollment } from '$lib/enrollment';
 import { divergesFromSuggestion, resolvePlacement } from '$lib/course-placement';
 import { findCredential, highestCertification } from '$lib/certifications';
@@ -10,33 +9,28 @@ import { displayName, atcRating } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * Enrollment is for rostered home controllers.
+ * `/enroll` is open to exactly the members the home page shows the enroll
+ * branch to: `resolveTrainingFlow()` decides for both, via
+ * `loadTrainingContext()`. That is a home controller with a request open, or
+ * one who has consolidated and is not due Tier 2 instead.
  *
- * The home page already hides the link for everyone else, but that is
- * presentation — `/enroll` is only auth-gated by `hooks.server.ts`, so without
- * this check any signed-in user could reach the form directly. Both the load
- * and the actions enforce it, because a form action runs before any load.
+ * The home page hiding the link is presentation — `/enroll` is only auth-gated
+ * by `hooks.server.ts`, so without this any signed-in user could reach the form
+ * directly. The load and the `enroll` action both check, because a form action
+ * runs before any load.
  */
-async function requireHomeController(locals: App.Locals) {
-	const session = locals.session!;
-	const rosterMember = await getRosterMember(locals.db, session.user.cid);
-
-	if (rosterMember?.membership !== 'home') {
-		redirect(303, '/');
-	}
-
-	return { session, rosterMember };
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
-	const { session, rosterMember } = await requireHomeController(locals);
+	const session = locals.session!;
+	const {
+		flow,
+		rosterMember,
+		openEnrollment: enrollment,
+		held: heldCodes
+	} = await loadTrainingContext(locals.db, session);
 
-	const [enrollment, held] = await Promise.all([
-		getOpenEnrollment(locals.db, session.user.cid),
-		getHeldCredentials(locals.db, session.user.cid)
-	]);
+	// `/` explains why, whichever branch it is.
+	if (flow !== 'enroll' || !rosterMember) redirect(303, '/');
 
-	const heldCodes = held.map((row) => row.code);
 	const placement = resolvePlacement({ held: heldCodes });
 
 	return {
@@ -82,16 +76,29 @@ export const load: PageServerLoad = async ({ locals }) => {
  */
 export const actions: Actions = {
 	enroll: async ({ locals, request, platform }) => {
-		const { session, rosterMember } = await requireHomeController(locals);
+		const session = locals.session!;
+		const { flow, rosterMember, openEnrollment, held, consolidation } = await loadTrainingContext(
+			locals.db,
+			session
+		);
 
 		// One course at a time. Guards against a double submit and against a second
 		// tab that was opened before the first request landed.
-		const existing = await getOpenEnrollment(locals.db, session.user.cid);
-		if (existing) {
+		if (openEnrollment) {
 			return fail(409, {
 				formError: 'You already have an open training request.'
 			});
 		}
+
+		if (consolidation?.status === 'unknown') {
+			return fail(503, {
+				formError:
+					"We couldn't check your controlling hours with VATSIM. Please try again in a few minutes."
+			});
+		}
+
+		// Anyone else outside the enroll branch has nothing to submit here.
+		if (flow !== 'enroll' || !rosterMember) redirect(303, '/');
 
 		const data = await request.formData();
 		const input = {
@@ -122,8 +129,7 @@ export const actions: Actions = {
 		// Recompute rather than trusting a hidden field — otherwise the flag that
 		// tells staff "this looks wrong" could be switched off by the person it is
 		// about.
-		const held = await getHeldCredentials(locals.db, session.user.cid);
-		const placement = resolvePlacement({ held: held.map((row) => row.code) });
+		const placement = resolvePlacement({ held });
 
 		await submitEnrollment(locals.db, platform?.env, {
 			cid: session.user.cid,
@@ -145,8 +151,13 @@ export const actions: Actions = {
 		redirect(303, '/enroll');
 	},
 
+	/**
+	 * Deliberately not gated on the training flow. Withdrawing only ever touches
+	 * the caller's own request (scoped by CID below), so there is nothing to
+	 * protect — and giving a place back must never wait on a VATSIM lookup.
+	 */
 	withdraw: async ({ locals, request, platform }) => {
-		const { session } = await requireHomeController(locals);
+		const session = locals.session!;
 
 		const data = await request.formData();
 		const id = data.get('id');

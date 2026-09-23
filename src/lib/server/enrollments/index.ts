@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, notInArray } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	CLOSED_ENROLLMENT_STATUSES,
@@ -62,6 +62,43 @@ export async function getOpenEnrollment(db: Database, cid: string): Promise<Enro
 	});
 
 	return enrollment ?? null;
+}
+
+export type WaitlistPosition = {
+	/** Requests for the same course submitted before this one and still waiting. */
+	ahead: number;
+	/** Everyone waiting for the course, this student included. */
+	waiting: number;
+};
+
+/**
+ * Where a waitlisted request sits in its course's queue, first come first served.
+ *
+ * **Counted from D1's statuses, which nothing syncs back from Jira yet**
+ * (DEV-111). Until it does, anyone staff have moved on to training in Jira
+ * still reads `waitlist` here, so both numbers can run high.
+ */
+export async function getWaitlistPosition(
+	db: Database,
+	enrollment: Pick<Enrollment, 'course' | 'createdAt'>
+): Promise<WaitlistPosition> {
+	const [row] = await db
+		.select({
+			waiting: count(),
+			// `lt()` rather than a raw `<`, so the Date goes through the column's
+			// timestamp mapping instead of being bound as-is.
+			ahead: sql<number>`coalesce(sum(case when ${lt(enrollmentsTable.createdAt, enrollment.createdAt)} then 1 else 0 end), 0)`
+		})
+		.from(enrollmentsTable)
+		.where(
+			and(
+				eq(enrollmentsTable.course, enrollment.course),
+				eq(enrollmentsTable.status, 'waitlist'),
+				isNull(enrollmentsTable.withdrawnAt)
+			)
+		);
+
+	return { ahead: Number(row?.ahead ?? 0), waiting: Number(row?.waiting ?? 0) };
 }
 
 export type SubmitResult = {
