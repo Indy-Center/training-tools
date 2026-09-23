@@ -45,13 +45,13 @@
 	};
 
 	const STATUS_DETAIL: Record<string, string> = {
-		waitlist: 'Training staff work the waitlist in order and will reach out when a mentor is free.',
+		waitlist: '',
 		'in-training': 'You have a mentor assigned. They will arrange sessions with you directly.',
-		'rating-exam': 'Your training is done and your rating exam is being arranged.',
-		'certification-update': 'You passed — your certificate is being updated.',
-		completed: 'This course is complete.',
-		removed:
-			'Training staff took this request off the waitlist. Ask them on Discord if this looks wrong.'
+		'rating-exam': 'Your training is done and your rating exam is being arranged. An Instructor will contact you to schedule.',
+		'certification-update': 'You passed — your certificate is being updated and reviewed. Complete your consolidation hours as required by the Training Policy.',
+		completed: 'Complete the consolidation hours and enroll in the next course.',
+		'completed-c1': 'Great work! You are fully qualified. Check out some other optional courses.',
+		removed: 'Your enrolment was cancled. Contact the training staff.'
 	};
 
 	let statusDetail = $derived(
@@ -73,7 +73,7 @@
 
 <PageHero size="compact">
 	<h1 class="text-3xl font-bold sm:text-4xl">Enroll in training</h1>
-	<p class="mt-2 text-gray-300">Request training for a new position at Indy Center.</p>
+	<p class="mt-2 text-gray-300">Request training for a new certification at Indy Center.</p>
 </PageHero>
 
 <div class="w-full bg-gray-900">
@@ -107,8 +107,7 @@
 
 					<div class="border-t border-slate-700/60 pt-4">
 						<p class="text-gray-400">
-							Picked the wrong course, or need to step away? Withdrawing frees your place and lets
-							you submit a new request.
+							Not quite ready? Withdrawing lets someone else take your place in line. You can submit a new request any time.
 						</p>
 						<form
 							method="POST"
@@ -165,7 +164,7 @@
 				<Panel title="Your details" icon={IconAccount}>
 					<div class="px-4 py-5">
 						<p class="text-sm text-gray-400">
-							Taken from your VATSIM account and our roster — nothing to fill in twice.
+							Check this information is correct. If not, update your profile before submitting.
 						</p>
 						<dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
 							<div>
@@ -206,8 +205,7 @@
 							>
 								<IconInformation class="mt-0.5 h-5 w-5 shrink-0" />
 								<span>
-									{data.placement.reason} We've selected it for you — pick something else if you think
-									it's wrong, and training staff will confirm.
+									{data.placement.reason}
 								</span>
 							</div>
 						{:else}
