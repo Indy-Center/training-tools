@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, like, or, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, like, ne, or, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { rosterMembersTable, type RosterMember } from '$lib/db/schema/roster';
 
@@ -16,6 +16,26 @@ export async function getRosterMember(db: Database, cid: string): Promise<Roster
 	});
 
 	return member ?? null;
+}
+
+/**
+ * Store the email identity handed us for a signed-in member.
+ *
+ * Runs on every authenticated request, so it only writes when the address has
+ * actually changed — an unchanged one is a primary-key read and nothing else.
+ * Removed members are updated too: the row survives their departure, and the
+ * address is still theirs. Non-members have no row, so this is a no-op for them.
+ */
+export async function recordRosterEmail(db: Database, cid: string, email: string): Promise<void> {
+	await db
+		.update(rosterMembersTable)
+		.set({ email })
+		.where(
+			and(
+				eq(rosterMembersTable.cid, cid),
+				or(isNull(rosterMembersTable.email), ne(rosterMembersTable.email, email))
+			)
+		);
 }
 
 /** Cap on rows returned by a search, so a bare query can't render the facility. */

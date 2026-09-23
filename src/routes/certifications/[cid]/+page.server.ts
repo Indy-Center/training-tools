@@ -58,7 +58,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: `${member.firstName} ${member.lastName}`.trim(),
 			ratingShort: member.ratingShort,
 			membership: member.membership,
-			facilityJoinedAt: member.facilityJoinedAt
+			facilityJoinedAt: member.facilityJoinedAt,
+			// Email arrives from identity at sign-in, Discord from VATUSA's roster.
+			email: member.email,
+			discordId: member.discordId
 		},
 		certification: certification?.code ?? null,
 		// Anything needing a TA's eye — an arrival whose rating was inferred.

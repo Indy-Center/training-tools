@@ -68,6 +68,11 @@ Everything not on the public allowlist redirects to identity's `/login`. The
 gate lives in `src/hooks.server.ts`, not in a layout load —
 [why](.ai/decisions/0004-gate-in-handle-not-layout.md).
 
+Every signed-in request also records the member's VATSIM email from identity
+onto their roster row. VATUSA's public roster never includes emails, so
+`/certifications/{cid}` shows one only for people who have signed in here at
+least once. Discord ids come from the VATUSA roster on each sync.
+
 ## Bindings
 
 | Binding    | Type                   | What it's for                                                |

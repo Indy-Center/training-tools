@@ -22,7 +22,7 @@ function member(overrides: Partial<VatusaRosterMember> = {}): VatusaRosterMember
 		flag_needbasic: false,
 		flag_xferOverride: false,
 		flag_nameprivacy: false,
-		discord_id: 123456789,
+		discord_id: '123456789',
 		last_promotion: null,
 		last_competency_date: null,
 		promotion_eligible: false,
@@ -64,7 +64,15 @@ describe('toRosterRow', () => {
 
 	it('nulls a missing discord id rather than storing "null"', () => {
 		expect(toRosterRow(member({ discord_id: null }), NOW).discordId).toBeNull();
-		expect(toRosterRow(member({ discord_id: 0 }), NOW).discordId).toBeNull();
+		expect(toRosterRow(member({ discord_id: '0' }), NOW).discordId).toBeNull();
+		expect(toRosterRow(member({ discord_id: '' }), NOW).discordId).toBeNull();
+	});
+
+	// The email column is filled from identity at sign-in. If the sync row ever
+	// carried one, the upsert would start overwriting it with VATUSA's null.
+	it('never sets an email, so the sync cannot clobber the one from identity', () => {
+		const row = toRosterRow(member({ email: 'someone@example.com' }), NOW);
+		expect(row).not.toHaveProperty('email');
 	});
 
 	it('always clears removedAt, which is what restores a returning member', () => {

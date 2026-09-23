@@ -27,6 +27,7 @@ export type VatusaRosterMember = {
 	cid: number;
 	fname: string;
 	lname: string;
+	/** Always null on the public roster endpoint; our copy comes from identity at sign-in. */
 	email: string | null;
 	facility: string;
 	rating: number;
@@ -40,7 +41,8 @@ export type VatusaRosterMember = {
 	flag_needbasic: boolean;
 	flag_xferOverride: boolean;
 	flag_nameprivacy: boolean;
-	discord_id: number | null;
+	/** A string once parsed — see `parseRosterBody`; on the wire it is a lossy number. */
+	discord_id: string | null;
 	last_promotion: string | null;
 	last_competency_date: string | null;
 	promotion_eligible: boolean;

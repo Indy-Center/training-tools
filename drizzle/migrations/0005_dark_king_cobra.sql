@@ -1,0 +1,1 @@
+ALTER TABLE `roster_members` ADD `email` text;

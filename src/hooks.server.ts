@@ -3,6 +3,8 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { drizzle } from '$lib/server/db';
 import { getSessionContext, resolveIdentityUrl } from '$lib/server/identity';
 import { loginUrl } from '$lib/identity-links';
+import { recordRosterEmail } from '$lib/server/roster';
+import { email } from '$lib/user';
 
 /**
  * Paths reachable without a session. Everything else redirects to identity.
@@ -48,4 +50,25 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle = sequence(dbHandle, authHandle);
+/**
+ * Keeps `roster_members.email` current from identity.
+ *
+ * VATUSA's public roster never includes emails, so signing in is the only time
+ * we learn one. Off the response path via `waitUntil`, and any failure is only
+ * logged: this is bookkeeping, and must never be why a page fails to load.
+ */
+const emailHandle: Handle = async ({ event, resolve }) => {
+	const user = event.locals.session?.user;
+	const address = user ? email(user) : undefined;
+
+	if (user && address) {
+		const write = recordRosterEmail(event.locals.db, user.cid, address).catch((err) =>
+			console.error('[training-tools] recordRosterEmail failed', err)
+		);
+		event.platform?.ctx?.waitUntil(write);
+	}
+
+	return resolve(event);
+};
+
+export const handle = sequence(dbHandle, authHandle, emailHandle);

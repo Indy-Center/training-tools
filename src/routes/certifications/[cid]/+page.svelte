@@ -8,6 +8,8 @@
 	import IconHistory from '~icons/mdi/history';
 	import IconAlert from '~icons/mdi/alert-circle';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
+	import IconEmail from '~icons/mdi/email-outline';
+	import IconDiscord from '~icons/mdi/discord';
 
 	let { data, form } = $props();
 
@@ -52,6 +54,32 @@
 			? 'Home controller'
 			: 'Visiting controller'}
 	</p>
+	<dl class="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+		<div class="flex items-center gap-2">
+			<dt class="text-gray-500"><IconEmail class="h-4 w-4" /><span class="sr-only">Email</span></dt>
+			<dd>
+				{#if data.controller.email}
+					<a href="mailto:{data.controller.email}" class="text-sky-400 hover:text-sky-300">
+						{data.controller.email}
+					</a>
+				{:else}
+					<span class="text-gray-500">Recorded the first time they sign in here</span>
+				{/if}
+			</dd>
+		</div>
+		<div class="flex items-center gap-2">
+			<dt class="text-gray-500">
+				<IconDiscord class="h-4 w-4" /><span class="sr-only">Discord id</span>
+			</dt>
+			<dd>
+				{#if data.controller.discordId}
+					<span class="font-mono text-gray-300">{data.controller.discordId}</span>
+				{:else}
+					<span class="text-gray-500">Not linked on VATUSA</span>
+				{/if}
+			</dd>
+		</div>
+	</dl>
 </div>
 
 {#if form?.formError}

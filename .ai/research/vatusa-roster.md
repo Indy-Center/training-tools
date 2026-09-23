@@ -35,7 +35,15 @@ silently make every controller look unrostered. There is a test for it.
 - `isMentor` / `isSupIns` — the basis for the DEV-106 teacher roster import, so
   they get real columns rather than living only in the JSON blob.
 - `discord_id` — DEV-110 wants a Discord id with enrollment. Identity also
-  carries one in `attributes.discordId`; VATUSA's is a second source.
+  carries one in `attributes.discordId`; VATUSA's is a second source. **It
+  arrives as a bare JSON number, and `response.json()` corrupts it** — Discord
+  snowflakes are past `Number.MAX_SAFE_INTEGER`. On 2026-09-23, 149 of 155 ids
+  in the mirror were rounded to the wrong value. `parseRosterBody` quotes the
+  digits before parsing; never go back to `response.json()` for this endpoint.
+- `email` — **always `null` on this endpoint** (0 of 157 on 2026-09-23). A
+  facility API key probably reveals it, but we don't hold one. `roster_members.email`
+  is captured from identity at sign-in instead (`emailHandle` in
+  `hooks.server.ts`), so it is null for anyone who has never signed in here.
 - `flag_homecontroller` — tracks `membership === 'home'`, kept separately since
   they are nominally independent.
 - `promotion_eligible`, `transfer_eligible`, `last_promotion`,
