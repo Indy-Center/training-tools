@@ -14,6 +14,7 @@ Thumbs.db
 
 # Local agent/editor state
 .claude
+.ai
 
 # Env
 .env
