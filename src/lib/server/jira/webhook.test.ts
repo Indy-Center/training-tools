@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { issueKeyFromDelivery, verifyJiraSignature } from './webhook';
+import { readDelivery, verifyJiraSignature } from './webhook';
+import { TEACHER_FIELD } from './status';
 
 const SECRET = 'test-secret';
 const BODY = '{"webhookEvent":"jira:issue_updated","issue":{"key":"TRK-42"}}';
@@ -45,19 +46,47 @@ describe('verifyJiraSignature', () => {
 	});
 });
 
-describe('issueKeyFromDelivery', () => {
-	it('reads the issue key', () => {
-		expect(issueKeyFromDelivery(JSON.parse(BODY), 'TRK')).toBe('TRK-42');
+describe('readDelivery', () => {
+	// Shaped like TRK-52's Assign Teacher delivery on 2026-09-23.
+	const transition = {
+		timestamp: 1790173973400,
+		webhookEvent: 'jira:issue_updated',
+		issue: {
+			key: 'TRK-52',
+			fields: {
+				status: { name: 'In Training' },
+				[TEACHER_FIELD]: { value: 'HI' },
+				updated: '2026-09-23T10:32:53.283-0400'
+			}
+		}
+	};
+
+	it('reads the issue as delivered, ordered by its own updated time', () => {
+		const delivery = readDelivery(transition, 'TRK');
+		expect(delivery?.key).toBe('TRK-52');
+		expect(delivery?.issue?.fields?.status?.name).toBe('In Training');
+		expect(delivery?.observedAt?.toISOString()).toBe('2026-09-23T14:32:53.283Z');
+	});
+
+	it('falls back to the event timestamp when the issue has no updated time', () => {
+		const { updated: _, ...fields } = transition.issue.fields;
+		const delivery = readDelivery({ ...transition, issue: { key: 'TRK-52', fields } }, 'TRK');
+		expect(delivery?.observedAt?.getTime()).toBe(1790173973400);
+	});
+
+	it('asks the caller to read from Jira when the body carries no status', () => {
+		const delivery = readDelivery({ issue: { key: 'TRK-52' } }, 'TRK');
+		expect(delivery).toEqual({ key: 'TRK-52', issue: null, observedAt: null });
 	});
 
 	it('ignores issues in other projects', () => {
-		expect(issueKeyFromDelivery({ issue: { key: 'DEV-42' } }, 'TRK')).toBeNull();
-		expect(issueKeyFromDelivery({ issue: { key: 'XTRK-42' } }, 'TRK')).toBeNull();
+		expect(readDelivery({ issue: { key: 'DEV-42' } }, 'TRK')).toBeNull();
+		expect(readDelivery({ issue: { key: 'XTRK-42' } }, 'TRK')).toBeNull();
 	});
 
 	it('ignores deliveries that are not about an issue', () => {
-		expect(issueKeyFromDelivery({ webhookEvent: 'project_updated' }, 'TRK')).toBeNull();
-		expect(issueKeyFromDelivery(null, 'TRK')).toBeNull();
-		expect(issueKeyFromDelivery({ issue: { key: 42 } }, 'TRK')).toBeNull();
+		expect(readDelivery({ webhookEvent: 'project_updated' }, 'TRK')).toBeNull();
+		expect(readDelivery(null, 'TRK')).toBeNull();
+		expect(readDelivery({ issue: { key: 42 } }, 'TRK')).toBeNull();
 	});
 });

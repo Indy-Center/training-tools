@@ -1,10 +1,15 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable } from '$lib/db/schema/enrollments';
 import { syncStateTable } from '$lib/db/schema/sync-state';
 import { resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { fetchEnrollmentIssue, searchEnrollmentIssues } from '$lib/server/jira/issues';
-import { resolveStatusUpdate, type JiraStatusIssue } from '$lib/server/jira/status';
+import {
+	isStale,
+	parseJiraTimestamp,
+	resolveStatusUpdate,
+	type JiraStatusIssue
+} from '$lib/server/jira/status';
 
 /**
  * Keeps `enrollments.status` and `teacher` in step with the TRK board.
@@ -14,10 +19,11 @@ import { resolveStatusUpdate, type JiraStatusIssue } from '$lib/server/jira/stat
  * - `sweepEnrollmentStatuses()` runs on the 15-minute cron and is the source of
  *   truth. It catches everything the webhook misses — deliveries Jira gave up
  *   on, changes made before the webhook existed, the first backfill.
- * - `syncEnrollmentIssue()` runs from the Jira webhook, for one issue, so a
- *   student sees "In training" within seconds rather than minutes.
+ * - The Jira webhook applies the delivered issue directly, so a student sees
+ *   "In training" within seconds rather than minutes.
  *
- * Both end in `applyIssueStatus()`. See
+ * Both end in `applyIssueStatus()`, which orders every write by when that state
+ * was true in Jira, so the two can arrive in any order. See
  * .ai/decisions/0014-enrollment-status-from-jira.md
  */
 
@@ -31,10 +37,17 @@ export type ApplyOutcome =
 	/** The student withdrew here; Jira does not get to reopen it. */
 	| 'withdrawn-locally'
 	/** A status name we do not recognise. Logged, row left alone. */
-	| 'unknown-status';
+	| 'unknown-status'
+	/** Older than the state already applied — an out-of-order delivery. */
+	| 'stale';
 
 /**
  * Write one issue's status onto its enrollment row.
+ *
+ * `observedAt` is when this state of the issue was true: the webhook's event
+ * time, or the issue's `updated` from a read. A state older than the one
+ * already applied is refused (`isStale()`), so the order deliveries and sweeps
+ * arrive in cannot roll a status back.
  *
  * **A row the student withdrew here is never touched.** Withdrawing stamps
  * `withdrawnAt` first and moves the Jira issue second; if that transition
@@ -44,15 +57,9 @@ export type ApplyOutcome =
 export async function applyIssueStatus(
 	db: Database,
 	issue: JiraStatusIssue,
+	observedAt: Date | null,
 	now = new Date()
 ): Promise<ApplyOutcome> {
-	const row = await db.query.enrollmentsTable.findFirst({
-		where: eq(enrollmentsTable.jiraIssueKey, issue.key)
-	});
-
-	if (!row) return 'no-row';
-	if (row.withdrawnAt) return 'withdrawn-locally';
-
 	const resolution = resolveStatusUpdate(issue);
 
 	if (resolution.action === 'unknown-status') {
@@ -64,29 +71,63 @@ export async function applyIssueStatus(
 	}
 
 	const { status, teacher } = resolution.update;
-	const changed = row.status !== status || row.teacher !== teacher;
 
-	await db
-		.update(enrollmentsTable)
-		.set(
-			changed
-				? { status, teacher, jiraStatusSyncedAt: now, updatedAt: now }
-				: { jiraStatusSyncedAt: now }
-		)
-		.where(eq(enrollmentsTable.id, row.id));
+	// Compare-and-set. Two deliveries handled at once both read the row before
+	// either writes, so each write is conditional on the row still holding the
+	// `jiraUpdatedAt` it was checked against. The loser re-reads: if it was the
+	// older state it is now stale and stops; if it was the newer one it applies
+	// on top. Either way the newest state wins, whatever order they finish in.
+	for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt += 1) {
+		const row = await db.query.enrollmentsTable.findFirst({
+			where: eq(enrollmentsTable.jiraIssueKey, issue.key)
+		});
 
-	return changed ? 'updated' : 'unchanged';
+		if (!row) return 'no-row';
+		if (row.withdrawnAt) return 'withdrawn-locally';
+		if (isStale(row.jiraUpdatedAt, observedAt)) return 'stale';
+
+		const changed = row.status !== status || row.teacher !== teacher;
+		const jiraUpdatedAt = observedAt ?? row.jiraUpdatedAt;
+
+		const written = await db
+			.update(enrollmentsTable)
+			.set(
+				changed
+					? { status, teacher, jiraUpdatedAt, jiraStatusSyncedAt: now, updatedAt: now }
+					: { jiraUpdatedAt, jiraStatusSyncedAt: now }
+			)
+			.where(
+				and(
+					eq(enrollmentsTable.id, row.id),
+					row.jiraUpdatedAt
+						? eq(enrollmentsTable.jiraUpdatedAt, row.jiraUpdatedAt)
+						: isNull(enrollmentsTable.jiraUpdatedAt)
+				)
+			)
+			.returning({ id: enrollmentsTable.id });
+
+		if (written.length > 0) return changed ? 'updated' : 'unchanged';
+	}
+
+	// Still contended after every attempt. Leave it: the next sweep re-reads the
+	// issue and applies whatever is newest.
+	console.warn('[training-tools] enrollment status write kept losing a race', issue.key);
+	return 'stale';
 }
+
+/** Attempts before a contended write gives up and leaves it to the sweep. */
+const MAX_WRITE_ATTEMPTS = 3;
 
 export type SyncIssueResult =
 	{ ok: true; outcome: ApplyOutcome | 'issue-gone' } | { ok: false; reason: 'jira-not-configured' };
 
 /**
- * Re-read one issue from Jira and apply it. The webhook's whole job.
+ * Re-read one issue from Jira and apply it.
  *
- * Reads the issue fresh rather than trusting the webhook body, so a replayed
- * or out-of-order delivery can only ever apply what Jira says **now**.
- * Throws on a Jira failure, so the webhook can answer 5xx and Jira retries.
+ * The webhook's fallback, for a delivery whose body carries no status (for
+ * example if "Exclude body" is ever ticked on the webhook). Ordered by the
+ * issue's own `updated`. Throws on a Jira failure, so the webhook can answer
+ * 5xx and Jira retries.
  */
 export async function syncEnrollmentIssue(
 	db: Database,
@@ -99,7 +140,10 @@ export async function syncEnrollmentIssue(
 	const issue = await fetchEnrollmentIssue(config, issueKey);
 	if (!issue) return { ok: true, outcome: 'issue-gone' };
 
-	return { ok: true, outcome: await applyIssueStatus(db, issue) };
+	return {
+		ok: true,
+		outcome: await applyIssueStatus(db, issue, parseJiraTimestamp(issue.fields?.updated))
+	};
 }
 
 /** `sync_state` key for the sweep's cursor. */
@@ -171,7 +215,8 @@ export async function sweepEnrollmentStatuses(
 
 	let updated = 0;
 	for (const issue of issues) {
-		if ((await applyIssueStatus(db, issue, now)) === 'updated') updated += 1;
+		const observedAt = parseJiraTimestamp(issue.fields?.updated);
+		if ((await applyIssueStatus(db, issue, observedAt, now)) === 'updated') updated += 1;
 	}
 
 	if (complete) await writeCursor(db, now);

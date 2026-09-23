@@ -142,6 +142,13 @@ export const enrollmentsTable = sqliteTable(
 		 * .ai/decisions/0014-enrollment-status-from-jira.md
 		 */
 		jiraStatusSyncedAt: integer('jira_status_synced_at', { mode: 'timestamp' }),
+		/**
+		 * When the Jira state we last applied was true — the webhook's event time,
+		 * or the issue's `updated` from a read. Anything older is refused, so two
+		 * deliveries landing out of order cannot roll a status back. Milliseconds,
+		 * because staff routinely make two changes within the same second or two.
+		 */
+		jiraUpdatedAt: integer('jira_updated_at', { mode: 'timestamp_ms' }),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()

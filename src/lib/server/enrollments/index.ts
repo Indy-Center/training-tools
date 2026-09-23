@@ -17,6 +17,7 @@ import {
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
 export {
+	applyIssueStatus,
 	sweepEnrollmentStatuses,
 	syncEnrollmentIssue,
 	type SweepResult,

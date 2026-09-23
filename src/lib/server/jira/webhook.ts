@@ -5,6 +5,7 @@
  * HMAC of the raw body in `X-Hub-Signature: sha256=<hex>` (the WebSub format).
  * https://developer.atlassian.com/cloud/jira/platform/webhooks/
  */
+import { parseJiraTimestamp, type JiraStatusIssue } from './status';
 
 const encoder = new TextEncoder();
 
@@ -49,18 +50,46 @@ export async function verifyJiraSignature(
 	return constantTimeEqual(expected, signature.toLowerCase());
 }
 
+export type Delivery = {
+	key: string;
+	/**
+	 * The issue as the delivery describes it, when it carries a status — the
+	 * normal case. Null when the body has no fields (e.g. "Exclude body" is
+	 * ticked), and the caller should read the issue from Jira instead.
+	 */
+	issue: JiraStatusIssue | null;
+	/**
+	 * When that state was true: the issue's own `updated`, the same clock the
+	 * sweep orders by, falling back to the delivery's event `timestamp`.
+	 */
+	observedAt: Date | null;
+};
+
 /**
- * The issue key a delivery is about, if it is one of ours to look at.
+ * What a verified delivery says, if it is one of ours to look at.
  *
- * Returns null for anything that is not an issue event in `projectKey` — the
+ * The body is trusted as data because the HMAC has already proved Jira sent it.
+ * That matters: re-reading the issue instead turned out to be racy (0014), and
+ * the body is exactly the state at the moment of the event. Ordering is left
+ * to `observedAt`, so replays and late deliveries are refused as stale.
+ *
+ * Returns null for anything that is not an issue event in `projectKey`. The
  * webhook's JQL filter should already ensure that, but the filter lives in
  * Jira's admin screen, not in this repo, so it is checked again here.
  */
-export function issueKeyFromDelivery(payload: unknown, projectKey: string): string | null {
+export function readDelivery(payload: unknown, projectKey: string): Delivery | null {
 	if (!payload || typeof payload !== 'object') return null;
 
-	const key = (payload as { issue?: { key?: unknown } }).issue?.key;
-	if (typeof key !== 'string') return null;
+	const { issue, timestamp } = payload as { issue?: JiraStatusIssue; timestamp?: unknown };
+	const key = issue?.key;
+	if (typeof key !== 'string' || !new RegExp(`^${projectKey}-\\d+$`).test(key)) return null;
 
-	return new RegExp(`^${projectKey}-\\d+$`).test(key) ? key : null;
+	const eventAt = typeof timestamp === 'number' ? new Date(timestamp) : null;
+	const hasStatus = typeof issue?.fields?.status?.name === 'string';
+
+	return {
+		key,
+		issue: hasStatus ? { key, fields: issue!.fields } : null,
+		observedAt: parseJiraTimestamp(issue?.fields?.updated) ?? eventAt
+	};
 }
