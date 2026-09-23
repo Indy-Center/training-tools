@@ -24,9 +24,9 @@ export function atcRating(user: User): string | undefined {
 	return user.vatsimData.vatsim?.rating?.short ?? undefined;
 }
 
-/** Short pilot rating (e.g. "P2"), or undefined when VATSIM didn't supply one. */
-export function pilotRating(user: User): string | undefined {
-	return user.vatsimData.vatsim?.pilotrating?.short ?? undefined;
+/** The VATSIM email identity holds for them, or undefined when it is blank. */
+export function email(user: User): string | undefined {
+	return user.vatsimData.personal.email?.trim() || undefined;
 }
 
 /** Two-letter operating initials, once a user has been assigned some. */

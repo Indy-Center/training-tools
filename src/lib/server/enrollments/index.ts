@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, notInArray } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	CLOSED_ENROLLMENT_STATUSES,
@@ -16,6 +16,12 @@ import {
 } from '$lib/server/jira/enrollment';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
+export {
+	sweepEnrollmentStatuses,
+	syncEnrollmentIssue,
+	type SweepResult,
+	type SyncIssueResult
+} from './status-sync';
 
 /**
  * Stop retrying a push after this many failures.
@@ -62,6 +68,45 @@ export async function getOpenEnrollment(db: Database, cid: string): Promise<Enro
 	});
 
 	return enrollment ?? null;
+}
+
+export type WaitlistPosition = {
+	/** Requests for the same course submitted before this one and still waiting. */
+	ahead: number;
+	/** Everyone waiting for the course, this student included. */
+	waiting: number;
+};
+
+/**
+ * Where a waitlisted request sits in its course's queue, first come first served.
+ *
+ * Counted from D1's statuses, which are read back from Jira by the webhook
+ * (seconds) and the cron sweep (at most 15 minutes). Between the two, someone
+ * staff have just moved on to training can briefly still count as waiting.
+ * Requests not filed with Jira yet count too — they are in the queue, the
+ * board just has not been told.
+ */
+export async function getWaitlistPosition(
+	db: Database,
+	enrollment: Pick<Enrollment, 'course' | 'createdAt'>
+): Promise<WaitlistPosition> {
+	const [row] = await db
+		.select({
+			waiting: count(),
+			// `lt()` rather than a raw `<`, so the Date goes through the column's
+			// timestamp mapping instead of being bound as-is.
+			ahead: sql<number>`coalesce(sum(case when ${lt(enrollmentsTable.createdAt, enrollment.createdAt)} then 1 else 0 end), 0)`
+		})
+		.from(enrollmentsTable)
+		.where(
+			and(
+				eq(enrollmentsTable.course, enrollment.course),
+				eq(enrollmentsTable.status, 'waitlist'),
+				isNull(enrollmentsTable.withdrawnAt)
+			)
+		);
+
+	return { ahead: Number(row?.ahead ?? 0), waiting: Number(row?.waiting ?? 0) };
 }
 
 export type SubmitResult = {

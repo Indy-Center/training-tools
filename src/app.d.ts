@@ -14,6 +14,8 @@ declare global {
 	interface Env {
 		JIRA_USER_EMAIL?: string;
 		JIRA_API_TOKEN?: string;
+		/** Shared with the TRK webhook in Jira; signs each delivery. */
+		JIRA_WEBHOOK_SECRET?: string;
 	}
 
 	namespace App {

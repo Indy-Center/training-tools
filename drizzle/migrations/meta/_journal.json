@@ -29,6 +29,20 @@
       "when": 1789981850767,
       "tag": "0004_enrollment_agreement",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790168937191,
+      "tag": "0005_dark_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790170880045,
+      "tag": "0006_massive_leopardon",
+      "breakpoints": true
     }
   ]
 }

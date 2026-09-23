@@ -1,14 +1,15 @@
 import sv from '../.svelte-kit/cloudflare/_worker.js';
 import { drizzle } from '$lib/server/db';
 import { syncRoster } from '$lib/server/roster';
-import { reconcileEnrollments } from '$lib/server/enrollments';
+import { reconcileEnrollments, sweepEnrollmentStatuses } from '$lib/server/enrollments';
 import { grantArrivalCertifications } from '$lib/server/certifications';
 
 /**
  * Custom worker entry.
  *
  * SvelteKit handles every request; the scheduled handler keeps the VATUSA
- * roster mirror fresh and files any enrollments that never reached Jira. This
+ * roster mirror fresh, files any enrollments that never reached Jira, and reads
+ * their TRK status back. This
  * wrapper is why the app uses @indy-center/adapter-cloudflare rather than
  * upstream — upstream overwrites a custom `main` on each build.
  *
@@ -76,6 +77,20 @@ export default {
 					}
 				} catch (err) {
 					console.error('[training-tools] enrollment reconcile failed', err);
+					failure ??= err;
+				}
+
+				// After the reconcile, so an issue filed a moment ago can be read back in
+				// the same run. The webhook usually gets there first; this is what makes
+				// sure nothing is missed when it does not.
+				try {
+					const result = await sweepEnrollmentStatuses(db, env);
+					if (result.updated > 0 || result.full || !result.complete) {
+						console.log('[training-tools] enrollment status sweep', JSON.stringify(result));
+					}
+				} catch (err) {
+					// The cursor did not move, so the next run re-reads the same window.
+					console.error('[training-tools] enrollment status sweep failed', err);
 					failure ??= err;
 				}
 

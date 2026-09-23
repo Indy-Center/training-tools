@@ -28,6 +28,15 @@ function toMembership(value: unknown): RosterMembership {
 	return value === 'home' ? 'home' : 'visit';
 }
 
+/**
+ * Only a run of digits is a Discord id. `parseRosterBody` hands us a string,
+ * so a placeholder zero arrives as "0" — truthy, and not an id.
+ */
+function toDiscordId(value: unknown): string | null {
+	const id = value == null ? '' : String(value);
+	return /^[1-9]\d*$/.test(id) ? id : null;
+}
+
 export function toRosterRow(member: VatusaRosterMember, now: Date): InsertRosterMember {
 	return {
 		cid: String(member.cid),
@@ -40,7 +49,7 @@ export function toRosterRow(member: VatusaRosterMember, now: Date): InsertRoster
 		isHomeController: Boolean(member.flag_homecontroller),
 		isMentor: Boolean(member.isMentor),
 		isSupIns: Boolean(member.isSupIns),
-		discordId: member.discord_id ? String(member.discord_id) : null,
+		discordId: toDiscordId(member.discord_id),
 		facilityJoinedAt: member.facility_join ?? null,
 		lastActivityAt: member.lastactivity ?? null,
 		data: member,
@@ -108,6 +117,9 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 						isHomeController: row.isHomeController,
 						isMentor: row.isMentor,
 						isSupIns: row.isSupIns,
+						// Always overwritten, null included, so a changed or unlinked Discord
+						// account is reflected on the next run. `email` is absent on purpose:
+						// VATUSA never sends it to us, and identity owns our copy.
 						discordId: row.discordId,
 						facilityJoinedAt: row.facilityJoinedAt,
 						lastActivityAt: row.lastActivityAt,

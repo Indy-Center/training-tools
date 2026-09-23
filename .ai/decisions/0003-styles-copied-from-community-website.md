@@ -34,7 +34,7 @@ The conventions to hold to:
 - borders `border-slate-700/50`, `border-slate-600/30`
 - accent is **sky**: `bg-sky-600/20`, `border-sky-400`, `text-sky-400`, buttons `bg-sky-600 hover:bg-sky-700`
 - text `text-white` (headings), `text-gray-300` (body), `text-gray-400`/`500` (muted)
-- CIDs and ratings are always `font-mono`; ATC rating chips `bg-sky-600/30 text-sky-200`, pilot `bg-pink-600/30 text-pink-200`
+- CIDs and ratings are always `font-mono`; ATC rating chips `bg-sky-600/30 text-sky-200`. Pilot ratings are not shown — this app covers controller training only
 - `rounded-lg`, `transition-colors duration-200`, content width `mx-auto max-w-6xl px-4` (header `max-w-7xl`)
 - the header is `absolute top-0`, so non-home pages compensate with `pt-16`
 - icons come from `unplugin-icons` as `~icons/mdi/*`, aliased `IconFoo` — not lucide
@@ -50,7 +50,7 @@ optional: `attributes.preferredName`, `vatsimData.personal.name_full`,
 So:
 
 - The fallback chain lives in `src/lib/user.ts` (`displayName`, `atcRating`,
-  `pilotRating`, `operatingInitials`) instead of being inlined in two
+  `operatingInitials`) instead of being inlined in two
   components. Every level of that chain is optional in identity's types.
 - `MembershipBadge` is dropped — identity has no membership concept. Operating
   initials are shown instead.

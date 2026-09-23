@@ -43,6 +43,16 @@ export const rosterMembersTable = sqliteTable(
 		/** DEV-110 wants a Discord id on enrollment; VATUSA has one too. */
 		discordId: text('discord_id'),
 
+		/**
+		 * The member's VATSIM email, recorded from identity each time they sign in.
+		 *
+		 * Not VATUSA's: its public roster sends `email: null` for everyone. Like
+		 * `certificationsCheckedAt`, the sync upsert leaves it out of its `set`
+		 * clause, so a roster refresh never clears it. Null until they have signed
+		 * in here at least once.
+		 */
+		email: text('email'),
+
 		facilityJoinedAt: text('facility_joined_at'),
 		lastActivityAt: text('last_activity_at'),
 

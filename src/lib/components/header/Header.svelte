@@ -5,9 +5,8 @@
 	import UserProfileDropdown from './UserProfileDropdown.svelte';
 	import NavigationLinks from './NavigationLinks.svelte';
 	import ExternalLinks from './ExternalLinks.svelte';
-	import { atcRating, displayName, operatingInitials, pilotRating } from '$lib/user';
+	import { atcRating, displayName, operatingInitials } from '$lib/user';
 	import { loginUrl, logoutUrl } from '$lib/identity-links';
-	import IconAirplane from '~icons/mdi/airplane';
 	import IconRating from '~icons/mdi/radar';
 	import IconLogout from '~icons/mdi/logout';
 	import IconAccount from '~icons/mdi/account-circle';
@@ -96,7 +95,6 @@
 				{#if data.user}
 					{@const initials = operatingInitials(data.user)}
 					{@const atc = atcRating(data.user)}
-					{@const pilot = pilotRating(data.user)}
 					<div class="mt-3 border-t border-slate-600/30 pt-3">
 						<div class="rounded-lg bg-slate-700/30 px-4 py-3">
 							<div class="mb-3 flex items-center space-x-3">
@@ -122,14 +120,6 @@
 									>
 										<IconRating class="h-3 w-3" />
 										{atc}
-									</div>
-								{/if}
-								{#if pilot}
-									<div
-										class="flex items-center gap-1 rounded-md bg-pink-600/30 px-2 py-1 font-mono text-xs text-pink-200"
-									>
-										<IconAirplane class="h-3 w-3" />
-										{pilot}
 									</div>
 								{/if}
 							</div>

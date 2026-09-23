@@ -5,6 +5,7 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import { COURSES, findCourse } from '$lib/courses';
 	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
+	import { STATUS_COLORS, STATUS_LABELS, statusDetail } from '$lib/enrollment-status';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconClock from '~icons/mdi/clock-outline';
@@ -23,40 +24,7 @@
 
 	let submitting = $state(false);
 
-	// Mirrors the TRK workflow, which a student sees in their own terms.
-	const STATUS_LABELS: Record<string, string> = {
-		waitlist: 'On the waitlist',
-		'in-training': 'In training',
-		'rating-exam': 'Rating exam',
-		'certification-update': 'Updating your certificate',
-		completed: 'Completed',
-		removed: 'Removed from the waitlist',
-		withdrawn: 'Withdrawn'
-	};
-
-	const STATUS_COLORS: Record<string, 'yellow' | 'sky' | 'green' | 'gray'> = {
-		waitlist: 'yellow',
-		'in-training': 'sky',
-		'rating-exam': 'sky',
-		'certification-update': 'sky',
-		completed: 'green',
-		removed: 'gray',
-		withdrawn: 'gray'
-	};
-
-	const STATUS_DETAIL: Record<string, string> = {
-		waitlist: 'Training staff work the waitlist in order and will reach out when a mentor is free.',
-		'in-training': 'You have a mentor assigned. They will arrange sessions with you directly.',
-		'rating-exam': 'Your training is done and your rating exam is being arranged.',
-		'certification-update': 'You passed — your certificate is being updated.',
-		completed: 'This course is complete.',
-		removed:
-			'Training staff took this request off the waitlist. Ask them on Discord if this looks wrong.'
-	};
-
-	let statusDetail = $derived(
-		STATUS_DETAIL[data.enrollment?.status ?? ''] ?? 'Training staff will reach out with next steps.'
-	);
+	let detail = $derived(statusDetail(data.enrollment?.status));
 
 	let openCourse = $derived(data.enrollment ? findCourse(data.enrollment.course) : undefined);
 
@@ -73,7 +41,7 @@
 
 <PageHero size="compact">
 	<h1 class="text-3xl font-bold sm:text-4xl">Enroll in training</h1>
-	<p class="mt-2 text-gray-300">Request training for a new position at Indy Center.</p>
+	<p class="mt-2 text-gray-300">Request training for a new certification at Indy Center.</p>
 </PageHero>
 
 <div class="w-full bg-gray-900">
@@ -93,7 +61,7 @@
 					</div>
 
 					<p>
-						Submitted {dateFormat.format(new Date(data.enrollment.createdAt))}. {statusDetail}
+						Submitted {dateFormat.format(new Date(data.enrollment.createdAt))}. {detail}
 					</p>
 
 					{#if data.enrollment.availability}
@@ -107,8 +75,8 @@
 
 					<div class="border-t border-slate-700/60 pt-4">
 						<p class="text-gray-400">
-							Picked the wrong course, or need to step away? Withdrawing frees your place and lets
-							you submit a new request.
+							Not quite ready? Withdrawing lets someone else take your place in line. You can submit
+							a new request any time.
 						</p>
 						<form
 							method="POST"
@@ -165,7 +133,7 @@
 				<Panel title="Your details" icon={IconAccount}>
 					<div class="px-4 py-5">
 						<p class="text-sm text-gray-400">
-							Taken from your VATSIM account and our roster — nothing to fill in twice.
+							Check this information is correct. If not, update your profile before submitting.
 						</p>
 						<dl class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
 							<div>
@@ -206,8 +174,7 @@
 							>
 								<IconInformation class="mt-0.5 h-5 w-5 shrink-0" />
 								<span>
-									{data.placement.reason} We've selected it for you — pick something else if you think
-									it's wrong, and training staff will confirm.
+									{data.placement.reason}
 								</span>
 							</div>
 						{:else}

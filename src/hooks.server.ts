@@ -3,16 +3,23 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { drizzle } from '$lib/server/db';
 import { getSessionContext, resolveIdentityUrl } from '$lib/server/identity';
 import { loginUrl } from '$lib/identity-links';
+import { recordRosterEmail } from '$lib/server/roster';
+import { email } from '$lib/user';
 
 /**
  * Paths reachable without a session. Everything else redirects to identity.
  *
- * Only `/` is public, and only so it can render a sign-in call to action —
- * redirecting straight to identity would give anonymous visitors no landing
- * page at all. This app is training-only, so there is nothing else worth
- * showing before sign-in.
+ * `/` is public only so it can render a sign-in call to action — redirecting
+ * straight to identity would give anonymous visitors no landing page at all.
+ * This app is training-only, so there is nothing else worth showing before
+ * sign-in.
+ *
+ * `/api/jira/webhook` is public because Jira has no session. It is **not**
+ * unauthenticated: it verifies Jira's HMAC signature before doing anything, and
+ * only ever re-reads an issue from Jira. Anything added here must carry its own
+ * check the same way.
  */
-const PUBLIC_PATHS = ['/'];
+const PUBLIC_PATHS = ['/', '/api/jira/webhook'];
 
 function isPublic(pathname: string): boolean {
 	return PUBLIC_PATHS.some((p) => pathname === p || (p !== '/' && pathname.startsWith(p + '/')));
@@ -48,4 +55,25 @@ const authHandle: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle = sequence(dbHandle, authHandle);
+/**
+ * Keeps `roster_members.email` current from identity.
+ *
+ * VATUSA's public roster never includes emails, so signing in is the only time
+ * we learn one. Off the response path via `waitUntil`, and any failure is only
+ * logged: this is bookkeeping, and must never be why a page fails to load.
+ */
+const emailHandle: Handle = async ({ event, resolve }) => {
+	const user = event.locals.session?.user;
+	const address = user ? email(user) : undefined;
+
+	if (user && address) {
+		const write = recordRosterEmail(event.locals.db, user.cid, address).catch((err) =>
+			console.error('[training-tools] recordRosterEmail failed', err)
+		);
+		event.platform?.ctx?.waitUntil(write);
+	}
+
+	return resolve(event);
+};
+
+export const handle = sequence(dbHandle, authHandle, emailHandle);

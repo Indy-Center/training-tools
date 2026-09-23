@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@indy-center/identity';
-import { atcRating, displayName, operatingInitials, pilotRating } from './user';
+import { atcRating, displayName, operatingInitials } from './user';
 
 function makeUser(overrides: Partial<User> = {}): User {
 	return {
@@ -65,7 +65,6 @@ describe('ratings', () => {
 			vatsimData: { cid: '1234567', personal: { email: 'x@y.z' } }
 		});
 		expect(atcRating(user)).toBeUndefined();
-		expect(pilotRating(user)).toBeUndefined();
 	});
 });
 

@@ -37,28 +37,29 @@ export const COURSES = [
 		name: 'Simple Ground Control',
 		label: 'Simple Ground Control (S-GC)',
 		jiraOptionId: '10088',
-		description: 'Clearance delivery and ground control at our simpler fields.'
+		description:
+			'Clearance delivery at all airports and ground control at our designated simple fields.'
 	},
 	{
 		code: 'A-GC',
 		name: 'Advanced Ground Control',
 		label: 'Advanced Ground Control (A-GC)',
 		jiraOptionId: '10091',
-		description: 'Ground control at Indianapolis and our busier terminal fields.'
+		description: 'Ground control at Indianapolis and our busier fields.'
 	},
 	{
 		code: 'S-LC',
 		name: 'Simple Local Control',
 		label: 'Simple Local Control (S-LC)',
 		jiraOptionId: '10092',
-		description: 'Tower and local control at our simpler fields.'
+		description: 'Local control at our simpler fields.'
 	},
 	{
 		code: 'A-LC',
 		name: 'Advanced Local Control',
 		label: 'Advanced Local Control (A-LC)',
 		jiraOptionId: '10093',
-		description: 'Tower and local control at Indianapolis and our busier fields.'
+		description: 'Local control at more complex airports.'
 	},
 	{
 		code: 'T-RC',
@@ -72,7 +73,7 @@ export const COURSES = [
 		name: 'Enroute Radar Control',
 		label: 'Enroute Radar Control (E-RC)',
 		jiraOptionId: '10095',
-		description: 'Enroute control on Indy Center sectors.'
+		description: 'Enroute control on Indianapolis Center sectors.'
 	}
 ] as const satisfies readonly Course[];
 

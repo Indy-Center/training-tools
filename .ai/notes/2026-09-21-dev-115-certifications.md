@@ -243,10 +243,89 @@ maintainer plus a real sign-in, which is a human's job rather than an agent's.
 Until then, both pages are verified only as far as: build, typecheck, unit tests,
 signed-out redirects, and the action gates rejecting a sessionless POST.
 
+## How this gets tested: in production, deliberately
+
+The requester's plan: review the markdown, push the branch, review, merge, and
+click through in production. Nobody uses the app yet, so production testing
+costs nothing. Three things happen on merge that are worth knowing beforehand:
+
+- **CI applies migrations `0003` and `0004` to production**, and the arrival job
+  starts granting on the next 15-minute tick. Intended, and cheap — after the
+  import only about 4 members need a VATSIM lookup — but real writes.
+- **Submitting `/enroll` files a real issue on the staff's TRK board**, because
+  the Jira secrets are set in production. Delete what you create, as DEV-108
+  did.
+- **`/certifications` needs the role in identity first**, and nothing grants it
+  until DEV-123. It has to be added by hand — see below.
+
+## Adding a role in identity by hand
+
+Read from `identity_db` on 2026-09-21, read-only. Worth recording because the
+obvious attempt is wrong in two ways at once:
+
+```
+user_roles (user_id TEXT, role TEXT, granted_at INTEGER NOT NULL, granted_by TEXT)
+primary key (user_id, role)
+```
+
+- **`user_id` is identity's internal `users.id`, not the CID.** A row keyed on a
+  CID inserts without complaint and grants nothing. Look the id up first:
+  `SELECT id, cid FROM users WHERE cid = '…'`.
+- **Identity stores timestamps in milliseconds** (13 digits); this app stores
+  seconds. `granted_at` has no default, so it has to be supplied:
+  `unixepoch() * 1000`.
+- **`user_roles` was empty.** No one held any role in any app — which is the
+  release task [0005](../decisions/0005-namespaced-role-vocabulary.md) flagged,
+  still outstanding.
+
+The Cloudflare dashboard's D1 console (Storage & Databases → D1) is the
+lowest-friction way to do it, and is where the requester will. The primary key
+makes a repeated insert fail rather than duplicate. Whether identity caches
+roles inside a session was not checked — if the link does not appear after the
+deploy, sign out and in again.
+
+## A staging deploy, when there are users
+
+Asked, not built. Worth having once real students depend on production, and
+the constraints are not the obvious ones:
+
+- **`*.workers.dev` preview URLs cannot work.** `fic_session` is only sent to
+  `*.flyindycenter.com`, so auth fails anywhere else (CLAUDE.md constraint 1). A
+  staging deploy needs its own subdomain — e.g. `training-dev.flyindycenter.com`
+  — on the same Cloudflare account, as an `env.staging` block in
+  `wrangler.jsonc` deployed from a branch. CI currently deploys only `main`.
+- **Its own D1.** Sharing `training-db` would point the staging cron at
+  production data.
+- **No Jira secrets.** The app already degrades cleanly without them: enrollments
+  save and never file. So staging cannot touch the TRK board, for free.
+- The roster sync and arrival grants are harmless against a separate database.
+  **Roles are not** separable: there is one identity, so a grant applies to both.
+
+No org convention exists for this yet — `org-conventions.md` has nothing on
+staging. Not filed as a ticket; it lives here until it is needed.
+
+## Where this was left
+
+Five commits on `dev-115-certifications`, **not pushed**. The requester is taking
+it from here: tuning the copy and pages by hand, then publishing, reviewing and
+merging.
+
+| Commit    | What                                                  |
+| --------- | ----------------------------------------------------- |
+| `17591e4` | DEV-120 — table and credential catalogue              |
+| `ebd4bc5` | Import from community-website (migration `0003`)      |
+| `3db3de7` | DEV-121 — arrival grants                              |
+| `1f24b02` | DEV-122 — staff view and edit                         |
+| `db91d11` | DEV-119 — course suggestion, copy, recorded agreement |
+
+Jira: DEV-120 and DEV-121 Done; DEV-122 and DEV-119 Blocked/Waiting on a signed-in
+click-through; DEV-115 In Progress; DEV-114 closed; DEV-123, 124 and 125 filed.
+
 ## Open / next
 
-- **Click through `/enroll` and `/certifications` signed in.** The one step that
-  counts, and the one not yet done.
+- **Click through `/enroll` and `/certifications` signed in**, in production
+  after merge. The one step that counts, and the one not yet done. Then move
+  DEV-119 and DEV-122 to Done.
 - **The copy is placeholder.** Every `.md` file is drafted by engineering and
   marked DRAFT. The training team writes the real wording.
 - **Where course content lives**, before anyone writes a lesson. A private

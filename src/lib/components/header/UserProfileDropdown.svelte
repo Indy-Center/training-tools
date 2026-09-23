@@ -1,9 +1,8 @@
 <script lang="ts">
 	import type { User } from '@indy-center/identity';
 	import { page } from '$app/state';
-	import { atcRating, displayName, operatingInitials, pilotRating } from '$lib/user';
+	import { atcRating, displayName, operatingInitials } from '$lib/user';
 	import { loginUrl, logoutUrl } from '$lib/identity-links';
-	import IconAirplane from '~icons/mdi/airplane';
 	import IconRating from '~icons/mdi/radar';
 	import IconLogout from '~icons/mdi/logout';
 	import IconAccount from '~icons/mdi/account-circle';
@@ -46,7 +45,6 @@
 	{#if user}
 		{@const initials = operatingInitials(user)}
 		{@const atc = atcRating(user)}
-		{@const pilot = pilotRating(user)}
 		<div class="user-dropdown relative">
 			<button
 				type="button"
@@ -74,14 +72,6 @@
 							>
 								<IconRating class="h-3 w-3" />
 								{atc}
-							</div>
-						{/if}
-						{#if pilot}
-							<div
-								class="flex items-center gap-1 rounded-md bg-pink-600/30 px-2 py-1 font-mono text-xs text-pink-200"
-							>
-								<IconAirplane class="h-3 w-3" />
-								{pilot}
 							</div>
 						{/if}
 					</div>
