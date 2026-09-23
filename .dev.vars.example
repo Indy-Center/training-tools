@@ -23,3 +23,8 @@ PUBLIC_IDENTITY_URL=http://localhost:8787
 # issue on the training staff's board. Delete what you create while testing.
 JIRA_USER_EMAIL=
 JIRA_API_TOKEN=
+
+# Signs deliveries from the TRK "issue updated" webhook (Jira admin → System →
+# WebHooks). Only needed to exercise /api/jira/webhook locally; statuses still
+# sync every 15 minutes without it. In production this is a Worker secret.
+JIRA_WEBHOOK_SECRET=

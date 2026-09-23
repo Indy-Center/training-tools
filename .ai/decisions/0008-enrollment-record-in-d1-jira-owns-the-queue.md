@@ -41,6 +41,9 @@ point:
 Staff keep the board they already have. We do not build an admin queue (that is
 DEV-106), and we do not read statuses back yet (that is DEV-111).
 
+> Since 2026-09-23 we do read statuses back — by webhook and cron sweep. See
+> [0014](0014-enrollment-status-from-jira.md).
+
 ## What happens when the Jira write fails
 
 This is the part worth spelling out, because it is the whole justification for

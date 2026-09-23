@@ -91,12 +91,10 @@ Moodle links come from `MOODLE_COURSE_URLS` in config, keyed by credential code
 (including `T2-CTR`). It is empty until `indy-moodle` publishes courses, and
 every use has a fallback.
 
-> **The waitlist position overcounts until DEV-111.** It is counted from D1, and
-> nothing syncs statuses back from Jira yet — see
-> [0008](0008-enrollment-record-in-d1-jira-owns-the-queue.md). Anyone staff have
-> moved to In Training in Jira still reads `waitlist` here. For the same reason
-> the `in-training`, `rating-exam` and `certification-update` branches are
-> unreachable until that sync exists.
+> **Statuses come from Jira.** When this was written nothing synced them back,
+> so the position overcounted and only `waitlist` ever showed.
+> [0014](0014-enrollment-status-from-jira.md) added the webhook and cron sweep
+> that fix both.
 
 ### Tier 2 is a page, not an enrollment record
 

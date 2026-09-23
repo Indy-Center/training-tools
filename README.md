@@ -14,6 +14,7 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | `GET /`                      | public   | Sign-in CTA signed out; the DEV-112 flow signed in          |
 | `GET /enroll`                | required | Enrollment form, or the state of an open request            |
 | `POST /enroll`               | required | Submit an enrollment; `?/withdraw` withdraws an open one    |
+| `POST /api/jira/webhook`     | HMAC     | TRK "issue updated" deliveries; re-reads the issue's status |
 | `GET /enroll/tier-2`         | required | The self-led Tier 2 course, for anyone with E-RC but not T2 |
 | `GET /stats`                 | required | Waitlist numbers and expected wait (placeholder — DEV-111)  |
 | `GET /dashboard`             | required | The signed-in user's training overview                      |
@@ -32,7 +33,9 @@ scoped to the caller's own request.
 unreachable until identity implements and assigns the role. That is a release
 task, not a bug.
 
-`/` is the **only** public path, and only so it can render the sign-in CTA.
+`/` is public only so it can render the sign-in CTA. The one other public path
+is `POST /api/jira/webhook`, which authenticates Jira by HMAC signature instead
+of a session.
 
 Signed in, `/` sorts the member into one of six branches based on the roster
 mirror, their rating, and — for home controllers — their consolidation hours:
@@ -56,10 +59,14 @@ member is held back rather than let through.
 
 With a request open, the home page shows where it is: waitlist position for
 `waitlist`, the course's Moodle link (`MOODLE_COURSE_URLS`) for `in-training`,
-and a wait instruction for `rating-exam` and `certification-update`. **Until
-DEV-111 syncs statuses back from Jira, D1 only ever holds `waitlist`**, so the
-position overcounts and the other branches do not show yet. See
+and a wait instruction for `rating-exam` and `certification-update`. See
 [0012](.ai/decisions/0012-enrollment-eligibility.md).
+
+Those statuses, and the assigned `Teacher`, are read back from the TRK issue two
+ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
+the 15-minute cron sweep as the backstop. A request the student withdrew here is
+never reopened by Jira. See
+[0014](.ai/decisions/0014-enrollment-status-from-jira.md).
 
 ## Scheduled work
 
@@ -68,8 +75,9 @@ position overcounts and the other branches do not show yet. See
 | `*/15 * * * *` | Refreshes the VATUSA roster mirror (`src/worker.ts` → `syncRoster`)       |
 | `*/15 * * * *` | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`) |
 | `*/15 * * * *` | Files enrollments that never reached Jira (`reconcileEnrollments`)        |
+| `*/15 * * * *` | Reads TRK status and Teacher back from Jira (`sweepEnrollmentStatuses`)   |
 
-All three run on the same schedule but are guarded separately: VATUSA being down
+All four run on the same schedule but are guarded separately: VATUSA being down
 must not stop enrollments reaching the staff board, Jira being down must not stop
 the roster refreshing, and VATSIM being down must not stop either.
 
@@ -104,10 +112,11 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_BASE_URL`       | `https://zidartcc.atlassian.net`                                   |
 | `JIRA_PROJECT_KEY`    | `TRK` — the Student Tracking waitlist                              |
 
-| Secret            | What it is                                          |
-| ----------------- | --------------------------------------------------- |
-| `JIRA_USER_EMAIL` | Atlassian account the API token belongs to          |
-| `JIRA_API_TOKEN`  | Classic API token, from id.atlassian.com → Security |
+| Secret                | What it is                                                |
+| --------------------- | --------------------------------------------------------- |
+| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                |
+| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security       |
+| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to

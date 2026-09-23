@@ -16,6 +16,12 @@ import {
 } from '$lib/server/jira/enrollment';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
+export {
+	sweepEnrollmentStatuses,
+	syncEnrollmentIssue,
+	type SweepResult,
+	type SyncIssueResult
+} from './status-sync';
 
 /**
  * Stop retrying a push after this many failures.
@@ -74,9 +80,11 @@ export type WaitlistPosition = {
 /**
  * Where a waitlisted request sits in its course's queue, first come first served.
  *
- * **Counted from D1's statuses, which nothing syncs back from Jira yet**
- * (DEV-111). Until it does, anyone staff have moved on to training in Jira
- * still reads `waitlist` here, so both numbers can run high.
+ * Counted from D1's statuses, which are read back from Jira by the webhook
+ * (seconds) and the cron sweep (at most 15 minutes). Between the two, someone
+ * staff have just moved on to training can briefly still count as waiting.
+ * Requests not filed with Jira yet count too — they are in the queue, the
+ * board just has not been told.
  */
 export async function getWaitlistPosition(
 	db: Database,

@@ -36,6 +36,7 @@
 		// JIRA_USER_EMAIL and JIRA_API_TOKEN are secrets, not vars:
 		//   wrangler secret put JIRA_USER_EMAIL
 		//   wrangler secret put JIRA_API_TOKEN
+		//   wrangler secret put JIRA_WEBHOOK_SECRET   (signs the TRK webhook)
 		"JIRA_BASE_URL": "https://zidartcc.atlassian.net",
 		"JIRA_PROJECT_KEY": "TRK"
 	},

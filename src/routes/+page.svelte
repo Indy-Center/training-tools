@@ -116,6 +116,11 @@
 								</a>
 							{:else if request.status === 'in-training'}
 								<p>{statusDetail(request.status)}</p>
+								{#if request.teacher}
+									<p>
+										Your mentor: <span class="font-medium text-white">{request.teacher}</span>
+									</p>
+								{/if}
 								{#if request.moodleUrl}
 									<a
 										href={request.moodleUrl}

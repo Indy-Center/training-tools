@@ -9,12 +9,17 @@ import { email } from '$lib/user';
 /**
  * Paths reachable without a session. Everything else redirects to identity.
  *
- * Only `/` is public, and only so it can render a sign-in call to action —
- * redirecting straight to identity would give anonymous visitors no landing
- * page at all. This app is training-only, so there is nothing else worth
- * showing before sign-in.
+ * `/` is public only so it can render a sign-in call to action — redirecting
+ * straight to identity would give anonymous visitors no landing page at all.
+ * This app is training-only, so there is nothing else worth showing before
+ * sign-in.
+ *
+ * `/api/jira/webhook` is public because Jira has no session. It is **not**
+ * unauthenticated: it verifies Jira's HMAC signature before doing anything, and
+ * only ever re-reads an issue from Jira. Anything added here must carry its own
+ * check the same way.
  */
-const PUBLIC_PATHS = ['/'];
+const PUBLIC_PATHS = ['/', '/api/jira/webhook'];
 
 function isPublic(pathname: string): boolean {
 	return PUBLIC_PATHS.some((p) => pathname === p || (p !== '/' && pathname.startsWith(p + '/')));

@@ -29,6 +29,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 					course: openEnrollment.course,
 					status: openEnrollment.status,
 					createdAt: openEnrollment.createdAt,
+					// Initials from Jira's Teacher select, once staff assign one.
+					teacher: openEnrollment.teacher,
 					waitlist:
 						openEnrollment.status === 'waitlist'
 							? await getWaitlistPosition(locals.db, openEnrollment)

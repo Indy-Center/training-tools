@@ -31,9 +31,11 @@ export type NotificationPreference = (typeof NOTIFICATION_PREFERENCES)[number];
  * is staff taking them off. Keeping them distinct means a withdrawal is never
  * mistaken for a removal when statuses are read back.
  *
- * Jira stays authoritative for progression; we only ever write `waitlist` and
- * `withdrawn` today. Nothing reads statuses back yet — when DEV-111 needs them,
- * this column is where they land.
+ * Jira stays authoritative for progression. We write `waitlist` on submit and
+ * `withdrawn` on a student's withdrawal; everything else is read back from the
+ * TRK issue by the cron sweep and the Jira webhook — see
+ * `$lib/server/enrollments/status-sync.ts` and
+ * .ai/decisions/0014-enrollment-status-from-jira.md
  */
 export const ENROLLMENT_STATUSES = [
 	'waitlist', // Jira: Waitlist (initial)
@@ -128,6 +130,18 @@ export const enrollmentsTable = sqliteTable(
 		jiraSyncError: text('jira_sync_error'),
 		/** Capped by MAX_JIRA_SYNC_ATTEMPTS so a bad payload stops retrying. */
 		jiraSyncAttempts: integer('jira_sync_attempts').notNull().default(0),
+
+		/**
+		 * The TRK `Teacher` select, read back from Jira: instructor initials, not
+		 * an account. Null until staff assign someone.
+		 */
+		teacher: text('teacher'),
+		/**
+		 * When `status` and `teacher` were last read back from Jira, by the cron
+		 * sweep or the webhook. Null until the first read. See
+		 * .ai/decisions/0014-enrollment-status-from-jira.md
+		 */
+		jiraStatusSyncedAt: integer('jira_status_synced_at', { mode: 'timestamp' }),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()
