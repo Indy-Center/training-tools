@@ -37,3 +37,10 @@ and `user.test.ts` still import it, so `build`, `check` and `test` all fail.
 `src/lib/courses.ts` and `src/routes/enroll/+page.svelte` also fail
 `format:check`. Verified this change with `pilotRating` temporarily restored:
 build, check and all 164 tests pass.
+
+**Resolved in the follow-up commit:** at the requester's direction, pilot
+ratings were removed from the whole UI (header, profile dropdown, dashboard)
+rather than restored, because this app covers controller training only. ADR
+0003's style list says so now. The VATSIM API types and research still mention
+pilot fields, because they describe VATSIM's response shape, not what we show.
+`courses.ts` and `enroll/+page.svelte` still fail `format:check`.

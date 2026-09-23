@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Panel from '$lib/components/Panel.svelte';
 	import Badge from '$lib/components/Badge.svelte';
-	import { atcRating, displayName, operatingInitials, pilotRating } from '$lib/user';
+	import { atcRating, displayName, operatingInitials } from '$lib/user';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconSchool from '~icons/mdi/school';
 	import IconHeadset from '~icons/mdi/headset';
@@ -11,7 +11,6 @@
 	let name = $derived(displayName(data.user));
 	let initials = $derived(operatingInitials(data.user));
 	let atc = $derived(atcRating(data.user));
-	let pilot = $derived(pilotRating(data.user));
 </script>
 
 <svelte:head>
@@ -41,11 +40,7 @@
 				<dd class="flex gap-2">
 					{#if atc}
 						<Badge size="sm" color="sky" label={atc} />
-					{/if}
-					{#if pilot}
-						<Badge size="sm" color="purple" label={pilot} />
-					{/if}
-					{#if !atc && !pilot}
+					{:else}
 						<span class="text-gray-500">Unknown</span>
 					{/if}
 				</dd>
