@@ -7,7 +7,13 @@
  * Mirrors the TRK workflow, which a student sees in their own terms. See
  * `ENROLLMENT_STATUSES` in `$lib/db/schema/enrollments.ts`.
  */
-import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
+import type { EnrollmentStatus, NotificationPreference } from '$lib/db/schema/enrollments';
+
+/** How each contact option reads. The enroll form's radios and `/stats` both use these. */
+export const NOTIFICATION_LABELS: Record<NotificationPreference, string> = {
+	discord: 'Discord message',
+	email: 'Email'
+};
 
 export const STATUS_LABELS: Record<string, string> = {
 	waitlist: 'On the waitlist',

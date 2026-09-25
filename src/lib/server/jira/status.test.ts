@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { mapJiraStatus, resolveStatusUpdate, TEACHER_FIELD } from './status';
+import {
+	isStale,
+	mapJiraStatus,
+	parseJiraTimestamp,
+	resolveStatusUpdate,
+	TEACHER_FIELD
+} from './status';
 import { ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 
 describe('mapJiraStatus', () => {
@@ -72,5 +78,45 @@ describe('resolveStatusUpdate', () => {
 			action: 'unknown-status',
 			statusName: null
 		});
+	});
+});
+
+describe('parseJiraTimestamp', () => {
+	it('reads Jira’s colon-less offset', () => {
+		expect(parseJiraTimestamp('2026-09-23T10:32:53.283-0400')?.toISOString()).toBe(
+			'2026-09-23T14:32:53.283Z'
+		);
+		expect(parseJiraTimestamp('2026-09-23T14:32:53.283+0000')?.toISOString()).toBe(
+			'2026-09-23T14:32:53.283Z'
+		);
+	});
+
+	it('returns null for anything unparseable', () => {
+		expect(parseJiraTimestamp(null)).toBeNull();
+		expect(parseJiraTimestamp('')).toBeNull();
+		expect(parseJiraTimestamp('yesterday')).toBeNull();
+	});
+});
+
+describe('isStale', () => {
+	// TRK-52, 2026-09-23: Teacher set, then Assign Teacher 2.3 seconds later.
+	const teacherEdit = new Date('2026-09-23T14:32:50.985Z');
+	const transition = new Date('2026-09-23T14:32:53.283Z');
+
+	it('refuses the Teacher edit once the transition has been applied', () => {
+		expect(isStale(transition, teacherEdit)).toBe(true);
+	});
+
+	it('applies the transition over the Teacher edit', () => {
+		expect(isStale(teacherEdit, transition)).toBe(false);
+	});
+
+	it('lets the same state through again', () => {
+		expect(isStale(transition, new Date(transition))).toBe(false);
+	});
+
+	it('lets anything through when either time is unknown', () => {
+		expect(isStale(null, teacherEdit)).toBe(false);
+		expect(isStale(transition, null)).toBe(false);
 	});
 });

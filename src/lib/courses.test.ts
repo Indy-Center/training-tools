@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { COURSES, COURSE_CODES, findCourse, isCourseCode } from './courses';
+import {
+	COURSES,
+	COURSE_CODES,
+	findCourse,
+	findCourseByJiraOptionId,
+	formatWeeksRange,
+	isCourseCode
+} from './courses';
 import { CLOSED_ENROLLMENT_STATUSES, ENROLLMENT_STATUSES } from './db/schema/enrollments';
 
 describe('course catalogue', () => {
@@ -25,6 +32,42 @@ describe('course catalogue', () => {
 		expect(findCourse('S-XX')).toBeUndefined();
 		expect(isCourseCode('E-RC')).toBe(true);
 		expect(isCourseCode('nonsense')).toBe(false);
+	});
+
+	// The import reads a hand-filed TRK issue's course off this id.
+	it('looks courses up by Jira option id', () => {
+		expect(findCourseByJiraOptionId('10094')?.code).toBe('T-RC');
+		expect(findCourseByJiraOptionId('99999')).toBeUndefined();
+		expect(findCourseByJiraOptionId(null)).toBeUndefined();
+	});
+});
+
+describe('course length estimates', () => {
+	it('are whole, positive week ranges with min no greater than max', () => {
+		for (const course of COURSES) {
+			const range = course.estimatedWeeks;
+			if (!range) continue;
+			expect(Number.isInteger(range.min) && Number.isInteger(range.max)).toBe(true);
+			expect(range.min).toBeGreaterThan(0);
+			expect(range.min).toBeLessThanOrEqual(range.max);
+		}
+	});
+
+	// The starting values are one lesson a week, plus 20% rounded up. Pinned so a
+	// change to them is a deliberate edit, not an accident.
+	it('start at one lesson a week, plus 20% on the high end', () => {
+		const lessons = { 'S-GC': 8, 'A-GC': 2, 'S-LC': 3, 'A-LC': 3, 'T-RC': 8, 'E-RC': 8 };
+		for (const course of COURSES) {
+			const n = lessons[course.code];
+			expect(course.estimatedWeeks).toEqual({ min: n, max: Math.ceil(n * 1.2) });
+		}
+	});
+
+	it('format as a range, a single value, or nothing', () => {
+		expect(formatWeeksRange({ min: 8, max: 10 })).toBe('8–10 weeks');
+		expect(formatWeeksRange({ min: 3, max: 3 })).toBe('3 weeks');
+		expect(formatWeeksRange({ min: 1, max: 1 })).toBe('1 week');
+		expect(formatWeeksRange(null)).toBeNull();
 	});
 });
 

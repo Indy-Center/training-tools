@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { syncEnrollmentIssue } from '$lib/server/enrollments';
-import { issueKeyFromDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
+import { applyIssueStatus, syncEnrollmentIssue } from '$lib/server/enrollments';
+import { readDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
 import type { RequestHandler } from './$types';
 
 /**
@@ -10,20 +10,23 @@ import type { RequestHandler } from './$types';
  * no session. The HMAC signature is this route's authentication instead, and it
  * is checked before anything else.
  *
- * The body is used for exactly one thing: which issue changed. The issue is then
- * re-read from Jira, so a replayed or out-of-order delivery can do no more than
- * make us look at an issue again. That is also why no
- * `X-Atlassian-Webhook-Identifier` dedup is needed: a duplicate is harmless.
+ * Once verified, the body's issue is applied directly, ordered by its own
+ * `updated` time, and anything older than what is already stored is refused.
+ * The first version re-read the issue from Jira instead, and lost In Training:
+ * staff set Teacher and then click Assign Teacher two seconds later, and the
+ * Teacher edit's read-and-write could land after the transition's. Ordering by
+ * time makes delivery order irrelevant, so no `X-Atlassian-Webhook-Identifier`
+ * dedup is needed either. A body without fields falls back to a Jira read.
  *
  * Status codes are chosen for Jira's retry policy, which retries 408, 409, 425,
  * 429 and 5xx up to five times and nothing else:
  *
- * | Case                              | Answer | Retried? |
- * | --------------------------------- | ------ | -------- |
- * | Applied, ignored, or issue gone   | 204    | no       |
- * | Bad or missing signature          | 401    | no       |
- * | Not configured here yet           | 503    | yes      |
- * | Jira read failed                  | 502    | yes      |
+ * | Case                                   | Answer | Retried? |
+ * | -------------------------------------- | ------ | -------- |
+ * | Applied, stale, ignored, or issue gone | 204    | no       |
+ * | Bad or missing signature               | 401    | no       |
+ * | Not configured here yet                | 503    | yes      |
+ * | Fallback Jira read failed              | 502    | yes      |
  *
  * The 15-minute sweep catches anything that runs out of retries.
  * See .ai/decisions/0014-enrollment-status-from-jira.md
@@ -53,23 +56,37 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 		return new Response(null, { status: 204 });
 	}
 
-	const issueKey = issueKeyFromDelivery(payload, env?.JIRA_PROJECT_KEY ?? 'TRK');
-	if (!issueKey) return new Response(null, { status: 204 });
+	const delivery = readDelivery(payload, env?.JIRA_PROJECT_KEY ?? 'TRK');
+	if (!delivery) return new Response(null, { status: 204 });
 
 	try {
-		const result = await syncEnrollmentIssue(locals.db, env, issueKey);
+		let outcome: string;
 
-		if (!result.ok) {
-			console.error('[training-tools] Jira webhook: Jira credentials are not configured');
-			return json({ error: 'not configured' }, { status: 503 });
+		if (delivery.issue) {
+			outcome = await applyIssueStatus(locals.db, delivery.issue, delivery.observedAt);
+		} else {
+			const result = await syncEnrollmentIssue(locals.db, env, delivery.key);
+			if (!result.ok) {
+				console.error('[training-tools] Jira webhook: Jira credentials are not configured');
+				return json({ error: 'not configured' }, { status: 503 });
+			}
+			outcome = result.outcome;
 		}
 
-		if (result.outcome === 'updated') {
-			console.log('[training-tools] enrollment status from webhook', issueKey);
-		}
+		// One line per delivery: TRK sees a handful of changes a day, and this is
+		// what answers "did the webhook see it" from `wrangler tail`.
+		console.log(
+			'[training-tools] jira webhook',
+			JSON.stringify({
+				issue: delivery.key,
+				status: delivery.issue?.fields?.status?.name ?? null,
+				observedAt: delivery.observedAt?.toISOString() ?? null,
+				outcome
+			})
+		);
 		return new Response(null, { status: 204 });
 	} catch (err) {
-		console.error('[training-tools] Jira webhook: reading the issue failed', issueKey, err);
+		console.error('[training-tools] Jira webhook failed', delivery.key, err);
 		return json({ error: 'upstream' }, { status: 502 });
 	}
 };

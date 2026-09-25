@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { COURSE_CODES } from '$lib/courses';
 
@@ -142,6 +142,13 @@ export const enrollmentsTable = sqliteTable(
 		 * .ai/decisions/0014-enrollment-status-from-jira.md
 		 */
 		jiraStatusSyncedAt: integer('jira_status_synced_at', { mode: 'timestamp' }),
+		/**
+		 * When the Jira state we last applied was true — the webhook's event time,
+		 * or the issue's `updated` from a read. Anything older is refused, so two
+		 * deliveries landing out of order cannot roll a status back. Milliseconds,
+		 * because staff routinely make two changes within the same second or two.
+		 */
+		jiraUpdatedAt: integer('jira_updated_at', { mode: 'timestamp_ms' }),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()
@@ -150,12 +157,27 @@ export const enrollmentsTable = sqliteTable(
 			.notNull()
 			.default(sql`(unixepoch())`),
 		/** Set when the student withdraws; the row survives as history. */
-		withdrawnAt: integer('withdrawn_at', { mode: 'timestamp' })
+		withdrawnAt: integer('withdrawn_at', { mode: 'timestamp' }),
+
+		/**
+		 * Set when the row was created from a TRK issue someone filed by hand on
+		 * the board, rather than through this site's form. Null for everything
+		 * the form wrote.
+		 *
+		 * Such rows never saw our form, so `availability`, `agreedAt` and
+		 * `submittedRating` stay null — there is nothing true to put there — and
+		 * `createdAt` is the issue's `Waitlisted` date, because that is the queue
+		 * position staff gave them. See `$lib/server/enrollments/import.ts`.
+		 */
+		importedAt: integer('imported_at', { mode: 'timestamp' })
 	},
 	(table) => [
 		index('enrollments_cid_idx').on(table.cid),
 		index('enrollments_status_idx').on(table.status),
-		// The reconcile pass looks for rows that never reached Jira.
-		index('enrollments_jira_issue_key_idx').on(table.jiraIssueKey)
+		// Unique so one TRK issue can back at most one row: the import and a
+		// submit that is mid-filing can both see the same new issue, and only one
+		// of them may win. SQLite lets any number of rows hold NULL, which is what
+		// the reconcile pass selects on.
+		uniqueIndex('enrollments_jira_issue_key_unique').on(table.jiraIssueKey)
 	]
 );

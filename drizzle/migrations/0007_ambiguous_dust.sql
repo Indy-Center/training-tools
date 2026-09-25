@@ -1,0 +1,1 @@
+ALTER TABLE `enrollments` ADD `jira_updated_at` integer;

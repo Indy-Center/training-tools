@@ -25,19 +25,21 @@
 			label: 'Enroll',
 			href: '/enroll',
 			icon: IconClipboard
-		},
-		{
-			label: 'Waitlist',
-			href: '/stats',
-			icon: IconChartBar
 		}
 	];
 
-	// Signed out, every destination here is gated, so advertising them would just
-	// bounce people to identity. The landing page's sign-in CTA is the whole
-	// navigation until they're authenticated.
+	// `/stats` is public: seeing the wait before signing up is the point of it.
+	const WAITLIST_LINK = {
+		label: 'Waitlist',
+		href: '/stats',
+		icon: IconChartBar
+	};
+
+	// Signed out, everything else here is gated, so advertising it would just
+	// bounce people to identity. The waitlist is the one exception.
 	const links = $derived([
 		...(user ? BASE_LINKS : []),
+		WAITLIST_LINK,
 		...(user
 			? [
 					{
