@@ -16,6 +16,8 @@ import {
 } from '$lib/server/jira/enrollment';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
+export { importBoardIssues, type ImportResult } from './import';
+export { getWaitlistStats, type CourseWaitlist } from './stats';
 export {
 	applyIssueStatus,
 	sweepEnrollmentStatuses,

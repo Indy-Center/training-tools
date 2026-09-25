@@ -50,6 +50,13 @@
       "when": 1790174294121,
       "tag": "0007_ambiguous_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790317781384,
+      "tag": "0008_fair_revanche",
+      "breakpoints": true
     }
   ]
 }

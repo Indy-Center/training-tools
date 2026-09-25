@@ -32,7 +32,10 @@ export type ApplyOutcome =
 	| 'updated'
 	/** Read, and already matched. */
 	| 'unchanged'
-	/** Not an issue we filed — staff can create TRK issues by hand. */
+	/**
+	 * No row holds this key yet — an issue filed by hand on the board. Left for
+	 * `importBoardIssues()`, the one place rows are created from Jira.
+	 */
 	| 'no-row'
 	/** The student withdrew here; Jira does not get to reopen it. */
 	| 'withdrawn-locally'

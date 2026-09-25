@@ -1,65 +1,65 @@
 import { JiraError, jiraRequest, type JiraConfig } from './client';
+import { BOARD_ISSUE_FIELDS, type JiraBoardIssue } from './board-issue';
 import { STUDENT_ENROLLMENT_ISSUE_TYPE_ID } from './enrollment';
 import { STATUS_FIELDS, type JiraStatusIssue } from './status';
 
 /**
- * Status reads against TRK. Only `status` and `Teacher` are ever requested,
- * which keeps the responses small and the API token's job narrow.
+ * Reads against TRK's Student Enrollment issues. Each read asks only for the
+ * fields its caller uses, which keeps the responses small and the API token's
+ * job narrow.
  */
 
 /** Jira's page ceiling for `/search/jql`. */
 const PAGE_SIZE = 100;
 
 /**
- * Pages one sweep will read before giving up.
+ * Pages one search will read before giving up.
  *
  * Bounds the subrequests a single cron invocation can spend. TRK holds far
- * fewer issues than this, so hitting it means something is wrong; the caller
- * then leaves its cursor where it was rather than skip what it did not read.
+ * fewer issues than this, so hitting it means something is wrong; callers then
+ * treat the read as incomplete rather than act on what they did not see.
  */
 const MAX_PAGES = 20;
 
-type SearchResponse = {
-	issues?: JiraStatusIssue[];
+type SearchResponse<T> = {
+	issues?: T[];
 	nextPageToken?: string;
 	isLast?: boolean;
 };
 
-export type SearchResult = {
-	issues: JiraStatusIssue[];
+export type SearchResult<T = JiraStatusIssue> = {
+	issues: T[];
 	/** False when MAX_PAGES was hit before Jira said it was done. */
 	complete: boolean;
 };
 
+function enrollmentJql(config: JiraConfig, extra: string[], orderBy: string): string {
+	const clauses = [
+		`project = "${config.projectKey}"`,
+		`issuetype = ${STUDENT_ENROLLMENT_ISSUE_TYPE_ID}`,
+		...extra
+	];
+	return `${clauses.join(' AND ')} ORDER BY ${orderBy}`;
+}
+
 /**
- * Student Enrollment issues updated in the last `withinMinutes`, or every one
- * of them when that is null (the first run, or after the cursor was lost).
- *
- * A **relative** JQL date on purpose. An absolute one is read in the API
- * account's own timezone, which is a quiet off-by-hours bug; "-90m" means the
- * same thing wherever the account thinks it is.
+ * Every page of one JQL search.
  *
  * Uses `/search/jql` with `nextPageToken` — the older `/search` with `startAt`
  * has been retired by Atlassian.
  */
-export async function searchEnrollmentIssues(
+async function searchAll<T>(
 	config: JiraConfig,
-	withinMinutes: number | null
-): Promise<SearchResult> {
-	const clauses = [
-		`project = "${config.projectKey}"`,
-		`issuetype = ${STUDENT_ENROLLMENT_ISSUE_TYPE_ID}`
-	];
-	if (withinMinutes !== null) clauses.push(`updated >= "-${Math.ceil(withinMinutes)}m"`);
-
-	const jql = `${clauses.join(' AND ')} ORDER BY updated ASC`;
-	const issues: JiraStatusIssue[] = [];
+	jql: string,
+	fields: readonly string[]
+): Promise<SearchResult<T>> {
+	const issues: T[] = [];
 	let nextPageToken: string | undefined;
 
 	for (let page = 0; page < MAX_PAGES; page += 1) {
-		const response = await jiraRequest<SearchResponse>(config, '/search/jql', {
+		const response = await jiraRequest<SearchResponse<T>>(config, '/search/jql', {
 			method: 'POST',
-			body: { jql, fields: [...STATUS_FIELDS], maxResults: PAGE_SIZE, nextPageToken }
+			body: { jql, fields: [...fields], maxResults: PAGE_SIZE, nextPageToken }
 		});
 
 		issues.push(...(response.issues ?? []));
@@ -69,6 +69,31 @@ export async function searchEnrollmentIssues(
 	}
 
 	return { issues, complete: false };
+}
+
+/**
+ * Student Enrollment issues updated in the last `withinMinutes`, or every one
+ * of them when that is null (the first run, or after the cursor was lost).
+ * Status fields only — this is the sweep's read.
+ *
+ * A **relative** JQL date on purpose. An absolute one is read in the API
+ * account's own timezone, which is a quiet off-by-hours bug; "-90m" means the
+ * same thing wherever the account thinks it is.
+ */
+export async function searchEnrollmentIssues(
+	config: JiraConfig,
+	withinMinutes: number | null
+): Promise<SearchResult<JiraStatusIssue>> {
+	const extra = withinMinutes === null ? [] : [`updated >= "-${Math.ceil(withinMinutes)}m"`];
+	return searchAll(config, enrollmentJql(config, extra, 'updated ASC'), STATUS_FIELDS);
+}
+
+/**
+ * Every Student Enrollment issue on the board, with the fields a row needs.
+ * The import's read: it has to see old issues too, so it takes no window.
+ */
+export async function listBoardIssues(config: JiraConfig): Promise<SearchResult<JiraBoardIssue>> {
+	return searchAll(config, enrollmentJql(config, [], 'created ASC'), BOARD_ISSUE_FIELDS);
 }
 
 /** One issue's status and teacher, or null when the issue no longer exists. */

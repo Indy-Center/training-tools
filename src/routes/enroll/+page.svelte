@@ -5,7 +5,13 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import { COURSES, findCourse } from '$lib/courses';
 	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
-	import { STATUS_COLORS, STATUS_LABELS, statusDetail } from '$lib/enrollment-status';
+	import {
+		NOTIFICATION_LABELS,
+		STATUS_COLORS,
+		STATUS_LABELS,
+		statusDetail
+	} from '$lib/enrollment-status';
+	import { NOTIFICATION_PREFERENCES } from '$lib/db/schema/enrollments';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconClock from '~icons/mdi/clock-outline';
@@ -245,7 +251,7 @@
 						{/if}
 
 						<div class="space-y-2">
-							{#each [{ value: 'discord', label: 'Discord message' }, { value: 'email', label: 'Email' }] as option (option.value)}
+							{#each NOTIFICATION_PREFERENCES.map( (value) => ({ value, label: NOTIFICATION_LABELS[value] }) ) as option (option.value)}
 								<label
 									class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-700/60 px-4 py-3 transition-colors duration-200 hover:bg-white/5 has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
 								>

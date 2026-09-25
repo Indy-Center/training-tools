@@ -16,7 +16,7 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | `POST /enroll`               | required | Submit an enrollment; `?/withdraw` withdraws an open one    |
 | `POST /api/jira/webhook`     | HMAC     | TRK "issue updated" deliveries; re-reads the issue's status |
 | `GET /enroll/tier-2`         | required | The self-led Tier 2 course, for anyone with E-RC but not T2 |
-| `GET /stats`                 | required | Waitlist numbers and expected wait (placeholder — DEV-111)  |
+| `GET /stats`                 | public   | Per-course waiting/in-training counts and course length     |
 | `GET /dashboard`             | required | The signed-in user's training overview                      |
 | `GET /certifications`        | staff    | Search the roster by CID or name                            |
 | `GET /certifications/{cid}`  | staff    | One controller's credentials and their full history         |
@@ -33,9 +33,10 @@ scoped to the caller's own request.
 unreachable until identity implements and assigns the role. That is a release
 task, not a bug.
 
-`/` is public only so it can render the sign-in CTA. The one other public path
-is `POST /api/jira/webhook`, which authenticates Jira by HMAC signature instead
-of a session.
+`/` is public only so it can render the sign-in CTA. `/stats` is public so people
+can see the wait before they enroll; it shows counts only, plus a signed-in
+viewer's own position. The one other public path is `POST /api/jira/webhook`,
+which authenticates Jira by HMAC signature instead of a session.
 
 Signed in, `/` sorts the member into one of six branches based on the roster
 mirror, their rating, and — for home controllers — their consolidation hours:
@@ -70,19 +71,26 @@ never reopened by Jira. See
 
 ## Scheduled work
 
-| Trigger        | Does                                                                      |
-| -------------- | ------------------------------------------------------------------------- |
-| `*/15 * * * *` | Refreshes the VATUSA roster mirror (`src/worker.ts` → `syncRoster`)       |
-| `*/15 * * * *` | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`) |
-| `*/15 * * * *` | Files enrollments that never reached Jira (`reconcileEnrollments`)        |
-| `*/15 * * * *` | Reads TRK status and Teacher back from Jira (`sweepEnrollmentStatuses`)   |
+Every 15 minutes (`*/15 * * * *`), in this order:
 
-All four run on the same schedule but are guarded separately: VATUSA being down
-must not stop enrollments reaching the staff board, Jira being down must not stop
-the roster refreshing, and VATSIM being down must not stop either.
+| Job                     | Does                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| roster sync             | Refreshes the VATUSA roster mirror (`syncRoster`)                            |
+| arrival certifications  | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)    |
+| jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`) |
+| enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)           |
+| enrollment status sweep | Reads TRK status and Teacher back from Jira (`sweepEnrollmentStatuses`)      |
 
-Order matters once — the certification pass reads roster rows the sync has just
-written, so a brand-new arrival is certified in the same run.
+The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
+Each job is guarded separately: VATUSA being down must not stop enrollments
+reaching the staff board, Jira being down must not stop the roster refreshing,
+and VATSIM being down must not stop either. A job logs a one-line summary only
+when it did something, and the first failure is rethrown after every job has run.
+
+Order matters three times, and each is commented in `scheduled.ts`: certification
+reads the roster the sync just wrote; the import runs before the reconcile so an
+issue whose key write-back failed is adopted rather than filed twice; and the
+sweep runs last so an issue filed moments ago is read back in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
@@ -157,7 +165,8 @@ src/
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
 │   │   ├── roster/            roster lookup, search, and the reconciling sync
 │   │   ├── certifications/    grant/revoke, and the arrival pass
-│   │   ├── enrollments/       submit, withdraw, waitlist position, and the Jira reconcile pass
+│   │   ├── enrollments/       submit, withdraw, waitlist position and stats, and the Jira passes
+│   │   ├── scheduled.ts       the cron's job list, in order, and the runner that guards each
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for /, /enroll, /enroll/tier-2
 │   │   ├── jira/              Jira client, field ids, issue payload builder
 │   │   └── db/                drizzle client factory
@@ -235,6 +244,21 @@ is currently sitting in. Details and the full field/option id map are in
 [`.ai/research/jira-student-tracking.md`](.ai/research/jira-student-tracking.md);
 the reasoning is in
 [`.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md`](.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md).
+
+**Issues staff file by hand on the board get rows too.** Most of TRK predates
+this app — the backlog was moved onto the board by hand on 2026-09-05 — so the
+cron's board import creates an `enrollments` row (with `importedAt` set) for any
+Student Enrollment issue no row holds, queued by its `Waitlisted` date. Those
+students then see their request on `/`, are counted on `/stats`, and cannot file
+a duplicate. An issue with no usable CID, course or date is skipped and logged
+each run until someone fixes it on the board. The import is the only code that
+creates rows from Jira; the sweep and webhook only update existing ones.
+
+**`/stats` shows headcounts and estimates, not measured rates** (DEV-111). Each
+course's length is `estimatedWeeks` in `$lib/courses.ts` — one lesson a week,
+plus 20% on the high end — and is labelled as an estimate. There is no
+"you'll start in N weeks": nothing records when students move between stages,
+so there is no throughput to base one on.
 
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
