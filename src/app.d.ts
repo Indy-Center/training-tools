@@ -16,6 +16,11 @@ declare global {
 		JIRA_API_TOKEN?: string;
 		/** Shared with the TRK webhook in Jira; signs each delivery. */
 		JIRA_WEBHOOK_SECRET?: string;
+		/**
+		 * Discord webhook for the training admins' channel. Temporary — see
+		 * `$lib/server/notify`. Unset, notifications are logged and skipped.
+		 */
+		DISCORD_WEBHOOK_TRAINING_ADMINS?: string;
 	}
 
 	namespace App {

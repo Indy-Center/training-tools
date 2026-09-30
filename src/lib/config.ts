@@ -4,6 +4,8 @@ export const FACILITY_ID = 'ZID';
 /** VATSIM rating ids. Anything below S1 cannot control. */
 export const RATING_OBS = 1;
 export const RATING_S1 = 2;
+/** S3 and above may be granted evaluator on S-GC as a mentor (DEV-175). */
+export const RATING_S3 = 4;
 
 /**
  * Consolidation: hours a home controller must log at their current rating
@@ -34,3 +36,18 @@ export const CONSOLIDATION_HOURS: Readonly<Record<string, number>> = {
  * course at a time as `indy-moodle` publishes them.
  */
 export const MOODLE_COURSE_URLS: Readonly<Partial<Record<string, string>>> = {};
+
+/**
+ * Who `$lib/server/notify` can tell, and the Worker secret holding the Discord
+ * webhook URL for each.
+ *
+ * The URLs are secrets, not config: anyone holding one can post to the channel,
+ * and this repo is public. Set each with `npx wrangler secret put <NAME>`.
+ *
+ * TEMPORARY: webhooks stand in until the Discord bot has a message queue. When
+ * it does, audiences stay and this mapping goes — see `$lib/server/notify`.
+ */
+export const NOTIFY_AUDIENCES = {
+	/** Training admins: teacher availability, slots and status changes. */
+	'training-admins': 'DISCORD_WEBHOOK_TRAINING_ADMINS'
+} as const;

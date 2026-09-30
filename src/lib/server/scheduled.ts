@@ -1,6 +1,7 @@
 import type { Database } from '$lib/server/db';
 import { syncRoster } from '$lib/server/roster';
 import { grantArrivalCertifications } from '$lib/server/certifications';
+import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
 	importBoardIssues,
 	reconcileEnrollments,
@@ -32,7 +33,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in three places, each noted below.
+ * Order matters in five places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -58,6 +59,29 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await grantArrivalCertifications(db);
 				return result.pending > 0 ? result : null;
+			}
+		},
+		{
+			// After the roster sync, which it reads: someone given INS or MTR on
+			// VATUSA is on the teacher roster in the same run.
+			name: 'teacher roster sync',
+			run: async () => {
+				const result = await syncTeacherRoster(db);
+				const { teachers, ...changes } = result;
+				return Object.values(changes).some((count) => count > 0) ? result : null;
+			}
+		},
+		{
+			// After the teacher roster sync, so the dropdowns are compared with
+			// who is a teacher (and an evaluator) as of this run.
+			name: 'jira teacher dropdowns',
+			run: async () => {
+				const result = await checkTeacherDropdowns(db, env);
+				if (!result) return null;
+				const drift = [result.teacher, result.reInstructor].some(
+					(d) => d.add.length + d.remove.length + d.rename.length > 0
+				);
+				return drift ? result : null;
 			}
 		},
 		{

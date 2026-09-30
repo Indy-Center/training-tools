@@ -1,19 +1,31 @@
 <script lang="ts">
 	import type { User } from '@indy-center/identity';
 	import { page } from '$app/state';
-	import { canEditCertifications, isInstructor, isTrainingAdmin } from '$lib/utils/permissions';
+	import {
+		canEditCertifications,
+		canManageTeachers,
+		isTrainingAdmin
+	} from '$lib/utils/permissions';
 	import IconHome from '~icons/mdi/home';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconChartBar from '~icons/mdi/chart-bar';
 	import IconSchool from '~icons/mdi/school';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconCog from '~icons/mdi/cog';
+	import IconTeach from '~icons/mdi/human-male-board';
+	import IconTeachers from '~icons/mdi/account-group';
 
 	let {
 		user,
 		roles,
+		isTeacher = false,
 		mobile = false
-	}: { user: User | undefined; roles: string[] | undefined; mobile?: boolean } = $props();
+	}: {
+		user: User | undefined;
+		roles: string[] | undefined;
+		isTeacher?: boolean;
+		mobile?: boolean;
+	} = $props();
 
 	const BASE_LINKS = [
 		{
@@ -58,12 +70,22 @@
 					}
 				]
 			: []),
-		...(user && isInstructor(roles)
+		// On the teacher roster (VATUSA INS/MTR), not an identity role.
+		...(user && isTeacher
 			? [
 					{
-						label: 'Students',
-						href: '/students',
-						icon: IconSchool
+						label: 'Teach',
+						href: '/teach',
+						icon: IconTeach
+					}
+				]
+			: []),
+		...(user && canManageTeachers(roles)
+			? [
+					{
+						label: 'Teachers',
+						href: '/teachers',
+						icon: IconTeachers
 					}
 				]
 			: []),

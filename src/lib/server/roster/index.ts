@@ -82,3 +82,46 @@ export async function searchRosterMembers(db: Database, query: string): Promise<
 		.orderBy(asc(rosterMembersTable.lastName), asc(rosterMembersTable.firstName))
 		.limit(ROSTER_SEARCH_LIMIT);
 }
+
+export type PersonSummary = { name: string; rating: number; ratingShort: string };
+
+/**
+ * Names and ratings from the roster mirror, by CID, for everyone it has ever
+ * held. Whole table rather than `IN (...)` — D1's 100-parameter limit — and
+ * removed rows included, because a former teacher still has a name.
+ */
+export async function getPeople(db: Database): Promise<Map<string, PersonSummary>> {
+	const rows = await db
+		.select({
+			cid: rosterMembersTable.cid,
+			firstName: rosterMembersTable.firstName,
+			lastName: rosterMembersTable.lastName,
+			rating: rosterMembersTable.rating,
+			ratingShort: rosterMembersTable.ratingShort
+		})
+		.from(rosterMembersTable);
+
+	return new Map(
+		rows.map((row) => [
+			row.cid,
+			{
+				name: `${row.firstName} ${row.lastName}`.trim() || row.cid,
+				rating: row.rating,
+				ratingShort: row.ratingShort
+			}
+		])
+	);
+}
+
+/** Display names for a set of CIDs, for rendering who did what. */
+export function namesFor(
+	cids: Iterable<string | null>,
+	people: Map<string, PersonSummary>
+): Record<string, string> {
+	const names: Record<string, string> = {};
+	for (const cid of cids) {
+		const person = cid ? people.get(cid) : undefined;
+		if (cid && person) names[cid] = person.name;
+	}
+	return names;
+}
