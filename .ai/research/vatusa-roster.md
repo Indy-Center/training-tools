@@ -50,6 +50,19 @@ silently make every controller look unrostered. There is a test for it.
   `last_competency_date` — not modelled as columns yet, but preserved in the
   `data` JSON blob, so inspecting them needs no migration.
 
+## Facility roles (`roles`)
+
+**Verified 2026-09-30.** Each member carries `roles: [{ facility, role, … }]`,
+covering **every** facility, not just ours — visitors bring their home
+facility's roles (ZAN:INS, ZTL:MTR, ZHQ:ACE …). Always filter on
+`facility === 'ZID'`.
+
+ZID roles seen: INS (3), MTR (7), FE, WM, EC, TA, ATM. `ZID:INS` and `ZID:MTR`
+match `isSupIns` / `isMentor` exactly on that date. DEV-175's teacher roster is
+built from the `roles` array (`teacherRolesFrom` in `$lib/teachers.ts`), read
+from the `data` blob — no new column needed. All three ZID INS are rated I1/I3;
+the mentors range S2–C3.
+
 ## D1 limit that bit us
 
 **D1 allows only 100 bound parameters per query.** A facility of 157 members

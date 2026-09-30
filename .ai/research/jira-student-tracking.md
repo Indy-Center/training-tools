@@ -113,10 +113,33 @@ one place to write:
 
 `Notification Prefrence`: Discord Message `10089`, Email `10090`.
 
-`Teacher` and `RE Instructor` are selects of instructor initials (CT, CY, HI,
-JR, MB, MO, SW, YG, RS; RE Instructor also has VATUSA). Not a user picker, so
-there is no account to map to — relevant whenever DEV-106's teacher roster
-lands.
+`Teacher` and `RE Instructor` are selects of instructor initials, not a user
+picker, so there is no account to map to. Since DEV-175 the app holds each
+teacher's initials and matches enrollments on them; see below for why it can
+only *report* dropdown changes.
+
+### TRK is team-managed: its select options cannot be edited by API
+
+**Verified 2026-09-30** (read-only). TRK's project `style` is `next-gen`
+(team-managed, `projectTypeKey: business`). Jira's field-option endpoints
+(`/field/{id}/context`, `/context/{id}/option`) cover company-managed fields
+only; for `customfield_10250` and `customfield_10254` they return
+`"The custom field was not found."` — even though the API token's account holds
+**Administer Jira** (`/mypermissions?permissions=ADMINISTER`).
+
+Reading options does work, through
+`GET /issue/createmeta/TRK/issuetypes/10057` (`allowedValues` on each field).
+On that date:
+
+| Field         | Options                                                   |
+| ------------- | --------------------------------------------------------- |
+| Teacher       | CT, CY, HI, JR, MB, MO, SW, YG, RS (ids 10096–10103, 10108) |
+| RE Instructor | HI, **Sw** (lower-case w), YG, VATUSA (ids 10104–10107)    |
+
+So DEV-175's "app is the source of truth for the dropdowns" is a drift check
+that tells admins what to change, not a write. See
+[`../decisions/0017-teacher-roster-and-qualifications.md`](../decisions/0017-teacher-roster-and-qualifications.md).
+Migrating TRK to company-managed would unlock the API but creates new field ids.
 
 ## Gotchas that cost time
 
