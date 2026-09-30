@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
-import { toRosterRow } from './sync';
+import { parseFacilityJoin, toRosterRow } from './sync';
 
 const NOW = new Date('2026-09-20T12:00:00Z');
 
@@ -91,5 +91,19 @@ describe('toRosterRow', () => {
 		);
 		expect(row.facilityJoinedAt).toBeNull();
 		expect(row.lastActivityAt).toBeNull();
+	});
+});
+
+describe('parseFacilityJoin', () => {
+	it("reads VATUSA's timestamp", () => {
+		expect(parseFacilityJoin('2025-02-01T10:00:00+00:00')?.toISOString()).toBe(
+			'2025-02-01T10:00:00.000Z'
+		);
+	});
+
+	it('returns null for missing or unparseable values, so the sync time is used', () => {
+		expect(parseFacilityJoin(null)).toBeNull();
+		expect(parseFacilityJoin('')).toBeNull();
+		expect(parseFacilityJoin('not a date')).toBeNull();
 	});
 });

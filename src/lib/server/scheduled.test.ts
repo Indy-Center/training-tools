@@ -5,12 +5,14 @@ import { runScheduledJobs, scheduledJobs, type ScheduledJob } from './scheduled'
 afterEach(() => vi.restoreAllMocks());
 
 describe('scheduledJobs', () => {
-	// Three of these depend on running after another; see the comments on each.
+	// Five of these depend on running after another; see the comments on each.
 	it('runs in dependency order', () => {
 		const names = scheduledJobs({} as Database, {} as Env).map((job) => job.name);
 		expect(names).toEqual([
 			'roster sync',
 			'arrival certifications',
+			'teacher roster sync',
+			'jira teacher dropdowns',
 			'jira board import',
 			'enrollment reconcile',
 			'enrollment status sweep'

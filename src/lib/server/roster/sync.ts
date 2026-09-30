@@ -7,6 +7,7 @@ import {
 	type RosterMembership
 } from '$lib/db/schema/roster';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
+import { activityInsert, runInBatches } from '$lib/server/activity';
 
 export type RosterSyncResult = {
 	fetched: number;
@@ -58,6 +59,17 @@ export function toRosterRow(member: VatusaRosterMember, now: Date): InsertRoster
 		// back someone who left the roster and returned.
 		removedAt: null
 	};
+}
+
+/**
+ * VATUSA's `facility_join`, as a date, for dating a new arrival's "joined"
+ * entry — on a first population that is when they really joined, not when this
+ * app first looked. Null when it is missing or does not parse.
+ */
+export function parseFacilityJoin(value: string | null | undefined): Date | null {
+	if (!value) return null;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /** D1 caps how much one batch can carry, so upserts go in chunks. */
@@ -149,6 +161,24 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 		.where(and(lt(rosterMembersTable.syncedAt, now), isNull(rosterMembersTable.removedAt)))
 		.returning({ cid: rosterMembersTable.cid });
 
+	const removedCids = removedRows.map((row) => row.cid);
+
+	// Every controller's timeline. Written after the mirror so a failure here
+	// never stops the roster refreshing; a missed entry is a gap in a log, not
+	// a wrong roster.
+	const joinedAt = new Map(rows.map((row) => [row.cid, row.facilityJoinedAt]));
+	await runInBatches(db, [
+		...addedCids.map((cid) =>
+			activityInsert(db, {
+				cid,
+				event: 'roster.joined',
+				at: parseFacilityJoin(joinedAt.get(cid)) ?? now
+			})
+		),
+		...restoredCids.map((cid) => activityInsert(db, { cid, event: 'roster.returned', at: now })),
+		...removedCids.map((cid) => activityInsert(db, { cid, event: 'roster.left', at: now }))
+	]);
+
 	return {
 		fetched: members.length,
 		added: addedCids.length,
@@ -156,6 +186,6 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 		removed: removedRows.length,
 		addedCids,
 		restoredCids,
-		removedCids: removedRows.map((row) => row.cid)
+		removedCids
 	};
 }
