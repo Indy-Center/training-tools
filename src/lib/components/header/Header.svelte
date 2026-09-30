@@ -16,7 +16,12 @@
 	let {
 		data
 	}: {
-		data: { user: User | undefined; roles: string[] | undefined; identityUrl: string };
+		data: {
+			user: User | undefined;
+			roles: string[] | undefined;
+			isTeacher?: boolean;
+			identityUrl: string;
+		};
 	} = $props();
 
 	// Absolute URL — see $lib/identity-links.
@@ -46,7 +51,7 @@
 			<Logo class="h-8 w-auto" />
 		</a>
 		<div class="hidden md:block">
-			<NavigationLinks user={data.user} roles={data.roles} />
+			<NavigationLinks user={data.user} roles={data.roles} isTeacher={data.isTeacher} />
 		</div>
 	</div>
 
@@ -87,7 +92,12 @@
 	>
 		<nav aria-label="Mobile navigation">
 			<div class="mx-auto max-w-7xl space-y-1 px-2 py-3">
-				<NavigationLinks user={data.user} roles={data.roles} mobile={true} />
+				<NavigationLinks
+					user={data.user}
+					roles={data.roles}
+					isTeacher={data.isTeacher}
+					mobile={true}
+				/>
 
 				<ExternalLinks mobile={true} />
 

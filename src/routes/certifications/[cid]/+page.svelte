@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Panel from '$lib/components/Panel.svelte';
-	import Badge from '$lib/components/Badge.svelte';
+	import Timeline from '$lib/components/Timeline.svelte';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconSeal from '~icons/mdi/seal';
-	import IconHistory from '~icons/mdi/history';
 	import IconAlert from '~icons/mdi/alert-circle';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconEmail from '~icons/mdi/email-outline';
@@ -22,17 +21,6 @@
 			saving = false;
 		};
 	}
-
-	function formatDate(value: Date | string | null) {
-		if (!value) return '—';
-		return new Date(value).toLocaleDateString();
-	}
-
-	const BASIS_LABELS: Record<string, string> = {
-		'auto-arrival': 'Granted on arrival',
-		imported: 'Imported from the community site',
-		manual: 'Set by training staff'
-	};
 </script>
 
 <svelte:head>
@@ -202,53 +190,5 @@
 </div>
 
 <div class="mt-6">
-	<Panel title="History" icon={IconHistory}>
-		{#if data.history.length === 0}
-			<p class="px-4 py-5 text-sm text-gray-400">
-				Nothing has ever been granted to this controller.
-			</p>
-		{:else}
-			<ul class="divide-y divide-slate-700/60">
-				{#each data.history as entry, index (entry.code + entry.grantedAt + index)}
-					<li class="px-4 py-3">
-						<div class="flex flex-wrap items-center gap-2">
-							<Badge
-								size="sm"
-								color={entry.revokedAt ? 'gray' : entry.kind === 'endorsement' ? 'purple' : 'sky'}
-								label={entry.code}
-							/>
-							{#if entry.revokedAt}
-								<Badge size="sm" color="red" label="Revoked" />
-							{/if}
-							{#if entry.needsReview}
-								<Badge size="sm" color="orange" label="Needs review" />
-							{/if}
-							<span class="text-xs text-gray-500">
-								{BASIS_LABELS[entry.grantBasis] ?? entry.grantBasis} · {formatDate(entry.grantedAt)}
-								{#if entry.grantedBy}
-									· by <span class="font-mono">{entry.grantedBy}</span>
-								{/if}
-							</span>
-						</div>
-
-						{#if entry.grantNote}
-							<p class="mt-1 text-xs text-gray-400">{entry.grantNote}</p>
-						{/if}
-
-						{#if entry.revokedAt}
-							<p class="mt-1 text-xs text-gray-400">
-								Revoked {formatDate(entry.revokedAt)}
-								{#if entry.revokedBy}
-									by <span class="font-mono">{entry.revokedBy}</span>
-								{/if}
-								{#if entry.revokedReason}
-									— {entry.revokedReason}
-								{/if}
-							</p>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</Panel>
+	<Timeline entries={data.timeline} names={data.names} />
 </div>

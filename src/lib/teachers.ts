@@ -12,6 +12,7 @@
  */
 import { CREDENTIALS, findCredential, type CredentialCode } from './certifications';
 import { FACILITY_ID, RATING_S3 } from './config';
+import { AVAILABILITY_MAX_LENGTH } from './enrollment';
 
 /**
  * The VATUSA facility roles that put someone on the teacher roster: `INS`
@@ -252,4 +253,35 @@ export function isAssignedTo(
 	if (!enrollmentTeacher) return false;
 	const value = enrollmentTeacher.trim().toUpperCase();
 	return value === teacher.cid || (teacher.initials !== null && value === teacher.initials);
+}
+
+/** Guards against a typo like 30 for 3; no real teacher is near it. */
+export const MAX_STUDENT_SLOTS = 20;
+
+export type TeacherProfileInput = { availability?: unknown; studentSlots?: unknown };
+
+export type TeacherProfileValidation =
+	| { ok: true; values: { availability: string | null; studentSlots: number | null } }
+	| { ok: false; errors: { availability?: string; studentSlots?: string } };
+
+/**
+ * The teacher-editable part of a profile, from a form. Both may be cleared:
+ * blank availability or slots means "not set", not zero.
+ */
+export function validateTeacherProfile(input: TeacherProfileInput): TeacherProfileValidation {
+	const errors: { availability?: string; studentSlots?: string } = {};
+
+	const availabilityText = typeof input.availability === 'string' ? input.availability.trim() : '';
+	if (availabilityText.length > AVAILABILITY_MAX_LENGTH) {
+		errors.availability = `Keep this under ${AVAILABILITY_MAX_LENGTH} characters.`;
+	}
+
+	const slotsText = typeof input.studentSlots === 'string' ? input.studentSlots.trim() : '';
+	const slots = slotsText === '' ? null : Number(slotsText);
+	if (slots !== null && (!Number.isInteger(slots) || slots < 0 || slots > MAX_STUDENT_SLOTS)) {
+		errors.studentSlots = `Enter a whole number from 0 to ${MAX_STUDENT_SLOTS}, or leave it blank.`;
+	}
+
+	if (errors.availability || errors.studentSlots) return { ok: false, errors };
+	return { ok: true, values: { availability: availabilityText || null, studentSlots: slots } };
 }

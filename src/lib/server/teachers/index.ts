@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { teachersTable, type Teacher } from '$lib/db/schema/teachers';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
-import { rosterMembersTable } from '$lib/db/schema/roster';
+import type { PersonSummary } from '$lib/server/roster';
 import { activityInsert, runGroups, type BatchStatement } from '$lib/server/activity';
 import {
 	ASSIGNED_STATUSES,
@@ -42,36 +42,6 @@ export async function getActiveTeacher(db: Database, cid: string): Promise<Teach
 /** Every teacher, current and former. The table is small. */
 export async function listTeachers(db: Database): Promise<Teacher[]> {
 	return db.select().from(teachersTable);
-}
-
-export type PersonSummary = { name: string; rating: number; ratingShort: string };
-
-/**
- * Names and ratings from the roster mirror, by CID, for everyone it has ever
- * held. Whole table rather than `IN (...)` — D1's 100-parameter limit — and
- * removed rows included, because a former teacher still has a name.
- */
-export async function getPeople(db: Database): Promise<Map<string, PersonSummary>> {
-	const rows = await db
-		.select({
-			cid: rosterMembersTable.cid,
-			firstName: rosterMembersTable.firstName,
-			lastName: rosterMembersTable.lastName,
-			rating: rosterMembersTable.rating,
-			ratingShort: rosterMembersTable.ratingShort
-		})
-		.from(rosterMembersTable);
-
-	return new Map(
-		rows.map((row) => [
-			row.cid,
-			{
-				name: `${row.firstName} ${row.lastName}`.trim() || row.cid,
-				rating: row.rating,
-				ratingShort: row.ratingShort
-			}
-		])
-	);
 }
 
 /** The facts the qualification rules need, from a teacher row and the roster. */
@@ -280,3 +250,46 @@ export {
 	getStoredDropdownDrift,
 	type StoredDropdownDrift
 } from './dropdowns';
+
+/** "Jo Rivera (JR)", or the CID when the roster has no name for them. */
+export function teacherLabel(
+	teacher: { cid: string; initials: string | null },
+	person: PersonSummary | undefined
+): string {
+	const name = person?.name ?? teacher.cid;
+	return teacher.initials ? `${name} (${teacher.initials})` : name;
+}
+
+export type StudentRow = {
+	enrollmentId: string;
+	cid: string;
+	name: string;
+	course: string;
+	status: string;
+	availability: string | null;
+	/** Link to the TRK issue, when the enrollment has one and Jira is configured. */
+	issueUrl: string | null;
+	issueKey: string | null;
+};
+
+/** Enrollments as the teacher pages list them. */
+export function studentRows(
+	enrollments: readonly Enrollment[],
+	people: Map<string, PersonSummary>,
+	jiraBaseUrl: string | undefined
+): StudentRow[] {
+	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
+
+	return enrollments
+		.map((enrollment) => ({
+			enrollmentId: enrollment.id,
+			cid: enrollment.cid,
+			name: people.get(enrollment.cid)?.name ?? enrollment.submittedName,
+			course: enrollment.course,
+			status: enrollment.status,
+			availability: enrollment.availability,
+			issueKey: enrollment.jiraIssueKey,
+			issueUrl: base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null
+		}))
+		.sort((a, b) => a.status.localeCompare(b.status) || a.name.localeCompare(b.name));
+}

@@ -1,8 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { canEditCertifications } from '$lib/utils/permissions';
-import { getRosterMember } from '$lib/server/roster';
+import { getPeople, getRosterMember, namesFor } from '$lib/server/roster';
+import { getTimeline } from '$lib/server/timeline';
 import {
-	getCredentialHistory,
 	getHeldCredentials,
 	setCertification,
 	toggleEndorsement
@@ -44,9 +44,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'No active roster member with that CID');
 	}
 
-	const [held, history] = await Promise.all([
+	const [held, timeline, people] = await Promise.all([
 		getHeldCredentials(locals.db, params.cid),
-		getCredentialHistory(locals.db, params.cid)
+		getTimeline(locals.db, params.cid),
+		getPeople(locals.db)
 	]);
 
 	const heldCodes = held.map((row) => row.code);
@@ -80,20 +81,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			// is sometimes out of order. `requires` describes the training path.
 			eligible: canHold(credential.code, heldCodes)
 		})),
-		history: history
-			.map((row) => ({
-				code: row.code,
-				kind: row.kind,
-				grantedAt: row.grantedAt,
-				grantedBy: row.grantedBy,
-				grantBasis: row.grantBasis,
-				grantNote: row.grantNote,
-				revokedAt: row.revokedAt,
-				revokedBy: row.revokedBy,
-				revokedReason: row.revokedReason,
-				needsReview: row.needsReview
-			}))
-			.sort((a, b) => b.grantedAt.getTime() - a.grantedAt.getTime())
+		// Certifications, roster moves and — for teachers — teaching history, in
+		// one list. See $lib/server/timeline.ts.
+		timeline,
+		names: namesFor(
+			timeline.map((entry) => entry.actor),
+			people
+		)
 	};
 };
 

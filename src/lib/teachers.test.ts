@@ -11,7 +11,8 @@ import {
 	normalizeInitials,
 	qualificationsExpired,
 	slotSummary,
-	teacherRolesFrom
+	teacherRolesFrom,
+	validateTeacherProfile
 } from './teachers';
 
 const S2 = 3;
@@ -220,5 +221,39 @@ describe('isAssignedTo', () => {
 		expect(isAssignedTo('SW', teacher)).toBe(false);
 		expect(isAssignedTo(null, teacher)).toBe(false);
 		expect(isAssignedTo('1530662', { cid: '1', initials: null })).toBe(false);
+	});
+});
+
+describe('validateTeacherProfile', () => {
+	it('accepts availability and a whole number of slots', () => {
+		expect(validateTeacherProfile({ availability: ' Weeknights ', studentSlots: '3' })).toEqual({
+			ok: true,
+			values: { availability: 'Weeknights', studentSlots: 3 }
+		});
+	});
+
+	// Blank is "not set", which is different from zero open slots.
+	it('treats blanks as not set', () => {
+		expect(validateTeacherProfile({ availability: '', studentSlots: '' })).toEqual({
+			ok: true,
+			values: { availability: null, studentSlots: null }
+		});
+	});
+
+	it('accepts zero slots', () => {
+		expect(validateTeacherProfile({ studentSlots: '0' })).toMatchObject({
+			ok: true,
+			values: { studentSlots: 0 }
+		});
+	});
+
+	it('rejects fractions, negatives and nonsense', () => {
+		for (const value of ['1.5', '-1', 'two', '21']) {
+			expect(validateTeacherProfile({ studentSlots: value }).ok).toBe(false);
+		}
+	});
+
+	it('rejects availability over the limit', () => {
+		expect(validateTeacherProfile({ availability: 'x'.repeat(1001) }).ok).toBe(false);
 	});
 });

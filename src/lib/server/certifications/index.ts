@@ -69,11 +69,6 @@ export async function getLiveCredentialsByCid(db: Database): Promise<Map<string,
 	return byCid;
 }
 
-/** Everything ever granted to one controller, revoked rows included. */
-export async function getCredentialHistory(db: Database, cid: string): Promise<Certification[]> {
-	return db.select().from(certificationsTable).where(eq(certificationsTable.cid, cid));
-}
-
 /**
  * Grant a credential.
  *
