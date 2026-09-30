@@ -9,18 +9,22 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 ## HTTP surface
 
-| Route                        | Auth     | Purpose                                                     |
-| ---------------------------- | -------- | ----------------------------------------------------------- |
-| `GET /`                      | public   | Sign-in CTA signed out; the DEV-112 flow signed in          |
-| `GET /enroll`                | required | Enrollment form, or the state of an open request            |
-| `POST /enroll`               | required | Submit an enrollment; `?/withdraw` withdraws an open one    |
-| `POST /api/jira/webhook`     | HMAC     | TRK "issue updated" deliveries; re-reads the issue's status |
-| `GET /enroll/tier-2`         | required | The self-led Tier 2 course, for anyone with E-RC but not T2 |
-| `GET /stats`                 | public   | Per-course waiting/in-training counts and course length     |
-| `GET /dashboard`             | required | The signed-in user's training overview                      |
-| `GET /certifications`        | staff    | Search the roster by CID or name                            |
-| `GET /certifications/{cid}`  | staff    | One controller's credentials and their full history         |
-| `POST /certifications/{cid}` | staff    | `?/setCertification`, `?/toggleEndorsement`                 |
+| Route                        | Auth       | Purpose                                                              |
+| ---------------------------- | ---------- | -------------------------------------------------------------------- |
+| `GET /`                      | public     | Sign-in CTA signed out; the DEV-112 flow signed in                   |
+| `GET /enroll`                | required   | Enrollment form, or the state of an open request                     |
+| `POST /enroll`               | required   | Submit an enrollment; `?/withdraw` withdraws an open one             |
+| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status          |
+| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2          |
+| `GET /stats`                 | public     | Per-course waiting/in-training counts and course length              |
+| `GET /dashboard`             | required   | The signed-in user's training overview                               |
+| `GET /certifications`        | staff      | Search the roster by CID or name                                     |
+| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                  |
+| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                          |
+| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications              |
+| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                   |
+| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                         |
+| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications` |
 
 `/enroll` and `/enroll/tier-2` are open only to members the home page sends
 there — both gate on `loadTrainingContext()`, the same call `/` renders from.
@@ -32,6 +36,15 @@ scoped to the caller's own request.
 **Nothing grants `training:certifications:edit` yet**, so `/certifications` is
 unreachable until identity implements and assigns the role. That is a release
 task, not a bug.
+
+`/teach` is for anyone on the **teacher roster** — derived from VATUSA's `ZID:INS`
+and `ZID:MTR` roles, not from an identity role. `/teachers` needs
+`training:teachers:manage` (implied by `training:admin`). On `/teachers/{cid}`
+a teacher may view their own page and edit only their availability and slots;
+status, initials and qualifications are for training admins. Granting the role
+needs no identity code change — it is one row in identity's `user_roles`; see
+"Adding a role in identity by hand" in
+[`.ai/notes/2026-09-21-dev-115-certifications.md`](.ai/notes/2026-09-21-dev-115-certifications.md).
 
 `/` is public only so it can render the sign-in CTA. `/stats` is public so people
 can see the wait before they enroll; it shows counts only, plus a signed-in
@@ -73,13 +86,15 @@ never reopened by Jira. See
 
 Every 15 minutes (`*/15 * * * *`), in this order:
 
-| Job                     | Does                                                                         |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| roster sync             | Refreshes the VATUSA roster mirror (`syncRoster`)                            |
-| arrival certifications  | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)    |
-| jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`) |
-| enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)           |
-| enrollment status sweep | Reads TRK status and Teacher back from Jira (`sweepEnrollmentStatuses`)      |
+| Job                     | Does                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| roster sync             | Refreshes the VATUSA roster mirror (`syncRoster`)                              |
+| arrival certifications  | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)      |
+| teacher roster sync     | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)        |
+| jira teacher dropdowns  | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`) |
+| jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)   |
+| enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)             |
+| enrollment status sweep | Reads TRK status and Teacher back from Jira (`sweepEnrollmentStatuses`)        |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job is guarded separately: VATUSA being down must not stop enrollments
@@ -87,8 +102,9 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters three times, and each is commented in `scheduled.ts`: certification
-reads the roster the sync just wrote; the import runs before the reconcile so an
+Order matters five times, and each is commented in `scheduled.ts`: certification
+and the teacher roster read the roster the sync just wrote; the dropdown check
+reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs last so an issue filed moments ago is read back in the same run.
 
@@ -120,11 +136,12 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_BASE_URL`       | `https://zidartcc.atlassian.net`                                   |
 | `JIRA_PROJECT_KEY`    | `TRK` — the Student Tracking waitlist                              |
 
-| Secret                | What it is                                                |
-| --------------------- | --------------------------------------------------------- |
-| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                |
-| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security       |
-| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery |
+| Secret                            | What it is                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `JIRA_USER_EMAIL`                 | Atlassian account the API token belongs to                                           |
+| `JIRA_API_TOKEN`                  | Classic API token, from id.atlassian.com → Security                                  |
+| `JIRA_WEBHOOK_SECRET`             | Secret on the TRK webhook in Jira; verifies each delivery                            |
+| `DISCORD_WEBHOOK_TRAINING_ADMINS` | Discord webhook URL for the training admins' channel (temporary — see Notifications) |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to
@@ -145,6 +162,8 @@ src/
 ├── lib/
 │   ├── config.ts              facility id, rating thresholds, consolidation hours
 │   ├── certifications.ts      credential catalogue + the GCAP rating table (client-safe)
+│   ├── teachers.ts            teacher roster rules: evaluators, slots, initials (client-safe)
+│   ├── activity.ts            activity_log event vocabulary and labels (client-safe)
 │   ├── certification-grant.ts pure arrival-grant logic (DEV-115)
 │   ├── content/               site copy as markdown, compiled at build time (DEV-119)
 │   ├── course-placement.ts    pure "which course is next" logic (DEV-119)
@@ -156,7 +175,7 @@ src/
 │   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            Panel, Badge, PageHero, Logo, ActionButton, header/
-│   ├── db/schema/             drizzle tables (roster_members, enrollments, certifications)
+│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
 │   ├── server/
@@ -165,6 +184,10 @@ src/
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
 │   │   ├── roster/            roster lookup, search, and the reconciling sync
 │   │   ├── certifications/    grant/revoke, and the arrival pass
+│   │   ├── teachers/          teacher roster sync, profiles, qualifications, dropdown check
+│   │   ├── notify/            TEMPORARY Discord-webhook notices (→ the bot's queue later)
+│   │   ├── timeline.ts        one controller's history, merged from every source
+│   │   ├── activity.ts        activity_log writes
 │   │   ├── enrollments/       submit, withdraw, waitlist position and stats, and the Jira passes
 │   │   ├── scheduled.ts       the cron's job list, in order, and the runner that guards each
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for /, /enroll, /enroll/tier-2
@@ -227,6 +250,60 @@ and [`.ai/research/vatsim-api.md`](.ai/research/vatsim-api.md).
 All grants and revocations go through `grantCredential` / `revokeCredential` in
 `$lib/server/certifications/` — the arrival job, the import and the staff edit
 page all call them, so there is one place to hook notifications onto later.
+
+### Teachers
+
+The **teacher roster** is everyone holding `ZID:INS` or `ZID:MTR` on the VATUSA
+roster, kept in `teachers` by the cron — never entered by hand. Leaving
+soft-removes the row. The profile this app owns (status, initials,
+availability, slots) is edited on `/teachers/{cid}`.
+
+Each teacher holds a **qualification per course and endorsement**: No Qual,
+Training, Teacher, or Teacher and Evaluator. Only the four rating-exam courses
+can have an evaluator — S-GC (S1), A-LC (S2), T-RC (S3), E-RC (C1). Instructors
+evaluate all four **automatically**; an S3+ mentor may be made an S-GC evaluator
+by hand; nobody else may evaluate. The cron drops any evaluator who no longer
+qualifies to Teacher. `teacher_qualifications` is an all-time log — a change
+ends one row and starts the next — and **six months off the teacher roster ends
+every qualification**; someone back sooner still holds them.
+
+**Slots**: `in-training` students use a slot; `rating-exam` students are listed
+as assigned but do not. A teacher on **LOA** keeps their slots visible but none
+count as open anywhere. Students are matched to a teacher by TRK's `Teacher`
+value — their initials, or their CID until they have some. A teacher can also be
+a student; they are never listed as their own.
+
+**This app is the source of truth for TRK's `Teacher` and `RE Instructor`
+dropdowns**, but cannot edit them: TRK is a team-managed Jira project, and Jira
+has no supported API for a team-managed field's options. The cron compares them
+with the roster and tells training admins what to change by hand, once per new
+difference; `/teachers` shows the same list. `Teacher` should offer every active
+teacher, `RE Instructor` every active teacher who evaluates anything.
+
+Initials are entered by training admins for now. Once community-website is on
+identity (DEV-5), take them from identity's `operatingInitials` instead.
+
+See [`.ai/decisions/0017-teacher-roster-and-qualifications.md`](.ai/decisions/0017-teacher-roster-and-qualifications.md).
+
+### Timelines and the activity log
+
+`/teachers/{cid}` and `/certifications/{cid}` show one timeline per controller:
+roster joins and departures (every controller), teacher roster, role and profile
+changes, qualification changes and certification grants and revocations. Roster
+and teacher events are in `activity_log`; the rest is read from each table's own
+history. `$lib/server/timeline.ts` is the only reader, because all of this is
+meant to move to a **central log on identity** — that is the file to repoint.
+
+### Notifications (temporary)
+
+`$lib/server/notify` posts notices to a Discord webhook per audience
+(`NOTIFY_AUDIENCES` in `src/lib/config.ts`; URLs are Worker secrets). **It is a
+stand-in** until the Discord bot has a message queue: callers only say who to
+tell and what to say, so moving to the bot changes that one module. A notice
+never fails the change it describes. Training admins hear about teacher
+availability/slot changes, automatic status changes, a teacher going on LOA
+with students assigned, and TRK dropdown drift. See
+[`.ai/decisions/0018-temporary-webhook-notifications.md`](.ai/decisions/0018-temporary-webhook-notifications.md).
 
 ### Enrollments
 
@@ -365,7 +442,13 @@ not generate, so after `0003_import_community_website_certifications.sql` it
 produced a second `0003`. Two files sharing a prefix apply in alphabetical order,
 which is luck rather than design.
 
-When you add a data migration by hand, then generate the next schema migration:
+**Better: register the data migration with drizzle as you add it**, as
+`0010_seed_teacher_roster.sql` does — add a journal entry for it and copy the
+previous `meta/NNNN_snapshot.json` to its number with a new `id` and `prevId` set
+to the old one. `npm run db:generate` should then report "No schema changes",
+and the next schema migration numbers on past yours.
+
+For a data migration that was not registered, then generate the next schema migration:
 rename drizzle's file past yours, rename its `meta/NNNN_snapshot.json` to match,
 and set that journal entry's `idx` and `tag` to the new number. drizzle then
 counts on from there. Only safe for a migration not yet applied anywhere — check

@@ -37,6 +37,7 @@
 		//   wrangler secret put JIRA_USER_EMAIL
 		//   wrangler secret put JIRA_API_TOKEN
 		//   wrangler secret put JIRA_WEBHOOK_SECRET   (signs the TRK webhook)
+		//   wrangler secret put DISCORD_WEBHOOK_TRAINING_ADMINS   (temporary notices)
 		"JIRA_BASE_URL": "https://zidartcc.atlassian.net",
 		"JIRA_PROJECT_KEY": "TRK"
 	},
