@@ -57,6 +57,20 @@
       "when": 1790317781384,
       "tag": "0008_fair_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790790304187,
+      "tag": "0009_square_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790790343230,
+      "tag": "0010_seed_teacher_roster",
+      "breakpoints": true
     }
   ]
 }

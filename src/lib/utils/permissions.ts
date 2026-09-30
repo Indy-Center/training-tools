@@ -18,7 +18,16 @@ export enum Role {
 	 * changing someone's certification are different authorities, and the ATM and
 	 * DATM need the second without necessarily being instructors.
 	 */
-	CERTIFICATIONS = 'training:certifications:edit'
+	CERTIFICATIONS = 'training:certifications:edit',
+	/**
+	 * See the teacher roster, and edit any teacher's status, initials, slots,
+	 * availability and course qualifications (DEV-175).
+	 *
+	 * Being *on* the teacher roster is not a role: it comes from VATUSA's
+	 * `ZID:INS` / `ZID:MTR` facility roles, and grants only a teacher's own
+	 * `/teach` page and profile. This is the training-admin side of it.
+	 */
+	TEACHERS = 'training:teachers:manage'
 }
 
 export function isTrainingAdmin(roles?: string[] | null): boolean {
@@ -39,4 +48,9 @@ export function isInstructor(roles?: string[] | null): boolean {
 /** May view and edit anyone's certifications and endorsements (DEV-115). */
 export function canEditCertifications(roles?: string[] | null): boolean {
 	return canManage(roles, Role.CERTIFICATIONS);
+}
+
+/** May see the teacher roster and edit any teacher's profile (DEV-175). */
+export function canManageTeachers(roles?: string[] | null): boolean {
+	return canManage(roles, Role.TEACHERS);
 }

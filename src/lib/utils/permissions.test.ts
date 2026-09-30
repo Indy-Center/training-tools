@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	canEditCertifications,
 	canManage,
+	canManageTeachers,
 	isInstructor,
 	isTrainingAdmin,
 	Role
@@ -60,5 +61,23 @@ describe('certification editing', () => {
 	it('denies a signed-in user holding no training roles', () => {
 		expect(canEditCertifications([])).toBe(false);
 		expect(canEditCertifications(undefined)).toBe(false);
+	});
+});
+
+describe('teacher management', () => {
+	it('grants the role when it is explicitly held', () => {
+		expect(canManageTeachers([Role.TEACHERS])).toBe(true);
+	});
+
+	it('is implied by training admin', () => {
+		expect(canManageTeachers([Role.ADMIN])).toBe(true);
+	});
+
+	it('is not implied by instructing or editing certifications', () => {
+		expect(canManageTeachers([Role.INSTRUCTOR, Role.CERTIFICATIONS])).toBe(false);
+	});
+
+	it('does not accept the un-namespaced string another app might use', () => {
+		expect(canManageTeachers(['teachers:manage'])).toBe(false);
 	});
 });

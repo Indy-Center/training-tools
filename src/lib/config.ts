@@ -4,6 +4,8 @@ export const FACILITY_ID = 'ZID';
 /** VATSIM rating ids. Anything below S1 cannot control. */
 export const RATING_OBS = 1;
 export const RATING_S1 = 2;
+/** S3 and above may be granted evaluator on S-GC as a mentor (DEV-175). */
+export const RATING_S3 = 4;
 
 /**
  * Consolidation: hours a home controller must log at their current rating
