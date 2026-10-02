@@ -6,7 +6,6 @@
 		canManageTeachers,
 		isTrainingAdmin
 	} from '$lib/utils/permissions';
-	import IconHome from '~icons/mdi/home';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconChartBar from '~icons/mdi/chart-bar';
 	import IconSchool from '~icons/mdi/school';
@@ -19,89 +18,76 @@
 		user,
 		roles,
 		isTeacher = false,
+		hasOpenEnrollment = false,
 		mobile = false
 	}: {
 		user: User | undefined;
 		roles: string[] | undefined;
 		isTeacher?: boolean;
+		hasOpenEnrollment?: boolean;
 		mobile?: boolean;
 	} = $props();
 
-	const BASE_LINKS = [
-		{
-			label: 'Home',
-			href: '/',
-			icon: IconHome
-		},
-		{
-			label: 'Enroll',
-			href: '/enroll',
-			icon: IconClipboard
-		}
-	];
-
-	// `/stats` is public: seeing the wait before signing up is the point of it.
-	const WAITLIST_LINK = {
-		label: 'Waitlist',
-		href: '/stats',
-		icon: IconChartBar
-	};
-
-	// Signed out, everything else here is gated, so advertising it would just
-	// bounce people to identity. The waitlist is the one exception.
-	const links = $derived([
-		...(user ? BASE_LINKS : []),
-		WAITLIST_LINK,
-		...(user
+	// Signed out there is nothing to list: every destination is gated, so
+	// advertising it would just bounce people to identity. `/` carries the
+	// sign-in call to action, and the logo leads back to the community site.
+	const links = $derived(
+		user
 			? [
+					// One link to `/`, the default view, named for what it will show:
+					// a request in flight, or the way to start one.
+					hasOpenEnrollment
+						? { label: 'My Training', href: '/', icon: IconSchool }
+						: { label: 'Enroll', href: '/', icon: IconClipboard },
 					{
-						label: 'My Training',
-						href: '/dashboard',
-						icon: IconSchool
-					}
+						label: 'Waitlist',
+						href: '/stats',
+						icon: IconChartBar
+					},
+					...(canEditCertifications(roles)
+						? [
+								{
+									label: 'Certifications',
+									href: '/certifications',
+									icon: IconCertificate
+								}
+							]
+						: []),
+					// On the teacher roster (VATUSA INS/MTR), not an identity role.
+					...(isTeacher
+						? [
+								{
+									label: 'Teach',
+									href: '/teach',
+									icon: IconTeach
+								}
+							]
+						: []),
+					...(canManageTeachers(roles)
+						? [
+								{
+									label: 'Teachers',
+									href: '/teachers',
+									icon: IconTeachers
+								}
+							]
+						: []),
+					...(isTrainingAdmin(roles)
+						? [
+								{
+									label: 'Admin',
+									href: '/admin',
+									icon: IconCog
+								}
+							]
+						: [])
 				]
-			: []),
-		...(user && canEditCertifications(roles)
-			? [
-					{
-						label: 'Certifications',
-						href: '/certifications',
-						icon: IconCertificate
-					}
-				]
-			: []),
-		// On the teacher roster (VATUSA INS/MTR), not an identity role.
-		...(user && isTeacher
-			? [
-					{
-						label: 'Teach',
-						href: '/teach',
-						icon: IconTeach
-					}
-				]
-			: []),
-		...(user && canManageTeachers(roles)
-			? [
-					{
-						label: 'Teachers',
-						href: '/teachers',
-						icon: IconTeachers
-					}
-				]
-			: []),
-		...(user && isTrainingAdmin(roles)
-			? [
-					{
-						label: 'Admin',
-						href: '/admin',
-						icon: IconCog
-					}
-				]
-			: [])
-	]);
+			: []
+	);
 
 	function isActive(href: string) {
-		if (href === '/') return page.url.pathname === '/';
+		// `/enroll/tier-2` is reached from the default view, so it lights the same link.
+		if (href === '/') return page.url.pathname === '/' || page.url.pathname.startsWith('/enroll/');
 		return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
 	}
 </script>

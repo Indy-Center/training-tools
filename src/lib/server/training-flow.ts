@@ -7,6 +7,7 @@ import { getOpenEnrollment } from '$lib/server/enrollments';
 import { getHeldCredentials } from '$lib/server/certifications';
 import { getConsolidation } from '$lib/server/consolidation';
 import { resolveTrainingFlow, type TrainingFlow } from '$lib/training-flow';
+import { isVatusaMember } from '$lib/user';
 
 export type TrainingContext = {
 	flow: TrainingFlow;
@@ -21,13 +22,18 @@ export type TrainingContext = {
 /**
  * Gather what `resolveTrainingFlow()` needs for a signed-in member, and resolve.
  *
- * The one place `/`, `/enroll` and `/enroll/tier-2` get their answer from, so
- * the eligibility rules live in the pure function and nowhere else.
+ * The one place `/` (its load and its enroll action) and `/enroll/tier-2` get
+ * their answer from, so the eligibility rules live in the pure function and
+ * nowhere else.
+ *
+ * The open request is looked up for everyone, not just home controllers: a
+ * request outlives a roster change, and its owner still needs to see it and be
+ * able to withdraw it.
  *
  * VATSIM is only called when the answer hinges on it. Resolving once without a
  * consolidation fails closed to `consolidating` in exactly that case — a home
- * controller with no open request who is not due Tier 2 — so the second pass
- * reuses the ordering rather than restating it here.
+ * controller with no open request and a course left to take — so the second
+ * pass reuses the ordering rather than restating it here.
  */
 export async function loadTrainingContext(
 	db: Database,
@@ -38,7 +44,7 @@ export async function loadTrainingContext(
 	const membership = rosterMember?.membership ?? null;
 
 	const [openEnrollment, heldRows] = await Promise.all([
-		membership === 'home' ? getOpenEnrollment(db, cid) : Promise.resolve(null),
+		getOpenEnrollment(db, cid),
 		membership ? getHeldCredentials(db, cid) : Promise.resolve([])
 	]);
 	const held = heldRows.map((row) => row.code);
@@ -49,7 +55,8 @@ export async function loadTrainingContext(
 		// record); fall back to what identity captured from VATSIM Connect.
 		ratingId: rosterMember?.rating ?? session.user.vatsimData.vatsim?.rating?.id ?? null,
 		ratingShort: rosterMember?.ratingShort ?? session.user.vatsimData.vatsim?.rating?.short ?? null,
-		hasOpenEnrollment: openEnrollment !== null,
+		inVatusa: isVatusaMember(session.user),
+		openStatus: openEnrollment?.status ?? null,
 		held
 	};
 

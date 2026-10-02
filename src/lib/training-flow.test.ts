@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { isDueTier2, isRatedController, resolveTrainingFlow } from './training-flow';
+import {
+	isDueTier2,
+	isOpenEnrollmentStatus,
+	isRatedController,
+	OPEN_ENROLLMENT_STATUSES,
+	resolveTrainingFlow
+} from './training-flow';
 import type { Consolidation } from './consolidation';
+import { CLOSED_ENROLLMENT_STATUSES, ENROLLMENT_STATUSES } from './db/schema/enrollments';
 
 const met: Consolidation = { status: 'met', rating: 'S2', required: 15 };
 const notMet: Consolidation = { status: 'not-met', rating: 'S2', required: 15, logged: 3 };
 const unknown: Consolidation = { status: 'unknown', rating: 'S2', required: 15 };
 
-describe('resolveTrainingFlow', () => {
+describe('resolveTrainingFlow with no open request', () => {
 	it('sends consolidated home controllers to enrollment', () => {
 		expect(resolveTrainingFlow({ membership: 'home', ratingId: 3, consolidation: met })).toBe(
 			'enroll'
@@ -29,68 +36,24 @@ describe('resolveTrainingFlow', () => {
 		expect(resolveTrainingFlow({ membership: 'home', ratingId: 3 })).toBe('consolidating');
 	});
 
-	// Consolidation gates starting a request, not seeing one already open.
-	it('always shows an open request', () => {
-		expect(
-			resolveTrainingFlow({
-				membership: 'home',
-				ratingId: 3,
-				consolidation: notMet,
-				hasOpenEnrollment: true
-			})
-		).toBe('enroll');
-	});
-
-	it('sends lower-rated visiting controllers to the visitor copy', () => {
-		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 4, ratingShort: 'S3' })).toBe(
-			'visiting-controller'
+	// Nothing left to enroll in, so consolidation is never consulted.
+	it('sends home controllers holding the highest certification to extra courses', () => {
+		expect(resolveTrainingFlow({ membership: 'home', ratingId: 5, held: ['E-RC'] })).toBe(
+			'extra-courses'
 		);
-	});
-
-	it('sends visitors holding E-RC but not Tier 2 to the Tier 2 course', () => {
-		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 5, held: ['E-RC'] })).toBe(
-			'tier-2'
-		);
-	});
-
-	// The credential decides, not the rating: a C1 not yet certified E-RC here
-	// has nothing we can train them in.
-	it('sends a visiting C1 without E-RC to the visitor copy', () => {
-		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 5, held: [] })).toBe(
-			'visiting-controller'
-		);
-	});
-
-	it('sends visitors who already hold Tier 2 to the visitor copy', () => {
-		expect(
-			resolveTrainingFlow({ membership: 'visit', ratingId: 5, held: ['E-RC', 'T2-CTR'] })
-		).toBe('visiting-controller');
-	});
-
-	it('sends home controllers holding E-RC but not Tier 2 to the Tier 2 course', () => {
-		// No consolidation check needed to get there.
-		expect(resolveTrainingFlow({ membership: 'home', ratingId: 5, held: ['E-RC'] })).toBe('tier-2');
-	});
-
-	it('shows a home controller their open request before Tier 2', () => {
-		expect(
-			resolveTrainingFlow({
-				membership: 'home',
-				ratingId: 5,
-				held: ['E-RC'],
-				hasOpenEnrollment: true
-			})
-		).toBe('enroll');
-	});
-
-	it('lets a home controller with Tier 2 back to enrollment once consolidated', () => {
 		expect(
 			resolveTrainingFlow({
 				membership: 'home',
 				ratingId: 5,
 				held: ['E-RC', 'T2-CTR'],
-				consolidation: { status: 'met', rating: 'C1', required: 0 }
+				consolidation: notMet
 			})
+		).toBe('extra-courses');
+	});
+
+	it('keeps a home controller below the highest certification on the enrollment path', () => {
+		expect(
+			resolveTrainingFlow({ membership: 'home', ratingId: 4, held: ['T-RC'], consolidation: met })
 		).toBe('enroll');
 	});
 
@@ -107,23 +70,129 @@ describe('resolveTrainingFlow', () => {
 		).toBe('enroll');
 	});
 
-	it('sends unrostered rated controllers to transfer-or-visit', () => {
-		expect(resolveTrainingFlow({ membership: null, ratingId: 4, ratingShort: 'S3' })).toBe(
-			'transfer-or-visit'
+	// Tier 2 is offered on the visitor view, not a view of its own.
+	it('sends every visiting controller to the visitor copy', () => {
+		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 4, ratingShort: 'S3' })).toBe(
+			'visiting-controller'
 		);
+		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 5, held: ['E-RC'] })).toBe(
+			'visiting-controller'
+		);
+		expect(
+			resolveTrainingFlow({ membership: 'visit', ratingId: 5, held: ['E-RC', 'T2-CTR'] })
+		).toBe('visiting-controller');
 	});
 
-	it('sends unrostered observers to become-controller', () => {
-		expect(resolveTrainingFlow({ membership: null, ratingId: 1, ratingShort: 'OBS' })).toBe(
+	it('sends unrostered, rated VATUSA controllers to transfer-or-visit', () => {
+		expect(
+			resolveTrainingFlow({ membership: null, ratingId: 4, ratingShort: 'S3', inVatusa: true })
+		).toBe('transfer-or-visit');
+	});
+
+	// Still in the academy: on no facility's roster yet.
+	it('sends unrostered VATUSA observers to become-controller', () => {
+		expect(
+			resolveTrainingFlow({ membership: null, ratingId: 1, ratingShort: 'OBS', inVatusa: true })
+		).toBe('become-controller');
+	});
+
+	// Rated, but in another division: they have to join VATUSA before either
+	// transferring or visiting means anything.
+	it('sends rated controllers outside VATUSA to become-controller', () => {
+		expect(
+			resolveTrainingFlow({ membership: null, ratingId: 5, ratingShort: 'C1', inVatusa: false })
+		).toBe('become-controller');
+	});
+
+	it('treats an unknown division as outside VATUSA', () => {
+		expect(resolveTrainingFlow({ membership: null, ratingId: 5, ratingShort: 'C1' })).toBe(
 			'become-controller'
 		);
 	});
 
 	it('falls back to become-controller when the rating is unknown', () => {
-		expect(resolveTrainingFlow({ membership: null })).toBe('become-controller');
-		expect(resolveTrainingFlow({ membership: null, ratingId: null, ratingShort: null })).toBe(
-			'become-controller'
+		expect(resolveTrainingFlow({ membership: null, inVatusa: true })).toBe('become-controller');
+		expect(
+			resolveTrainingFlow({ membership: null, ratingId: null, ratingShort: null, inVatusa: true })
+		).toBe('become-controller');
+	});
+});
+
+describe('resolveTrainingFlow with an open request', () => {
+	it('shows the request by its status', () => {
+		for (const status of OPEN_ENROLLMENT_STATUSES) {
+			expect(resolveTrainingFlow({ membership: 'home', ratingId: 3, openStatus: status })).toBe(
+				status
+			);
+		}
+	});
+
+	// Consolidation gates starting a request, not seeing one already open.
+	it('shows it whatever their consolidation says', () => {
+		expect(
+			resolveTrainingFlow({
+				membership: 'home',
+				ratingId: 3,
+				consolidation: notMet,
+				openStatus: 'waitlist'
+			})
+		).toBe('waitlist');
+	});
+
+	it('shows it ahead of extra courses', () => {
+		expect(
+			resolveTrainingFlow({
+				membership: 'home',
+				ratingId: 5,
+				held: ['E-RC'],
+				openStatus: 'in-training'
+			})
+		).toBe('in-training');
+	});
+
+	// A request outlives a roster change: its owner still has to be able to see
+	// it and withdraw it.
+	it('shows it to someone who has since left the home roster', () => {
+		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 3, openStatus: 'waitlist' })).toBe(
+			'waitlist'
 		);
+		expect(
+			resolveTrainingFlow({
+				membership: null,
+				ratingId: 3,
+				inVatusa: true,
+				openStatus: 'rating-exam'
+			})
+		).toBe('rating-exam');
+	});
+
+	it('ignores a status that is not open', () => {
+		for (const status of CLOSED_ENROLLMENT_STATUSES) {
+			expect(
+				resolveTrainingFlow({
+					membership: 'home',
+					ratingId: 3,
+					consolidation: met,
+					openStatus: status
+				})
+			).toBe('enroll');
+		}
+	});
+});
+
+describe('isOpenEnrollmentStatus', () => {
+	// Guards the two lists drifting apart when a status is added to the schema.
+	it('splits every stored status into open or closed', () => {
+		const closed: readonly string[] = CLOSED_ENROLLMENT_STATUSES;
+		for (const status of ENROLLMENT_STATUSES) {
+			expect(isOpenEnrollmentStatus(status)).toBe(!closed.includes(status));
+		}
+	});
+
+	it('is false for nothing at all', () => {
+		expect(isOpenEnrollmentStatus(null)).toBe(false);
+		expect(isOpenEnrollmentStatus(undefined)).toBe(false);
+		expect(isOpenEnrollmentStatus('')).toBe(false);
 	});
 });
 

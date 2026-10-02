@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { User } from '@indy-center/identity';
-import { atcRating, displayName, operatingInitials } from './user';
+import { atcRating, displayName, isVatusaMember, operatingInitials } from './user';
 
 function makeUser(overrides: Partial<User> = {}): User {
 	return {
@@ -76,5 +76,32 @@ describe('operatingInitials', () => {
 	it('returns undefined when unassigned or blank', () => {
 		expect(operatingInitials(makeUser())).toBeUndefined();
 		expect(operatingInitials(makeUser({ attributes: { operatingInitials: '' } }))).toBeUndefined();
+	});
+});
+
+describe('isVatusaMember', () => {
+	function inDivision(id: string | null | undefined): User {
+		return makeUser({
+			vatsimData: {
+				cid: '1234567',
+				personal: { email: 'x@y.z' },
+				vatsim: { division: { id } }
+			}
+		});
+	}
+
+	it('is true for the VATUSA division', () => {
+		expect(isVatusaMember(inDivision('USA'))).toBe(true);
+		expect(isVatusaMember(inDivision(' usa '))).toBe(true);
+	});
+
+	it('is false for another division', () => {
+		expect(isVatusaMember(inDivision('GBR'))).toBe(false);
+	});
+
+	// Identity makes the whole VATSIM block optional; unknown must not read as VATUSA.
+	it('is false when VATSIM did not say', () => {
+		expect(isVatusaMember(inDivision(null))).toBe(false);
+		expect(isVatusaMember(makeUser())).toBe(false);
 	});
 });

@@ -7,6 +7,7 @@
 	import ExternalLinks from './ExternalLinks.svelte';
 	import { atcRating, displayName, operatingInitials } from '$lib/user';
 	import { loginUrl, logoutUrl } from '$lib/identity-links';
+	import { COMMUNITY_URL } from '$lib/config';
 	import IconRating from '~icons/mdi/radar';
 	import IconLogout from '~icons/mdi/logout';
 	import IconAccount from '~icons/mdi/account-circle';
@@ -20,6 +21,7 @@
 			user: User | undefined;
 			roles: string[] | undefined;
 			isTeacher?: boolean;
+			hasOpenEnrollment?: boolean;
 			identityUrl: string;
 		};
 	} = $props();
@@ -47,11 +49,18 @@
 <div class="relative z-20 mx-auto flex h-16 w-full max-w-7xl items-center justify-between p-2">
 	<!-- Logo + Navigation -->
 	<div class="flex items-center space-x-4">
-		<a href="/" class="cursor-pointer">
+		<!-- The logo leads back to the community site; this app's own default view
+		     is the first navigation link. -->
+		<a href={COMMUNITY_URL} class="cursor-pointer">
 			<Logo class="h-8 w-auto" />
 		</a>
 		<div class="hidden md:block">
-			<NavigationLinks user={data.user} roles={data.roles} isTeacher={data.isTeacher} />
+			<NavigationLinks
+				user={data.user}
+				roles={data.roles}
+				isTeacher={data.isTeacher}
+				hasOpenEnrollment={data.hasOpenEnrollment}
+			/>
 		</div>
 	</div>
 
@@ -96,6 +105,7 @@
 					user={data.user}
 					roles={data.roles}
 					isTeacher={data.isTeacher}
+					hasOpenEnrollment={data.hasOpenEnrollment}
 					mobile={true}
 				/>
 

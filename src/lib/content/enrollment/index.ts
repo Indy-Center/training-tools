@@ -1,5 +1,5 @@
 /**
- * The copy shown on `/enroll` before a student submits.
+ * The copy shown on the enrollment form (on `/`) before a student submits.
  *
  * These are **general** blocks — the same text whatever course someone is
  * enrolling in. Anything course-specific belongs in `$lib/courses.ts`, which is

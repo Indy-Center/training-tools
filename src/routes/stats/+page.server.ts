@@ -4,15 +4,18 @@ import type { PageServerLoad } from './$types';
 /**
  * DEV-111: per-course waitlist and training counts.
  *
- * Public — see `PUBLIC_PATHS` in hooks.server.ts — so `locals.session` may be
- * null. Signed in with a request on the waitlist, the viewer also gets their
- * own place in that course's queue; nobody else's is ever exposed.
+ * For any signed-in VATSIM member, rostered here or not — `hooks.server.ts`
+ * redirects everyone else to identity, so `locals.session` is non-null. A
+ * viewer with a request on the waitlist also gets their own place in that
+ * course's queue; nobody else's is ever exposed.
  */
 export const load: PageServerLoad = async ({ locals }) => {
-	const courses = await getWaitlistStats(locals.db);
+	const session = locals.session!;
 
-	const session = locals.session;
-	const enrollment = session ? await getOpenEnrollment(locals.db, session.user.cid) : null;
+	const [courses, enrollment] = await Promise.all([
+		getWaitlistStats(locals.db),
+		getOpenEnrollment(locals.db, session.user.cid)
+	]);
 
 	return {
 		courses,

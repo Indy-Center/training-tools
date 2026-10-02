@@ -1,6 +1,12 @@
 /** The ARTCC this app manages training for. */
 export const FACILITY_ID = 'ZID';
 
+/** The community website: where the header logo and the "how to join us" links go. */
+export const COMMUNITY_URL = 'https://flyindycenter.com';
+
+/** VATSIM's id for the VATUSA division, as identity's VATSIM profile carries it. */
+export const VATUSA_DIVISION_ID = 'USA';
+
 /** VATSIM rating ids. Anything below S1 cannot control. */
 export const RATING_OBS = 1;
 export const RATING_S1 = 2;

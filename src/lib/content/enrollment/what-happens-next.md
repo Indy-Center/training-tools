@@ -2,7 +2,7 @@
   DRAFT — written by engineering as a placeholder, NOT approved copy.
   The training team owns the wording here. Replace it; do not build around it.
 
-  Shown on /enroll before a student submits. General to every course, so keep
+  Shown on the enrollment form (on /) before a student submits. General to every course, so keep
   anything course-specific in $lib/courses.ts instead.
 -->
 
