@@ -184,7 +184,8 @@ src/
 │   ├── enrollment-status.ts   status and contact-method labels, shared by every page
 │   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
-│   ├── components/            Panel, CopyPanel, Badge, PageHero, Logo, ActionButton, header/
+│   ├── components/            Panel, CopyPanel, Button, Alert, ChoiceCard, Badge and status badges, PageHero, header/
+│   ├── format.ts              date formatting, pinned to one locale
 │   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes

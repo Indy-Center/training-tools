@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import Button from '$lib/components/Button.svelte';
 	import Panel from '$lib/components/Panel.svelte';
 	import type { CopyBlock } from '$lib/content/training';
 	import IconOpenInNew from '~icons/mdi/open-in-new';
@@ -28,20 +29,17 @@
 		{#if copy.actions?.length}
 			<div class="flex flex-wrap gap-3">
 				{#each copy.actions as action (action.href + action.label)}
-					<a
+					<Button
 						href={action.href}
+						variant={action.style}
 						target={action.external ? '_blank' : undefined}
 						rel={action.external ? 'noopener noreferrer' : undefined}
-						class="inline-flex cursor-pointer items-center space-x-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors duration-200 {action.style ===
-						'secondary'
-							? 'border border-slate-600/50 text-gray-300 hover:bg-white/10 hover:text-white'
-							: 'bg-sky-600 text-white hover:bg-sky-700'}"
 					>
-						<span>{action.label}</span>
+						{action.label}
 						{#if action.external}
 							<IconOpenInNew class="h-4 w-4" />
 						{/if}
-					</a>
+					</Button>
 				{/each}
 			</div>
 		{/if}

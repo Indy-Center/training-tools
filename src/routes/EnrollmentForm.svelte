@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Panel from '$lib/components/Panel.svelte';
+	import Alert from '$lib/components/Alert.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import ChoiceCard from '$lib/components/ChoiceCard.svelte';
 	import CopyPanel from '$lib/components/CopyPanel.svelte';
 	import { formatWeeksRange, type Course } from '$lib/courses';
 	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
@@ -12,7 +15,6 @@
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconClock from '~icons/mdi/clock-outline';
 	import IconBell from '~icons/mdi/bell-outline';
-	import IconAlert from '~icons/mdi/alert-circle';
 	import IconInformation from '~icons/mdi/information-outline';
 	import IconHandshake from '~icons/mdi/handshake-outline';
 	import type { ActionData } from './$types';
@@ -35,12 +37,7 @@
 </script>
 
 {#if form?.formError}
-	<div
-		class="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-	>
-		<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-		<span>{form.formError}</span>
-	</div>
+	<Alert>{form.formError}</Alert>
 {/if}
 
 <form
@@ -147,19 +144,15 @@
 
 			<div class="space-y-2">
 				{#each NOTIFICATION_PREFERENCES.map( (value) => ({ value, label: NOTIFICATION_LABELS[value] }) ) as option (option.value)}
-					<label
-						class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-700/60 px-4 py-3 transition-colors duration-200 hover:bg-white/5 has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
+					<ChoiceCard
+						type="radio"
+						name="notificationPreference"
+						value={option.value}
+						checked={form?.values?.notificationPreference === option.value}
+						required
 					>
-						<input
-							type="radio"
-							name="notificationPreference"
-							value={option.value}
-							checked={form?.values?.notificationPreference === option.value}
-							required
-							class="border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
-						/>
 						<span class="text-sm text-white">{option.label}</span>
-					</label>
+					</ChoiceCard>
 				{/each}
 			</div>
 		</div>
@@ -177,32 +170,26 @@
 				<p class="mt-4 text-sm text-red-400">{form.agreedError}</p>
 			{/if}
 
-			<label
-				class="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-700/60 px-4 py-3 transition-colors duration-200 hover:bg-white/5 has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
+			<ChoiceCard
+				type="checkbox"
+				name="agreed"
+				checked={form?.values?.agreed ?? false}
+				required
+				align="start"
+				class="mt-5"
 			>
-				<input
-					type="checkbox"
-					name="agreed"
-					checked={form?.values?.agreed ?? false}
-					required
-					class="mt-0.5 rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
-				/>
 				<span class="text-sm text-white">
 					I've read what's asked of me and what I can expect.
 				</span>
-			</label>
+			</ChoiceCard>
 		</div>
 	</Panel>
 
 	<div class="flex items-center gap-4">
-		<button
-			type="submit"
-			disabled={submitting}
-			class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-		>
+		<Button type="submit" size="lg" disabled={submitting}>
 			<IconClipboard class="h-5 w-5" />
 			{submitting ? 'Submitting…' : 'Submit training request'}
-		</button>
+		</Button>
 		<p class="text-sm text-gray-400">You can withdraw this at any time.</p>
 	</div>
 </form>

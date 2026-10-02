@@ -1,12 +1,14 @@
 <script lang="ts">
-	import Panel from '$lib/components/Panel.svelte';
+	import Alert from '$lib/components/Alert.svelte';
 	import Badge from '$lib/components/Badge.svelte';
-	import { STATUS_COLORS, STATUS_LABELS } from '$lib/enrollment-status';
-	import { QUALIFICATION_LEVEL_LABELS, TEACHER_STATUS_LABELS } from '$lib/teachers';
+	import Button from '$lib/components/Button.svelte';
+	import EnrollmentStatusBadge from '$lib/components/EnrollmentStatusBadge.svelte';
+	import Panel from '$lib/components/Panel.svelte';
+	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
+	import { QUALIFICATION_LEVEL_LABELS } from '$lib/teachers';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCalendarClock from '~icons/mdi/calendar-clock';
 	import IconSeal from '~icons/mdi/seal';
-	import IconAlert from '~icons/mdi/alert-circle';
 	import IconPencil from '~icons/mdi/pencil';
 	import IconOpen from '~icons/mdi/open-in-new';
 
@@ -24,37 +26,24 @@
 			Your students, and what you have told training staff you can take on.
 		</p>
 	</div>
-	<a
-		href="/teachers/{data.teacher.cid}"
-		class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700"
-	>
+	<Button href="/teachers/{data.teacher.cid}" size="sm">
 		<IconPencil class="h-4 w-4" />
 		Edit availability and slots
-	</a>
+	</Button>
 </div>
 
 {#if data.teacher.status === 'loa'}
-	<div
-		class="mb-6 flex items-start gap-3 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-300"
-	>
-		<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-		<span>
-			You are on LOA, so you are not offered new students. Your slots stay visible here so you can
-			show you are ready when you come back; they are not counted as open anywhere else.
-		</span>
-	</div>
+	<Alert tone="warning" class="mb-6">
+		You are on LOA, so you are not offered new students. Your slots stay visible here so you can
+		show you are ready when you come back; they are not counted as open anywhere else.
+	</Alert>
 {/if}
 
 {#if data.selfAssigned}
-	<div
-		class="mb-6 flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-	>
-		<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-		<span>
-			Your own enrollment is assigned to you on the TRK board. You cannot teach yourself — ask
-			training staff to assign another teacher.
-		</span>
-	</div>
+	<Alert class="mb-6">
+		Your own enrollment is assigned to you on the TRK board. You cannot teach yourself — ask
+		training staff to assign another teacher.
+	</Alert>
 {/if}
 
 <div class="grid gap-6 lg:grid-cols-3">
@@ -73,11 +62,7 @@
 								<span class="text-sm font-medium text-white">{student.name}</span>
 								<span class="font-mono text-xs text-gray-500">{student.cid}</span>
 								<Badge size="sm" color="sky" label={student.course} />
-								<Badge
-									size="sm"
-									color={STATUS_COLORS[student.status] ?? 'gray'}
-									label={STATUS_LABELS[student.status] ?? student.status}
-								/>
+								<EnrollmentStatusBadge status={student.status} />
 								{#if student.issueUrl}
 									<a
 										href={student.issueUrl}
@@ -108,11 +93,7 @@
 				<div class="flex items-center justify-between px-4 py-3">
 					<dt class="text-gray-400">Status</dt>
 					<dd>
-						<Badge
-							size="sm"
-							color={data.teacher.status === 'loa' ? 'orange' : 'green'}
-							label={TEACHER_STATUS_LABELS[data.teacher.status]}
-						/>
+						<TeacherStatusBadge status={data.teacher.status} />
 					</dd>
 				</div>
 				<div class="flex items-center justify-between px-4 py-3">

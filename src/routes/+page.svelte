@@ -1,7 +1,9 @@
 <script lang="ts">
 	import PageHero from '$lib/components/PageHero.svelte';
 	import Panel from '$lib/components/Panel.svelte';
+	import Alert from '$lib/components/Alert.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import CopyPanel from '$lib/components/CopyPanel.svelte';
 	import EnrollmentForm from './EnrollmentForm.svelte';
 	import RequestDetails from './RequestDetails.svelte';
@@ -15,7 +17,6 @@
 	import IconAccountClock from '~icons/mdi/account-clock';
 	import IconAccountSwitch from '~icons/mdi/account-switch';
 	import IconAirplaneTakeoff from '~icons/mdi/airplane-takeoff';
-	import IconAlert from '~icons/mdi/alert-circle';
 	import IconBook from '~icons/mdi/book-open-variant';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconClockOutline from '~icons/mdi/clock-outline';
@@ -63,14 +64,10 @@
 			{@html SHARED_COPY.signedOut.body}
 		</div>
 		<div class="mt-8 flex justify-center">
-			<a
-				href={loginUrl(data.identityUrl, returnUrl)}
-				data-sveltekit-reload
-				class="flex cursor-pointer items-center space-x-2 rounded-lg bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700"
-			>
+			<Button href={loginUrl(data.identityUrl, returnUrl)} size="lg" data-sveltekit-reload>
 				<IconAccount class="h-5 w-5" />
-				<span>{TRAINING_TEXT.signInButton}</span>
-			</a>
+				{TRAINING_TEXT.signInButton}
+			</Button>
 		</div>
 	</PageHero>
 {:else}
@@ -147,16 +144,11 @@
 								</p>
 							{/if}
 							{#if request.moodleUrl}
-								<a
-									href={request.moodleUrl}
-									target="_blank"
-									rel="noopener noreferrer"
-									class="inline-flex cursor-pointer items-center space-x-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700"
-								>
+								<Button href={request.moodleUrl} target="_blank" rel="noopener noreferrer">
 									<IconSchool class="h-5 w-5" />
-									<span>{TRAINING_TEXT.openCourseButton}</span>
+									{TRAINING_TEXT.openCourseButton}
 									<IconOpenInNew class="h-4 w-4" />
-								</a>
+								</Button>
 							{:else}
 								<p class="text-gray-400">{TRAINING_TEXT.noCourseLink}</p>
 							{/if}
@@ -185,12 +177,7 @@
 						{form}
 					/>
 				{:else}
-					<div
-						class="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-					>
-						<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-						<span>{TRAINING_TEXT.noNextCourse}</span>
-					</div>
+					<Alert>{TRAINING_TEXT.noNextCourse}</Alert>
 				{/if}
 			{:else if data.flow === 'consolidating'}
 				<!-- Home controller with a course left to take, but not yet eligible for it. -->

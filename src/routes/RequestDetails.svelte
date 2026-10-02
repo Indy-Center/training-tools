@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Panel from '$lib/components/Panel.svelte';
+	import Alert from '$lib/components/Alert.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import EnrollmentStatusBadge from '$lib/components/EnrollmentStatusBadge.svelte';
+	import Panel from '$lib/components/Panel.svelte';
 	import { findCourse } from '$lib/courses';
 	import { TRAINING_TEXT } from '$lib/content/training';
-	import { STATUS_COLORS, STATUS_LABELS } from '$lib/enrollment-status';
+	import { formatDate } from '$lib/format';
 	import IconClipboard from '~icons/mdi/clipboard-text';
-	import IconAlert from '~icons/mdi/alert-circle';
 
 	type Props = {
 		request: {
@@ -21,12 +23,6 @@
 	};
 
 	let { request, error }: Props = $props();
-
-	const dateFormat = new Intl.DateTimeFormat('en-US', {
-		year: 'numeric',
-		month: 'long',
-		day: 'numeric'
-	});
 </script>
 
 <!-- The same panel under every open request, whatever its status: what they
@@ -35,14 +31,10 @@
 	<div class="space-y-5 px-4 py-5 text-sm text-gray-300">
 		<div class="flex flex-wrap items-center gap-2">
 			<Badge size="sm" color="sky" label={findCourse(request.course)?.label ?? request.course} />
-			<Badge
-				size="sm"
-				color={STATUS_COLORS[request.status] ?? 'gray'}
-				label={STATUS_LABELS[request.status] ?? request.status}
-			/>
+			<EnrollmentStatusBadge status={request.status} />
 		</div>
 
-		<p>Requested {dateFormat.format(new Date(request.createdAt))}.</p>
+		<p>Requested {formatDate(request.createdAt, 'long')}.</p>
 
 		{#if request.availability}
 			<div>
@@ -57,10 +49,7 @@
 			<p class="text-gray-400">{TRAINING_TEXT.withdraw.intro}</p>
 
 			{#if error}
-				<p class="mt-3 flex items-start gap-2 text-red-300">
-					<IconAlert class="mt-0.5 h-4 w-4 shrink-0" />
-					<span>{error}</span>
-				</p>
+				<Alert class="mt-3">{error}</Alert>
 			{/if}
 
 			<form
@@ -73,12 +62,9 @@
 				class="mt-3"
 			>
 				<input type="hidden" name="id" value={request.id} />
-				<button
-					type="submit"
-					class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600/50 px-4 py-2 text-sm font-medium text-gray-300 transition-colors duration-200 hover:bg-white/10 hover:text-white"
-				>
+				<Button type="submit" variant="secondary" size="sm">
 					{TRAINING_TEXT.withdraw.button}
-				</button>
+				</Button>
 			</form>
 		</div>
 	</div>

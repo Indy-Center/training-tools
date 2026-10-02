@@ -1,15 +1,15 @@
 <script lang="ts">
+	import Alert from '$lib/components/Alert.svelte';
 	import Panel from '$lib/components/Panel.svelte';
-	import Badge from '$lib/components/Badge.svelte';
+	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
+	import { formatDate, formatDateTime } from '$lib/format';
 	import {
 		QUALIFICATION_LEVEL_LABELS,
 		QUALIFICATION_LEVEL_SHORT,
-		TEACHER_STATUS_LABELS,
 		type QualificationLevel
 	} from '$lib/teachers';
 	import IconAccountGroup from '~icons/mdi/account-group';
 	import IconHistory from '~icons/mdi/history';
-	import IconAlert from '~icons/mdi/alert-circle';
 	import IconCheck from '~icons/mdi/check-circle';
 
 	let { data } = $props();
@@ -46,30 +46,25 @@
 		...data.dropdowns.reInstructor.map((line) => `RE Instructor — ${line}`)
 	]}
 	{#if drift.length > 0}
-		<div
-			class="mb-6 flex items-start gap-3 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-300"
-		>
-			<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-			<div>
-				<p>
-					TRK's dropdowns do not match the teacher roster. Jira cannot be updated from here for this
-					project, so make these changes by hand on the Student Enrollment issue type:
-				</p>
-				<ul class="mt-2 list-disc pl-5">
-					{#each drift as line (line)}
-						<li>{line}</li>
-					{/each}
-				</ul>
-				<p class="mt-2 text-xs text-orange-300/70">
-					Checked {new Date(data.dropdowns.checkedAt).toLocaleString()}.
-				</p>
-			</div>
-		</div>
+		<Alert tone="warning" class="mb-6">
+			<p>
+				TRK's dropdowns do not match the teacher roster. Jira cannot be updated from here for this
+				project, so make these changes by hand on the Student Enrollment issue type:
+			</p>
+			<ul class="mt-2 list-disc pl-5">
+				{#each drift as line (line)}
+					<li>{line}</li>
+				{/each}
+			</ul>
+			<p class="mt-2 text-xs text-orange-300/70">
+				Checked {formatDateTime(data.dropdowns.checkedAt)}.
+			</p>
+		</Alert>
 	{:else}
 		<p class="mb-6 flex items-center gap-2 text-sm text-gray-400">
 			<IconCheck class="h-4 w-4 text-green-400" />
 			TRK's Teacher and RE Instructor dropdowns match the roster (checked
-			{new Date(data.dropdowns.checkedAt).toLocaleString()}).
+			{formatDateTime(data.dropdowns.checkedAt)}).
 		</p>
 	{/if}
 {/if}
@@ -103,11 +98,7 @@
 							</div>
 						</td>
 						<td class="px-4 py-3">
-							<Badge
-								size="sm"
-								color={teacher.status === 'loa' ? 'orange' : 'green'}
-								label={TEACHER_STATUS_LABELS[teacher.status]}
-							/>
+							<TeacherStatusBadge status={teacher.status} />
 						</td>
 						<td class="px-4 py-3 text-white">{teacher.assigned}</td>
 						<td class="px-4 py-3 font-mono text-white">
@@ -155,7 +146,7 @@
 							<span class="font-mono text-xs text-gray-500">{teacher.cid}</span>
 						</a>
 						<span class="text-xs text-gray-500">
-							Left {teacher.removedAt ? new Date(teacher.removedAt).toLocaleDateString() : '—'}
+							Left {teacher.removedAt ? formatDate(teacher.removedAt) : '—'}
 						</span>
 					</li>
 				{/each}
