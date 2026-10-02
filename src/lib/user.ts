@@ -1,4 +1,5 @@
 import type { User } from '@indy-center/identity';
+import { VATUSA_DIVISION_ID } from '$lib/config';
 
 /**
  * Identity's User nests the VATSIM profile and keeps almost every field
@@ -22,6 +23,11 @@ export function displayName(user: User): string {
 /** Short ATC rating (e.g. "S2"), or undefined when VATSIM didn't supply one. */
 export function atcRating(user: User): string | undefined {
 	return user.vatsimData.vatsim?.rating?.short ?? undefined;
+}
+
+/** True when VATSIM places them in the VATUSA division. False when it didn't say. */
+export function isVatusaMember(user: User): boolean {
+	return user.vatsimData.vatsim?.division?.id?.trim().toUpperCase() === VATUSA_DIVISION_ID;
 }
 
 /** The VATSIM email identity holds for them, or undefined when it is blank. */

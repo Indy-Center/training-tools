@@ -2,6 +2,7 @@
 	import PageHero from '$lib/components/PageHero.svelte';
 	import Panel from '$lib/components/Panel.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import IconSchool from '~icons/mdi/school';
 	import IconInformation from '~icons/mdi/information-outline';
 	import IconOpenInNew from '~icons/mdi/open-in-new';
@@ -45,15 +46,10 @@
 		<Panel title="Get started" icon={IconSchool}>
 			<div class="space-y-4 px-4 py-5 text-sm text-gray-300">
 				{#if data.courseUrl}
-					<a
-						href={data.courseUrl}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="inline-flex cursor-pointer items-center space-x-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700"
-					>
-						<span>Open the Tier 2 course</span>
+					<Button href={data.courseUrl} target="_blank" rel="noopener noreferrer">
+						Open the Tier 2 course
 						<IconOpenInNew class="h-4 w-4" />
-					</a>
+					</Button>
 				{:else}
 					<p>
 						The course isn't open for self sign-up yet. Ask the training staff on Discord and

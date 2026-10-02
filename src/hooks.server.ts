@@ -14,16 +14,17 @@ import { email } from '$lib/user';
  * This app is training-only, so there is nothing else worth showing before
  * sign-in.
  *
- * `/stats` is public so that someone deciding whether to enroll can see the
- * wait first. It shows per-course counts only — never a name or a CID — and a
- * signed-in viewer's own position, which its load scopes to their session.
+ * Being public makes `/` the one page whose form actions can be reached with no
+ * session, so they check for one themselves.
+ *
+ * `/stats` is **not** here: the waitlist is for signed-in VATSIM members.
  *
  * `/api/jira/webhook` is public because Jira has no session. It is **not**
  * unauthenticated: it verifies Jira's HMAC signature before doing anything, and
  * only ever re-reads an issue from Jira. Anything added here must carry its own
  * check the same way.
  */
-const PUBLIC_PATHS = ['/', '/stats', '/api/jira/webhook'];
+const PUBLIC_PATHS = ['/', '/api/jira/webhook'];
 
 function isPublic(pathname: string): boolean {
 	return PUBLIC_PATHS.some((p) => pathname === p || (p !== '/' && pathname.startsWith(p + '/')));

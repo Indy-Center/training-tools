@@ -73,6 +73,32 @@ export async function getOpenEnrollment(db: Database, cid: string): Promise<Enro
 	return enrollment ?? null;
 }
 
+const ownOpenEnrollment = new WeakMap<App.Locals, Promise<Enrollment | null>>();
+
+/**
+ * The signed-in member's own open enrollment, read at most once per request.
+ *
+ * The header (which names its link by it) and the page beneath both need it,
+ * and their loads run side by side — so the lookup is remembered against the
+ * request's `locals` and shared. Nothing outlives the request: the map is weak,
+ * and `locals` is a new object every time.
+ *
+ * An action that opens or closes a request must redirect afterwards, as
+ * `?/enroll` and `?/withdraw` do, so no load ever renders from an answer the
+ * same request has just made stale.
+ */
+export function getOwnOpenEnrollment(locals: App.Locals): Promise<Enrollment | null> {
+	const cid = locals.session?.user.cid;
+	if (!cid) return Promise.resolve(null);
+
+	let pending = ownOpenEnrollment.get(locals);
+	if (!pending) {
+		pending = getOpenEnrollment(locals.db, cid);
+		ownOpenEnrollment.set(locals, pending);
+	}
+	return pending;
+}
+
 export type WaitlistPosition = {
 	/** Requests for the same course submitted before this one and still waiting. */
 	ahead: number;

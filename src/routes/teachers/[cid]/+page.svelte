@@ -1,9 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Panel from '$lib/components/Panel.svelte';
+	import Alert from '$lib/components/Alert.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import ChoiceCard from '$lib/components/ChoiceCard.svelte';
+	import EnrollmentStatusBadge from '$lib/components/EnrollmentStatusBadge.svelte';
+	import Panel from '$lib/components/Panel.svelte';
+	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
 	import Timeline from '$lib/components/Timeline.svelte';
-	import { STATUS_COLORS, STATUS_LABELS } from '$lib/enrollment-status';
+	import { formatDate } from '$lib/format';
 	import {
 		MAX_STUDENT_SLOTS,
 		QUALIFICATION_LEVEL_LABELS,
@@ -15,7 +20,6 @@
 	import IconCog from '~icons/mdi/cog';
 	import IconSeal from '~icons/mdi/seal';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
-	import IconAlert from '~icons/mdi/alert-circle';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconOpen from '~icons/mdi/open-in-new';
 
@@ -37,8 +41,6 @@
 
 	const inputClasses =
 		'w-full rounded-lg border border-slate-600/50 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-sky-500 focus:ring-sky-500/50';
-	const buttonClasses =
-		'inline-flex cursor-pointer items-center gap-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60';
 </script>
 
 <svelte:head>
@@ -63,11 +65,7 @@
 <div class="mt-4 mb-8">
 	<div class="flex flex-wrap items-center gap-3">
 		<h1 class="text-3xl font-bold text-white">{data.teacher.name}</h1>
-		<Badge
-			size="sm"
-			color={data.teacher.status === 'loa' ? 'orange' : 'green'}
-			label={TEACHER_STATUS_LABELS[data.teacher.status]}
-		/>
+		<TeacherStatusBadge status={data.teacher.status} />
 		{#if !data.teacher.onRoster}
 			<Badge size="sm" color="gray" label="Not on the teacher roster" />
 		{/if}
@@ -79,9 +77,8 @@
 	</p>
 	{#if !data.teacher.onRoster && data.teacher.removedAt}
 		<p class="mt-2 text-sm text-gray-400">
-			Left the teacher roster {new Date(data.teacher.removedAt).toLocaleDateString()}. Their
-			qualifications are kept for six months in case they return, then end. Nothing here can be
-			edited until they are back.
+			Left the teacher roster {formatDate(data.teacher.removedAt)}. Their qualifications are kept
+			for six months in case they return, then end. Nothing here can be edited until they are back.
 		</p>
 	{/if}
 </div>
@@ -148,9 +145,9 @@
 						{/if}
 					</div>
 
-					<button type="submit" disabled={saving} class={buttonClasses}>
+					<Button type="submit" disabled={saving}>
 						{saving ? 'Saving…' : 'Save'}
-					</button>
+					</Button>
 				</form>
 			{:else}
 				<p class="text-sm whitespace-pre-line text-white">
@@ -183,18 +180,15 @@
 							<span class="block text-sm text-gray-400">Status</span>
 							<div class="mt-2 flex gap-3">
 								{#each ['active', 'loa'] as const as status (status)}
-									<label
-										class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700/60 px-4 py-2 text-sm text-white has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
+									<ChoiceCard
+										type="radio"
+										name="status"
+										value={status}
+										checked={data.teacher.status === status}
+										compact
 									>
-										<input
-											type="radio"
-											name="status"
-											value={status}
-											checked={data.teacher.status === status}
-											class="border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
-										/>
-										{TEACHER_STATUS_LABELS[status]}
-									</label>
+										<span class="text-sm text-white">{TEACHER_STATUS_LABELS[status]}</span>
+									</ChoiceCard>
 								{/each}
 							</div>
 						</div>
@@ -213,9 +207,9 @@
 							     community-website is on identity (DEV-5). -->
 						</div>
 
-						<button type="submit" disabled={saving} class={buttonClasses}>
+						<Button type="submit" disabled={saving}>
 							{saving ? 'Saving…' : 'Save'}
-						</button>
+						</Button>
 					</fieldset>
 				</form>
 			</div>
@@ -237,16 +231,13 @@
 				</p>
 			{/if}
 			{#if form?.qualificationErrors}
-				<div
-					class="mb-4 flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-				>
-					<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
+				<Alert class="mb-4">
 					<ul>
 						{#each form.qualificationErrors as problem (problem)}
 							<li>{problem}</li>
 						{/each}
 					</ul>
-				</div>
+				</Alert>
 			{/if}
 
 			<form method="POST" action="?/setQualifications" use:enhance={submitting}>
@@ -290,9 +281,9 @@
 					</ul>
 
 					{#if canAdmin}
-						<button type="submit" disabled={saving} class="mt-4 {buttonClasses}">
+						<Button type="submit" disabled={saving} class="mt-4">
 							{saving ? 'Saving…' : 'Save qualifications'}
-						</button>
+						</Button>
 					{/if}
 				</fieldset>
 			</form>
@@ -309,11 +300,7 @@
 						<span class="text-sm text-white">{student.name}</span>
 						<span class="font-mono text-xs text-gray-500">{student.cid}</span>
 						<Badge size="sm" color="sky" label={student.course} />
-						<Badge
-							size="sm"
-							color={STATUS_COLORS[student.status] ?? 'gray'}
-							label={STATUS_LABELS[student.status] ?? student.status}
-						/>
+						<EnrollmentStatusBadge status={student.status} />
 						{#if student.issueUrl}
 							<a
 								href={student.issueUrl}

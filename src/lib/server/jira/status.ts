@@ -12,8 +12,11 @@ import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
 /** `Teacher` on the Student Enrollment issue type: a select of instructor initials. */
 export const TEACHER_FIELD = 'customfield_10250';
 
+/** `RE Instructor` on the same issue type: who runs the rating exam. Also initials, plus `VATUSA`. */
+export const RE_INSTRUCTOR_FIELD = 'customfield_10254';
+
 /** The only fields a status read asks Jira for. `updated` orders the reads. */
-export const STATUS_FIELDS = ['status', TEACHER_FIELD, 'updated'] as const;
+export const STATUS_FIELDS = ['status', TEACHER_FIELD, RE_INSTRUCTOR_FIELD, 'updated'] as const;
 
 /**
  * TRK status names, lowercased, to ours.
@@ -43,6 +46,7 @@ export type JiraStatusIssue = {
 	fields?: {
 		status?: { name?: string | null } | null;
 		[TEACHER_FIELD]?: { value?: string | null } | null;
+		[RE_INSTRUCTOR_FIELD]?: { value?: string | null } | null;
 		/** Jira's last-updated time, e.g. "2026-09-23T10:32:53.283-0400". */
 		updated?: string | null;
 	} | null;
@@ -80,6 +84,7 @@ export function isStale(appliedAt: Date | null, observedAt: Date | null): boolea
 export type StatusUpdate = {
 	status: EnrollmentStatus;
 	teacher: string | null;
+	reInstructor: string | null;
 };
 
 export type StatusResolution =
@@ -97,7 +102,8 @@ export function resolveStatusUpdate(issue: JiraStatusIssue): StatusResolution {
 		action: 'update',
 		update: {
 			status,
-			teacher: issue.fields?.[TEACHER_FIELD]?.value?.trim() || null
+			teacher: issue.fields?.[TEACHER_FIELD]?.value?.trim() || null,
+			reInstructor: issue.fields?.[RE_INSTRUCTOR_FIELD]?.value?.trim() || null
 		}
 	};
 }

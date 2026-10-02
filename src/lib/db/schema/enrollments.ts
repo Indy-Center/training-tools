@@ -137,7 +137,13 @@ export const enrollmentsTable = sqliteTable(
 		 */
 		teacher: text('teacher'),
 		/**
-		 * When `status` and `teacher` were last read back from Jira, by the cron
+		 * The TRK `RE Instructor` select, read back the same way: who is running
+		 * the rating exam. Initials like `teacher`, or `VATUSA` when the division
+		 * examines. Null until staff assign someone.
+		 */
+		reInstructor: text('re_instructor'),
+		/**
+		 * When `status`, `teacher` and `reInstructor` were last read back from Jira, by the cron
 		 * sweep or the webhook. Null until the first read. See
 		 * .ai/decisions/0014-enrollment-status-from-jira.md
 		 */

@@ -3,6 +3,7 @@ import {
 	isStale,
 	mapJiraStatus,
 	parseJiraTimestamp,
+	RE_INSTRUCTOR_FIELD,
 	resolveStatusUpdate,
 	TEACHER_FIELD
 } from './status';
@@ -52,7 +53,10 @@ describe('resolveStatusUpdate', () => {
 				key: 'TRK-12',
 				fields: { status: { name: 'In Training' }, [TEACHER_FIELD]: { value: 'CT' } }
 			})
-		).toEqual({ action: 'update', update: { status: 'in-training', teacher: 'CT' } });
+		).toEqual({
+			action: 'update',
+			update: { status: 'in-training', teacher: 'CT', reInstructor: null }
+		});
 	});
 
 	it('treats an unset Teacher as null', () => {
@@ -61,7 +65,27 @@ describe('resolveStatusUpdate', () => {
 				key: 'TRK-12',
 				fields: { status: { name: 'Waitlist' }, [TEACHER_FIELD]: null }
 			})
-		).toEqual({ action: 'update', update: { status: 'waitlist', teacher: null } });
+		).toEqual({
+			action: 'update',
+			update: { status: 'waitlist', teacher: null, reInstructor: null }
+		});
+	});
+
+	// `VATUSA` is a real option on the board: the division examines, not one of ours.
+	it('reads the rating exam instructor alongside the teacher', () => {
+		expect(
+			resolveStatusUpdate({
+				key: 'TRK-12',
+				fields: {
+					status: { name: 'Rating Exam' },
+					[TEACHER_FIELD]: { value: 'CT' },
+					[RE_INSTRUCTOR_FIELD]: { value: ' VATUSA ' }
+				}
+			})
+		).toEqual({
+			action: 'update',
+			update: { status: 'rating-exam', teacher: 'CT', reInstructor: 'VATUSA' }
+		});
 	});
 
 	it('reports an unknown status rather than guessing', () => {

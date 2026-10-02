@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Panel from '$lib/components/Panel.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconMagnify from '~icons/mdi/magnify';
 	import IconChevronRight from '~icons/mdi/chevron-right';
@@ -32,13 +33,10 @@
 				placeholder="CID or name"
 				class="block w-full rounded-lg border-slate-700/60 bg-slate-900/60 text-sm text-white placeholder:text-gray-500 focus:border-sky-500 focus:ring-sky-500/50"
 			/>
-			<button
-				type="submit"
-				class="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700"
-			>
+			<Button type="submit" size="lg" class="shrink-0">
 				<IconMagnify class="h-4 w-4" />
 				Search
-			</button>
+			</Button>
 		</form>
 		<!-- DEV-115 asks for search by operating initials too. Identity has no way to
 		     look up another controller, so this is the honest limit for now. -->

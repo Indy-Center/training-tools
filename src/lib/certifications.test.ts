@@ -9,6 +9,7 @@ import {
 	canHold,
 	findCredential,
 	highestCertification,
+	holdsHighestCertification,
 	isCertificationCode,
 	isCredentialCode
 } from './certifications';
@@ -153,6 +154,19 @@ describe('highestCertification', () => {
 
 	it('returns nothing for a controller holding nothing', () => {
 		expect(highestCertification([])).toBeUndefined();
+	});
+});
+
+describe('holdsHighestCertification', () => {
+	it('is true only at the top of the ladder', () => {
+		expect(holdsHighestCertification(['E-RC'])).toBe(true);
+		expect(holdsHighestCertification(['E-RC', 'T2-CTR'])).toBe(true);
+		expect(holdsHighestCertification(['T-RC'])).toBe(false);
+	});
+
+	it('is false for endorsements alone, or nothing', () => {
+		expect(holdsHighestCertification(['S-LC', 'T2-CTR'])).toBe(false);
+		expect(holdsHighestCertification([])).toBe(false);
 	});
 });
 

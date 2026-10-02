@@ -170,6 +170,12 @@ export function highestCertification(held: readonly string[]): CredentialRecord 
 		.sort((a, b) => (b!.rank ?? 0) - (a!.rank ?? 0))[0];
 }
 
+/** Whether `held` includes the top of the certification ladder. */
+export function holdsHighestCertification(held: readonly string[]): boolean {
+	const top = Math.max(...CERTIFICATIONS.map((certification) => certification.rank));
+	return highestCertification(held)?.rank === top;
+}
+
 /** Whether `held` satisfies every requirement of `code`. */
 export function canHold(code: string, held: readonly string[]): boolean {
 	const credential = findCredential(code);

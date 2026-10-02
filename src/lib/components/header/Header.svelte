@@ -7,11 +7,14 @@
 	import ExternalLinks from './ExternalLinks.svelte';
 	import { atcRating, displayName, operatingInitials } from '$lib/user';
 	import { loginUrl, logoutUrl } from '$lib/identity-links';
+	import { COMMUNITY_URL } from '$lib/config';
+	import { isTrainingAdmin } from '$lib/utils/permissions';
 	import IconRating from '~icons/mdi/radar';
 	import IconLogout from '~icons/mdi/logout';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconMenu from '~icons/mdi/menu';
 	import IconClose from '~icons/mdi/close';
+	import IconAdmin from '~icons/mdi/shield-account';
 
 	let {
 		data
@@ -20,6 +23,8 @@
 			user: User | undefined;
 			roles: string[] | undefined;
 			isTeacher?: boolean;
+			landsOnTeach?: boolean;
+			openEnrollmentStatus?: string | null;
 			identityUrl: string;
 		};
 	} = $props();
@@ -47,17 +52,25 @@
 <div class="relative z-20 mx-auto flex h-16 w-full max-w-7xl items-center justify-between p-2">
 	<!-- Logo + Navigation -->
 	<div class="flex items-center space-x-4">
-		<a href="/" class="cursor-pointer">
+		<!-- The logo leads back to the community site; this app's own default view
+		     is the first navigation link. -->
+		<a href={COMMUNITY_URL} class="cursor-pointer">
 			<Logo class="h-8 w-auto" />
 		</a>
 		<div class="hidden md:block">
-			<NavigationLinks user={data.user} roles={data.roles} isTeacher={data.isTeacher} />
+			<NavigationLinks
+				user={data.user}
+				roles={data.roles}
+				isTeacher={data.isTeacher}
+				landsOnTeach={data.landsOnTeach}
+				openEnrollmentStatus={data.openEnrollmentStatus}
+			/>
 		</div>
 	</div>
 
 	<!-- Desktop Navigation on the right -->
 	<div class="hidden items-center space-x-6 md:flex">
-		<UserProfileDropdown user={data.user} identityUrl={data.identityUrl} />
+		<UserProfileDropdown user={data.user} roles={data.roles} identityUrl={data.identityUrl} />
 		<ExternalLinks />
 	</div>
 
@@ -96,6 +109,8 @@
 					user={data.user}
 					roles={data.roles}
 					isTeacher={data.isTeacher}
+					landsOnTeach={data.landsOnTeach}
+					openEnrollmentStatus={data.openEnrollmentStatus}
 					mobile={true}
 				/>
 
@@ -135,6 +150,16 @@
 							</div>
 
 							<div class="space-y-2">
+								{#if isTrainingAdmin(data.roles)}
+									<a
+										href="/admin"
+										class="flex w-full cursor-pointer items-center justify-center space-x-2 rounded-lg border border-slate-500/30 px-4 py-2 text-sm text-gray-300 transition-colors duration-200 hover:border-slate-400/50 hover:bg-slate-600/20 hover:text-white"
+										onclick={() => (showMobileMenu = false)}
+									>
+										<IconAdmin class="h-4 w-4" />
+										<span>Admin</span>
+									</a>
+								{/if}
 								<a
 									href={logoutUrl(data.identityUrl, returnUrl)}
 									data-sveltekit-reload

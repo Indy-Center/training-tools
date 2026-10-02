@@ -1,6 +1,6 @@
 import { jiraRequest, type JiraConfig } from './client';
 import { STUDENT_ENROLLMENT_ISSUE_TYPE_ID } from './enrollment';
-import { TEACHER_FIELD } from './status';
+import { RE_INSTRUCTOR_FIELD, TEACHER_FIELD } from './status';
 
 /**
  * TRK's `Teacher` and `RE Instructor` dropdowns, compared with the teacher
@@ -18,9 +18,6 @@ import { TEACHER_FIELD } from './status';
  *
  * See .ai/decisions/0017-teacher-roster-and-qualifications.md
  */
-
-/** `RE Instructor` on the Student Enrollment issue type: who ran the rating exam. */
-export const RE_INSTRUCTOR_FIELD = 'customfield_10254';
 
 export const TEACHER_DROPDOWNS = {
 	teacher: { fieldId: TEACHER_FIELD, label: 'Teacher' },

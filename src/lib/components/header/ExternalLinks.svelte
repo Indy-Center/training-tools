@@ -1,21 +1,9 @@
 <script lang="ts">
 	import IconBook from '~icons/mdi/book-open-variant';
-	import IconHome from '~icons/mdi/home-city';
-	import IconMap from '~icons/mdi/map-legend';
 
 	let { mobile = false }: { mobile?: boolean } = $props();
 
 	const EXTERNAL_LINKS = [
-		{
-			label: 'Community',
-			href: 'https://flyindycenter.com',
-			icon: IconHome
-		},
-		{
-			label: 'Charts',
-			href: 'https://charts.flyindycenter.com',
-			icon: IconMap
-		},
 		{
 			label: 'Library',
 			href: 'https://wiki.flyindycenter.com',

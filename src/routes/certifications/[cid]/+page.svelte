@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import Alert from '$lib/components/Alert.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import ChoiceCard from '$lib/components/ChoiceCard.svelte';
 	import Panel from '$lib/components/Panel.svelte';
 	import Timeline from '$lib/components/Timeline.svelte';
-	import IconAccount from '~icons/mdi/account-circle';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconSeal from '~icons/mdi/seal';
-	import IconAlert from '~icons/mdi/alert-circle';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconEmail from '~icons/mdi/email-outline';
 	import IconDiscord from '~icons/mdi/discord';
@@ -71,24 +72,14 @@
 </div>
 
 {#if form?.formError}
-	<div
-		class="mb-6 flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-	>
-		<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-		<span>{form.formError}</span>
-	</div>
+	<Alert class="mb-6">{form.formError}</Alert>
 {/if}
 
 {#if data.needsReview}
-	<div
-		class="mb-6 flex items-start gap-3 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-300"
-	>
-		<IconAlert class="mt-0.5 h-5 w-5 shrink-0" />
-		<span>
-			A certification here was worked out automatically rather than read from the rating table.
-			Confirm it against the notes below and set it explicitly.
-		</span>
-	</div>
+	<Alert tone="warning" class="mb-6">
+		A certification here was worked out automatically rather than read from the rating table.
+		Confirm it against the notes below and set it explicitly.
+	</Alert>
 {/if}
 
 <div class="grid gap-6 lg:grid-cols-2">
@@ -100,16 +91,13 @@
 
 			<form method="POST" action="?/setCertification" use:enhance={submitting} class="space-y-3">
 				{#each data.certifications as certification (certification.code)}
-					<label
-						class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-700/60 px-4 py-3 transition-colors duration-200 hover:bg-white/5 has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
+					<ChoiceCard
+						type="radio"
+						name="certification"
+						value={certification.code}
+						checked={data.certification === certification.code}
+						align="start"
 					>
-						<input
-							type="radio"
-							name="certification"
-							value={certification.code}
-							checked={data.certification === certification.code}
-							class="mt-1 border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
-						/>
 						<span class="min-w-0">
 							<span class="block text-sm font-medium text-white">
 								{certification.name}
@@ -117,29 +105,22 @@
 							</span>
 							<span class="mt-0.5 block text-xs text-gray-400">{certification.description}</span>
 						</span>
-					</label>
+					</ChoiceCard>
 				{/each}
 
-				<label
-					class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-700/60 px-4 py-3 transition-colors duration-200 hover:bg-white/5 has-checked:border-sky-500/50 has-checked:bg-sky-500/10"
+				<ChoiceCard
+					type="radio"
+					name="certification"
+					value=""
+					checked={data.certification === null}
+					align="start"
 				>
-					<input
-						type="radio"
-						name="certification"
-						value=""
-						checked={data.certification === null}
-						class="mt-1 border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500/50"
-					/>
 					<span class="text-sm font-medium text-white">No certification</span>
-				</label>
+				</ChoiceCard>
 
-				<button
-					type="submit"
-					disabled={saving}
-					class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-sky-600 px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-				>
+				<Button type="submit" size="lg" disabled={saving}>
 					{saving ? 'Saving…' : 'Save certification'}
-				</button>
+				</Button>
 			</form>
 		</div>
 	</Panel>

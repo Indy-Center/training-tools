@@ -111,6 +111,13 @@ are intentionally absent from the published `IdentityRpc` interface.
 
 See [`../decisions/0005-namespaced-role-vocabulary.md`](../decisions/0005-namespaced-role-vocabulary.md).
 
+**There is no admin or super-admin role in identity** (verified 2026-09-30 at
+`identity@bb96204`). `src/roles/domain.ts` only adds, removes, replaces and
+lists strings; nothing checks for `admin` or ranks one role over another.
+community-website's `admin` lives in its own D1, not identity. A cross-app
+super-admin would be new identity work plus every app agreeing to honour it.
+The highest role this app knows is `training:admin`.
+
 ## Failure mode to know about
 
 `getSessionContext` returns `null` — never throws — when the cookie is missing,

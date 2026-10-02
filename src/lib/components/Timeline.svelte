@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Panel from '$lib/components/Panel.svelte';
 	import Badge from '$lib/components/Badge.svelte';
+	import { formatDate } from '$lib/format';
 	import IconTimeline from '~icons/mdi/timeline-clock-outline';
 	import IconAccountGroup from '~icons/mdi/account-group';
 	import IconSchool from '~icons/mdi/school';
@@ -34,10 +35,6 @@
 		qualification: { icon: IconSeal, color: 'green' },
 		certification: { icon: IconCertificate, color: 'sky' }
 	} as const;
-
-	function formatDate(value: Date | string) {
-		return new Date(value).toLocaleDateString();
-	}
 </script>
 
 <Panel title="Timeline" icon={IconTimeline}>

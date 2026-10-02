@@ -12,7 +12,7 @@ import {
 } from '$lib/server/jira/status';
 
 /**
- * Keeps `enrollments.status` and `teacher` in step with the TRK board.
+ * Keeps `enrollments.status`, `teacher` and `reInstructor` in step with the TRK board.
  *
  * Two ways in, one way to write:
  *
@@ -28,7 +28,7 @@ import {
  */
 
 export type ApplyOutcome =
-	/** Status or teacher changed. */
+	/** Status, teacher or rating-exam instructor changed. */
 	| 'updated'
 	/** Read, and already matched. */
 	| 'unchanged'
@@ -73,7 +73,7 @@ export async function applyIssueStatus(
 		return 'unknown-status';
 	}
 
-	const { status, teacher } = resolution.update;
+	const { status, teacher, reInstructor } = resolution.update;
 
 	// Compare-and-set. Two deliveries handled at once both read the row before
 	// either writes, so each write is conditional on the row still holding the
@@ -89,14 +89,22 @@ export async function applyIssueStatus(
 		if (row.withdrawnAt) return 'withdrawn-locally';
 		if (isStale(row.jiraUpdatedAt, observedAt)) return 'stale';
 
-		const changed = row.status !== status || row.teacher !== teacher;
+		const changed =
+			row.status !== status || row.teacher !== teacher || row.reInstructor !== reInstructor;
 		const jiraUpdatedAt = observedAt ?? row.jiraUpdatedAt;
 
 		const written = await db
 			.update(enrollmentsTable)
 			.set(
 				changed
-					? { status, teacher, jiraUpdatedAt, jiraStatusSyncedAt: now, updatedAt: now }
+					? {
+							status,
+							teacher,
+							reInstructor,
+							jiraUpdatedAt,
+							jiraStatusSyncedAt: now,
+							updatedAt: now
+						}
 					: { jiraUpdatedAt, jiraStatusSyncedAt: now }
 			)
 			.where(
