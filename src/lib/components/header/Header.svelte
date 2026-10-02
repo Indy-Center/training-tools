@@ -23,7 +23,8 @@
 			user: User | undefined;
 			roles: string[] | undefined;
 			isTeacher?: boolean;
-			hasOpenEnrollment?: boolean;
+			landsOnTeach?: boolean;
+			openEnrollmentStatus?: string | null;
 			identityUrl: string;
 		};
 	} = $props();
@@ -61,7 +62,8 @@
 				user={data.user}
 				roles={data.roles}
 				isTeacher={data.isTeacher}
-				hasOpenEnrollment={data.hasOpenEnrollment}
+				landsOnTeach={data.landsOnTeach}
+				openEnrollmentStatus={data.openEnrollmentStatus}
 			/>
 		</div>
 	</div>
@@ -107,7 +109,8 @@
 					user={data.user}
 					roles={data.roles}
 					isTeacher={data.isTeacher}
-					hasOpenEnrollment={data.hasOpenEnrollment}
+					landsOnTeach={data.landsOnTeach}
+					openEnrollmentStatus={data.openEnrollmentStatus}
 					mobile={true}
 				/>
 

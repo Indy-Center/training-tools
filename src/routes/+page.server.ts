@@ -1,13 +1,13 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { getWaitlistPosition, submitEnrollment, withdrawEnrollment } from '$lib/server/enrollments';
 import { requireSession } from '$lib/server/guards';
-import { findAssignee } from '$lib/server/teachers';
+import { findAssignee, getActiveTeacher } from '$lib/server/teachers';
 import { loadTrainingContext } from '$lib/server/training-flow';
 import { MOODLE_COURSE_URLS } from '$lib/config';
 import { validateEnrollment } from '$lib/enrollment';
 import { findCredential, highestCertification } from '$lib/certifications';
 import { TERMS_VERSION } from '$lib/content/enrollment';
-import { isDueTier2 } from '$lib/training-flow';
+import { asksForStudentView, hasFinishedTraining, isDueTier2 } from '$lib/training-flow';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -19,9 +19,13 @@ import type { Actions, PageServerLoad } from './$types';
  * `/` is the one page reachable signed out, so the load has to cope with
  * `locals.session` being null — and so do the actions below.
  *
+ * For a teacher with nothing left to take as a student, the site opens on
+ * `/teach` instead. This page is still theirs to visit — the header links to it
+ * with `?view=student`, which is what gets past the redirect.
+ *
  * See .ai/decisions/0019-default-view-by-enrollment-state.md
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const session = locals.session;
 	if (!session) {
 		return {
@@ -37,6 +41,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const { flow, rosterMember, openEnrollment, held, consolidation, nextCourse, ratingShort } =
 		await loadTrainingContext(locals);
+
+	// The teacher lookup only runs for someone who has finished, so it costs
+	// everyone else nothing.
+	if (
+		!asksForStudentView(url) &&
+		hasFinishedTraining({ hasOpenRequest: openEnrollment !== null, held }) &&
+		(await getActiveTeacher(locals.db, session.user.cid))
+	) {
+		redirect(303, '/teach');
+	}
 
 	return {
 		flow,

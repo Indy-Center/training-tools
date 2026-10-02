@@ -104,6 +104,35 @@ export function isDueTier2(held: readonly string[]): boolean {
 	return held.includes('E-RC') && !held.includes('T2-CTR');
 }
 
+/**
+ * Nothing left to take as a student: the highest certification, the Tier 2
+ * endorsement, and no request in flight.
+ *
+ * For a teacher this is what makes `/teach` where the site opens instead of
+ * `/`. One function decides for the redirect and for the navigation, so the
+ * header's link to the student view is the one that gets past the redirect. A
+ * teacher still due Tier 2 stays on `/`, where it is offered.
+ */
+export function hasFinishedTraining(input: {
+	hasOpenRequest: boolean;
+	held: readonly string[];
+}): boolean {
+	return !input.hasOpenRequest && holdsHighestCertification(input.held) && !isDueTier2(input.held);
+}
+
+/**
+ * `/` asked for by name rather than by default.
+ *
+ * The site opens on `/`, and for a finished teacher `/` opens on `/teach`. But
+ * the student view is still theirs to visit — the optional courses live there —
+ * so the header links to it with this, and the redirect steps aside.
+ */
+export const STUDENT_VIEW_HREF = '/?view=student';
+
+export function asksForStudentView(url: URL): boolean {
+	return url.searchParams.get('view') === 'student';
+}
+
 export function resolveTrainingFlow({
 	membership,
 	ratingId,

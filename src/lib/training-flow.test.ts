@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+	asksForStudentView,
+	hasFinishedTraining,
 	isDueTier2,
 	isOpenEnrollmentStatus,
 	isRatedController,
 	OPEN_ENROLLMENT_STATUSES,
-	resolveTrainingFlow
+	resolveTrainingFlow,
+	STUDENT_VIEW_HREF
 } from './training-flow';
 import type { Consolidation } from './consolidation';
 import { CLOSED_ENROLLMENT_STATUSES, ENROLLMENT_STATUSES } from './db/schema/enrollments';
@@ -224,6 +227,41 @@ describe('isRatedController', () => {
 	it('treats suspended and inactive as unrated', () => {
 		expect(isRatedController(null, 'SUS')).toBe(false);
 		expect(isRatedController(null, 'INA')).toBe(false);
+	});
+});
+
+describe('hasFinishedTraining', () => {
+	it('is true at the highest certification with Tier 2 and no request open', () => {
+		expect(hasFinishedTraining({ hasOpenRequest: false, held: ['E-RC', 'T2-CTR'] })).toBe(true);
+	});
+
+	// Tier 2 is offered on `/`, so they are not sent away from it yet.
+	it('is false while Tier 2 is still due', () => {
+		expect(hasFinishedTraining({ hasOpenRequest: false, held: ['E-RC'] })).toBe(false);
+	});
+
+	it('is false below the highest certification', () => {
+		expect(hasFinishedTraining({ hasOpenRequest: false, held: ['T-RC'] })).toBe(false);
+		expect(hasFinishedTraining({ hasOpenRequest: false, held: [] })).toBe(false);
+	});
+
+	// An open request always shows, whatever they hold.
+	it('is false with a request open', () => {
+		expect(hasFinishedTraining({ hasOpenRequest: true, held: ['E-RC', 'T2-CTR'] })).toBe(false);
+	});
+});
+
+describe('asksForStudentView', () => {
+	const at = (path: string) => new URL(path, 'https://training.flyindycenter.com');
+
+	// The header's link has to be the one the redirect lets through.
+	it('is true for the link the header uses', () => {
+		expect(asksForStudentView(at(STUDENT_VIEW_HREF))).toBe(true);
+	});
+
+	it('is false for the bare default, or any other view', () => {
+		expect(asksForStudentView(at('/'))).toBe(false);
+		expect(asksForStudentView(at('/?view=teach'))).toBe(false);
 	});
 });
 

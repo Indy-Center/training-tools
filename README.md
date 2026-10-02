@@ -75,7 +75,11 @@ leaves mid-training can still see and withdraw it. Roster membership is checked
 misroute people already training with us. "On another VATUSA roster" is inferred
 from the division identity reports plus the rating; we only mirror our own
 roster. Anyone on our roster holding E-RC but not `T2-CTR` is also offered the
-self-led Tier 2 course, on the extra-courses and visitor views. See
+self-led Tier 2 course, on the extra-courses and visitor views. For a
+**teacher** with nothing left to take — the highest certification, Tier 2, and
+no open request — the site opens on `/teach`: the bare `/` redirects there. The
+student view is still on their menu, linked as `/?view=student`, which is what
+gets past the redirect. See
 [0019](.ai/decisions/0019-default-view-by-enrollment-state.md).
 
 Consolidation is hours logged at the member's **current** rating, from VATSIM's
