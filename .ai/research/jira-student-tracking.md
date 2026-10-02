@@ -114,7 +114,8 @@ one place to write:
 `Notification Prefrence`: Discord Message `10089`, Email `10090`.
 
 `Teacher` and `RE Instructor` are selects of instructor initials, not a user
-picker, so there is no account to map to. Since DEV-175 the app holds each
+picker, so there is no account to map to. Both are read back onto the
+enrollment row (`teacher`, `re_instructor`) by the status sync. Since DEV-175 the app holds each
 teacher's initials and matches enrollments on them; see below for why it can
 only *report* dropdown changes.
 

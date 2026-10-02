@@ -107,3 +107,5 @@ completion.
 - Whether consolidation should count only ZID hours. That needs a per-session
   pull from `/v2/members/{cid}/atc` filtered by callsign, not a stats lookup.
 - Whether completing the Moodle course should record anything here.
+
+> **Superseded in part by [0019](0019-default-view-by-enrollment-state.md):** `/enroll` is gone, Tier 2 is a panel rather than a branch, and an open request is its own set of views.

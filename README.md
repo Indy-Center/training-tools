@@ -11,13 +11,12 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 | Route                        | Auth       | Purpose                                                              |
 | ---------------------------- | ---------- | -------------------------------------------------------------------- |
-| `GET /`                      | public     | Sign-in CTA signed out; the DEV-112 flow signed in                   |
-| `GET /enroll`                | required   | Enrollment form, or the state of an open request                     |
-| `POST /enroll`               | required   | Submit an enrollment; `?/withdraw` withdraws an open one             |
+| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation      |
+| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one |
 | `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status          |
 | `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2          |
-| `GET /stats`                 | public     | Per-course waiting/in-training counts and course length              |
-| `GET /dashboard`             | required   | The signed-in user's training overview                               |
+| `GET /stats`                 | required   | Per-course waiting/in-training counts and course length              |
+| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                 |
 | `GET /certifications`        | staff      | Search the roster by CID or name                                     |
 | `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                  |
 | `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                          |
@@ -26,12 +25,13 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                         |
 | `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications` |
 
-`/enroll` and `/enroll/tier-2` are open only to members the home page sends
-there — both gate on `loadTrainingContext()`, the same call `/` renders from.
+`?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
+both gate on `loadTrainingContext()`, the same call `/` renders from.
 `/certifications` requires `training:certifications:edit`. These are enforced in
 the load **and** in every action that needs it — `hooks.server.ts` only checks
 for a session, and a form action runs before any load. `?/withdraw` is only
-scoped to the caller's own request.
+scoped to the caller's own request. Because `/` is public, its two actions
+check for a session themselves; no other route has to.
 
 **Nothing grants `training:certifications:edit` yet**, so `/certifications` is
 unreachable until identity implements and assigns the role. That is a release
@@ -46,38 +46,48 @@ needs no identity code change — it is one row in identity's `user_roles`; see
 "Adding a role in identity by hand" in
 [`.ai/notes/2026-09-21-dev-115-certifications.md`](.ai/notes/2026-09-21-dev-115-certifications.md).
 
-`/` is public only so it can render the sign-in CTA. `/stats` is public so people
-can see the wait before they enroll; it shows counts only, plus a signed-in
-viewer's own position. The one other public path is `POST /api/jira/webhook`,
-which authenticates Jira by HMAC signature instead of a session.
+`/` is public only so it can render the sign-in CTA. `/stats` needs a session:
+any signed-in VATSIM member may see the counts, plus their own position. The one
+other public path is `POST /api/jira/webhook`, which authenticates Jira by HMAC
+signature instead of a session.
 
-Signed in, `/` sorts the member into one of six branches based on the roster
-mirror, their rating, and — for home controllers — their consolidation hours:
+Signed in, `/` **is** the student's view — there is no separate enroll page or
+dashboard. The nav links to it as **My Training** with a request open and
+**Enroll** without. Which of ten views it renders is decided by
+`resolveTrainingFlow()`: an open request first, then the roster.
 
-| Branch                   | Who                                                             |
-| ------------------------ | --------------------------------------------------------------- |
-| Enrollment entry point   | **home** controller who has consolidated; or their open request |
-| Consolidation progress   | **home** controller short of the hours at their current rating  |
-| Tier 2 course            | home **or** visiting, holds E-RC but not `T2-CTR`               |
-| Visiting-controller copy | any other **visiting** controller                               |
-| Transfer-or-visit copy   | not rostered, holds S1+                                         |
-| Become-a-controller copy | not rostered, OBS or unrated                                    |
+| View                | Who                                                                    |
+| ------------------- | ---------------------------------------------------------------------- |
+| Waitlist            | open request on the waitlist: place in the queue                       |
+| In training         | open request with a teacher: teacher and course                        |
+| Rating exam         | open request at the exam: the assigned instructor                      |
+| Certificate update  | open request, passed: wait                                             |
+| Enrollment form     | **home**, below the highest certification, consolidated                |
+| Consolidation       | **home**, below the highest certification, short of the hours          |
+| Extra courses       | **home**, holds the highest certification (E-RC)                       |
+| Visiting controller | on our roster as a **visitor**                                         |
+| Transfer or visit   | not rostered; in the VATUSA division **and** rated S1+                 |
+| Become a controller | not rostered; anyone else (VATUSA observers, other divisions, unknown) |
 
-Roster membership is checked **before** rating — the roster contains OBS
-controllers, so rating-first would misroute people already training with us.
+An open request shows whatever the member's roster status is now, so someone who
+leaves mid-training can still see and withdraw it. Roster membership is checked
+**before** rating — the roster contains OBS controllers, so rating-first would
+misroute people already training with us. "On another VATUSA roster" is inferred
+from the division identity reports plus the rating; we only mirror our own
+roster. Anyone on our roster holding E-RC but not `T2-CTR` is also offered the
+self-led Tier 2 course, on the extra-courses and visitor views. See
+[0019](.ai/decisions/0019-default-view-by-enrollment-state.md).
 
 Consolidation is hours logged at the member's **current** rating, from VATSIM's
 public stats endpoint, against `CONSOLIDATION_HOURS` in `src/lib/config.ts`. A
 rating not listed there has no requirement. If VATSIM cannot be reached the
 member is held back rather than let through.
 
-With a request open, the home page shows where it is: waitlist position for
-`waitlist`, the course's Moodle link (`MOODLE_COURSE_URLS`) for `in-training`,
-and a wait instruction for `rating-exam` and `certification-update`. See
-[0012](.ai/decisions/0012-enrollment-eligibility.md).
+The in-training view links the course's Moodle entry when `MOODLE_COURSE_URLS`
+has one. Scheduling and the student's next lesson will join it there.
 
-Those statuses, and the assigned `Teacher`, are read back from the TRK issue two
-ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
+Those statuses, the assigned `Teacher` and the rating exam's `RE Instructor` are
+read back from the TRK issue two ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
 the 15-minute cron sweep as the backstop. A request the student withdrew here is
 never reopened by Jira. See
 [0014](.ai/decisions/0014-enrollment-status-from-jira.md).
@@ -94,7 +104,7 @@ Every 15 minutes (`*/15 * * * *`), in this order:
 | jira teacher dropdowns  | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`) |
 | jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)   |
 | enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)             |
-| enrollment status sweep | Reads TRK status and Teacher back from Jira (`sweepEnrollmentStatuses`)        |
+| enrollment status sweep | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)   |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job is guarded separately: VATUSA being down must not stop enrollments
@@ -170,11 +180,11 @@ src/
 │   ├── courses.ts             the six courses + their Jira option ids (client-safe)
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
-│   ├── training-flow.ts       pure roster+rating → branch logic (DEV-112)
-│   ├── enrollment-status.ts   status labels and next-step copy, shared by / and /enroll
+│   ├── training-flow.ts       pure request+roster+rating → view logic
+│   ├── enrollment-status.ts   status and contact-method labels, shared by every page
 │   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
-│   ├── components/            Panel, Badge, PageHero, Logo, ActionButton, header/
+│   ├── components/            Panel, CopyPanel, Badge, PageHero, Logo, ActionButton, header/
 │   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
@@ -190,7 +200,7 @@ src/
 │   │   ├── activity.ts        activity_log writes
 │   │   ├── enrollments/       submit, withdraw, waitlist position and stats, and the Jira passes
 │   │   ├── scheduled.ts       the cron's job list, in order, and the runner that guards each
-│   │   ├── training-flow.ts   loadTrainingContext(): the one gate for /, /enroll, /enroll/tier-2
+│   │   ├── training-flow.ts   loadTrainingContext(): the one gate for / and /enroll/tier-2
 │   │   ├── jira/              Jira client, field ids, issue payload builder
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
@@ -341,13 +351,14 @@ One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
 
-**The form suggests a course; it never restricts one** (DEV-119). The suggestion
-comes from the certifications this app holds, walking the `rank` ladder and each
+**The form offers one course: the next in the student's progression.** It comes
+from the certifications this app holds, walking the `rank` ladder and each
 credential's `requires` — so an advanced-ground controller is sent to S-LC before
-A-LC, because A-LC requires it. If the student picks something else, the
-suggestion is stored and a note is added to the Jira issue for staff to confirm
-placement. It is recomputed server-side on submit rather than read from the
-form, so the flag cannot be switched off by the person it is about.
+A-LC, because A-LC requires it. It is recomputed server-side on submit, and a
+POST naming any other course is refused. (DEV-119 originally let the student
+pick any course and flagged the difference to staff; that was reversed in
+[0019](.ai/decisions/0019-default-view-by-enrollment-state.md).) Someone the app
+has placed wrongly needs their certifications corrected before they can enroll.
 
 The student must accept the terms in `agreement.md` to submit. The enrollment
 records **when** and **which version** (`agreedAt`, `agreedTermsVersion`), since
@@ -355,10 +366,21 @@ the wording will change and an acceptance date alone cannot say what was agreed.
 
 ### Site copy
 
-General prose — what happens after you enroll, the written exam, the agreement —
-is markdown under `src/lib/content/`, compiled to HTML **at build time** by a
-small plugin in `vite.config.ts`. `marked` stays a devDependency and never ships;
-HTML comments in `.md` files are stripped, so they are safe for notes to editors.
+General prose is markdown under `src/lib/content/`, compiled to HTML **at build
+time** by a small plugin in `vite.config.ts`. `marked` stays a devDependency and
+never ships; HTML comments in `.md` files are stripped, so they are safe for
+notes to editors.
+
+- `content/training/` — **everything on `/`**: one `.md` per view (waitlist,
+  in training, rating exam, visitor, consolidation, …). To change wording, edit
+  the file; to change a panel's title or buttons, edit its entry in
+  `content/training/index.ts`. Each file's opening comment says who sees it.
+- `content/enrollment/` — the form's own blocks: what happens after you enroll,
+  the written exam, the agreement.
+
+The page draws data itself (queue position, hours, teacher, course); the
+markdown is plain prose with no placeholders. `index.ts` holds each view as
+`{ title, body, actions }`, which is the shape to keep when this moves to a CMS.
 
 **Course content does not live here.** This repo is public, and lesson plans,
 grade sheets and exam material are neither for the public web nor something the

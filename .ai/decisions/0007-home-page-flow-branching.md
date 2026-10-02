@@ -68,3 +68,5 @@ is a copy change plus one branch in `resolveTrainingFlow`.
 > Partly decided since: visiting C1+ controllers without Tier 2 are pointed at
 > the self-led Tier 2 course, and home controllers must consolidate before
 > enrolling. See [0012](0012-enrollment-eligibility.md).
+
+> **Superseded in part by [0019](0019-default-view-by-enrollment-state.md):** the branch table, and how an unrostered member is sorted (division as well as rating).
