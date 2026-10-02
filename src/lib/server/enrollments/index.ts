@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	CLOSED_ENROLLMENT_STATUSES,
@@ -136,6 +136,66 @@ export async function getWaitlistPosition(
 		);
 
 	return { ahead: Number(row?.ahead ?? 0), waiting: Number(row?.waiting ?? 0) };
+}
+
+/** Rows the admin page lists; far more than could plausibly be unfiled at once. */
+const UNFILED_LIMIT = 100;
+
+/**
+ * Requests that have not reached the TRK board: no issue key, not withdrawn.
+ *
+ * Covers both kinds — those the cron is still retrying, and those past
+ * `MAX_JIRA_SYNC_ATTEMPTS` that it has given up on. `/admin` shows them apart.
+ * Oldest first, because that is who has been invisible to staff longest.
+ */
+export async function getUnfiledEnrollments(db: Database): Promise<Enrollment[]> {
+	return db
+		.select()
+		.from(enrollmentsTable)
+		.where(and(isNull(enrollmentsTable.jiraIssueKey), isNull(enrollmentsTable.withdrawnAt)))
+		.orderBy(asc(enrollmentsTable.createdAt))
+		.limit(UNFILED_LIMIT);
+}
+
+export type RetryOutcome =
+	| 'filed'
+	/** Jira refused it again. The reason is on the row. */
+	| 'failed'
+	/** Already filed, withdrawn, or not a request at all. */
+	| 'not-unfiled';
+
+/**
+ * Try again to file a request the cron has given up on.
+ *
+ * Resets the attempt count first, so a retry that fails leaves the request
+ * back in the cron's queue rather than stuck again after one go — whoever
+ * pressed the button has presumably fixed what was wrong.
+ *
+ * Guarded on a null key in the same statement, so a request that was filed in
+ * the meantime is left alone. An issue whose key never made it back here is
+ * adopted by the board import on the next cron run, before this could file a
+ * second one.
+ */
+export async function retryFiling(
+	db: Database,
+	env: Partial<Env> | undefined,
+	id: string
+): Promise<RetryOutcome> {
+	const [enrollment] = await db
+		.update(enrollmentsTable)
+		.set({ jiraSyncAttempts: 0, updatedAt: new Date() })
+		.where(
+			and(
+				eq(enrollmentsTable.id, id),
+				isNull(enrollmentsTable.jiraIssueKey),
+				isNull(enrollmentsTable.withdrawnAt)
+			)
+		)
+		.returning();
+
+	if (!enrollment) return 'not-unfiled';
+
+	return (await fileWithJira(db, env, enrollment)) ? 'filed' : 'failed';
 }
 
 export type SubmitResult = {

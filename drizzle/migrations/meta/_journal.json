@@ -78,6 +78,13 @@
       "when": 1790967402268,
       "tag": "0011_futuristic_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790975957882,
+      "tag": "0012_pale_tarantula",
+      "breakpoints": true
     }
   ]
 }
