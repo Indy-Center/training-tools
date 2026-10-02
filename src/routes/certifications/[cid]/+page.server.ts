@@ -1,5 +1,6 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import { canEditCertifications } from '$lib/utils/permissions';
+import { requireRole } from '$lib/server/guards';
 import { getPeople, getRosterMember, namesFor } from '$lib/server/roster';
 import { getTimeline } from '$lib/server/timeline';
 import {
@@ -25,13 +26,8 @@ import type { Actions, PageServerLoad } from './$types';
  * leave both actions wide open to any signed-in user. See
  * .ai/decisions/0004-gate-in-handle-not-layout.md
  */
-function requireCertificationEditor(locals: App.Locals) {
-	if (!canEditCertifications(locals.session?.roles)) {
-		redirect(303, '/');
-	}
-
-	return locals.session!;
-}
+const requireCertificationEditor = (locals: App.Locals) =>
+	requireRole(locals, canEditCertifications);
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	requireCertificationEditor(locals);

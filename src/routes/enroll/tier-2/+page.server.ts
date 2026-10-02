@@ -16,7 +16,7 @@ import type { PageServerLoad } from './$types';
  * no queue to join — staff grant T2-CTR once the Moodle course is complete.
  */
 export const load: PageServerLoad = async ({ locals }) => {
-	const { rosterMember, held } = await loadTrainingContext(locals.db, locals.session!);
+	const { rosterMember, held } = await loadTrainingContext(locals);
 
 	if (!rosterMember || !isDueTier2(held)) redirect(303, '/');
 

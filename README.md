@@ -191,6 +191,7 @@ src/
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
 │   ├── server/
 │   │   ├── identity.ts        reads fic_session, calls the IDENTITY binding
+│   │   ├── guards.ts          requireSession / requireRole, for every load and action
 │   │   ├── vatusa.ts          VATUSA roster fetch (no API key needed)
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
 │   │   ├── roster/            roster lookup, search, and the reconciling sync

@@ -1,14 +1,14 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { getWaitlistPosition, submitEnrollment, withdrawEnrollment } from '$lib/server/enrollments';
+import { requireSession } from '$lib/server/guards';
 import { findAssignee } from '$lib/server/teachers';
 import { loadTrainingContext } from '$lib/server/training-flow';
 import { MOODLE_COURSE_URLS } from '$lib/config';
 import { validateEnrollment } from '$lib/enrollment';
-import { resolvePlacement } from '$lib/course-placement';
 import { findCredential, highestCertification } from '$lib/certifications';
 import { TERMS_VERSION } from '$lib/content/enrollment';
 import { isDueTier2 } from '$lib/training-flow';
-import { atcRating, displayName } from '$lib/user';
+import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -35,10 +35,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		};
 	}
 
-	const { flow, rosterMember, openEnrollment, held, consolidation } = await loadTrainingContext(
-		locals.db,
-		session
-	);
+	const { flow, rosterMember, openEnrollment, held, consolidation, nextCourse, ratingShort } =
+		await loadTrainingContext(locals);
 
 	return {
 		flow,
@@ -53,7 +51,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Offered alongside the extra-courses and visitor copy; `/enroll/tier-2` gates on the same test.
 		tier2Due: rosterMember !== null && isDueTier2(held),
 		// The course the enroll view offers, and the one consolidation is holding back.
-		nextCourse: resolvePlacement({ held }).suggested,
+		nextCourse,
 		// Deliberately excludes jiraIssueKey and jiraSyncError: whether the issue
 		// has been filed yet is our problem, not something to worry a student with.
 		request: openEnrollment
@@ -87,7 +85,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 						controller: {
 							cid: session.user.cid,
 							name: displayName(session.user),
-							rating: rosterMember.ratingShort ?? atcRating(session.user) ?? null
+							rating: ratingShort
 						},
 						// Shown beside the course so the student can see what it was based on.
 						credentials: {
@@ -103,14 +101,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 /**
  * `/` is on the public allowlist in `hooks.server.ts`, so unlike every other
- * route its actions can be reached with no session. Each one starts here.
- */
-function requireSession(locals: App.Locals): NonNullable<App.Locals['session']> {
-	if (!locals.session) error(401, 'Sign in to continue.');
-	return locals.session;
-}
-
-/**
+ * route its actions can be reached with no session. Each one starts with
+ * `requireSession()`.
+ *
  * Both actions are **named**, and that is not a style choice: SvelteKit throws
  * "When using named actions, the default action cannot be used" if `default`
  * appears alongside any named action, which breaks every POST to this route.
@@ -123,10 +116,8 @@ export const actions: Actions = {
 	 */
 	enroll: async ({ locals, request, platform }) => {
 		const session = requireSession(locals);
-		const { flow, rosterMember, openEnrollment, held, consolidation } = await loadTrainingContext(
-			locals.db,
-			session
-		);
+		const { flow, rosterMember, openEnrollment, consolidation, nextCourse, ratingShort } =
+			await loadTrainingContext(locals);
 
 		// One course at a time. Guards against a double submit and against a second
 		// tab that was opened before the first request landed.
@@ -154,11 +145,10 @@ export const actions: Actions = {
 		};
 		const agreed = data.get('agreed') === 'on';
 
-		// The form offers one course: the next in their progression. Recomputed
-		// here rather than trusted from the hidden field, so a hand-built POST
+		// The form offers one course: the next in their progression. Taken from
+		// the context rather than trusted from the hidden field, so a hand-built POST
 		// cannot enroll in anything else — and a page left open while their
 		// certifications changed is told to reload rather than filed for the wrong one.
-		const nextCourse = resolvePlacement({ held }).suggested;
 		if (!nextCourse || input.course !== nextCourse) {
 			return fail(409, {
 				formError:
@@ -187,7 +177,7 @@ export const actions: Actions = {
 			cid: session.user.cid,
 			course: nextCourse,
 			submittedName: displayName(session.user),
-			submittedRating: rosterMember.ratingShort ?? atcRating(session.user) ?? null,
+			submittedRating: ratingShort,
 			availability: validation.values.availability,
 			notificationPreference: validation.values.notificationPreference,
 			agreedAt: new Date(),

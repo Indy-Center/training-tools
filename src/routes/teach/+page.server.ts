@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { canManageTeachers } from '$lib/utils/permissions';
+import { requireSession } from '$lib/server/guards';
 import { getPeople } from '$lib/server/roster';
 import {
 	assignmentsFor,
@@ -23,7 +24,7 @@ import type { PageServerLoad } from './$types';
  * (see `assignmentsFor`), and nothing on this page touches their student view.
  */
 export const load: PageServerLoad = async ({ locals, platform }) => {
-	const session = locals.session!;
+	const session = requireSession(locals);
 	const teacher = await getActiveTeacher(locals.db, session.user.cid);
 
 	if (!teacher) {

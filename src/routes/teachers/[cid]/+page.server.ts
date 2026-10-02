@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { canManageTeachers } from '$lib/utils/permissions';
 import { displayName } from '$lib/user';
+import { requireRole, requireSession } from '$lib/server/guards';
 import { getPeople, namesFor } from '$lib/server/roster';
 import { getTimeline } from '$lib/server/timeline';
 import { notifyInBackground } from '$lib/server/notify';
@@ -45,13 +46,18 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
  * - Anyone else: bounced home. The roster is for training admins.
  */
 function access(event: Pick<RequestEvent, 'locals' | 'params'>) {
-	const session = event.locals.session!;
+	const session = requireSession(event.locals);
 	const manager = canManageTeachers(session.roles);
 	const self = session.user.cid === event.params.cid;
 
 	if (!manager && !self) redirect(303, '/');
 
 	return { session, manager, self };
+}
+
+/** For the actions only a training admin may run — not the teacher on their own page. */
+function managerAccess(event: Pick<RequestEvent, 'locals'>) {
+	return { session: requireRole(event.locals, canManageTeachers), manager: true };
 }
 
 async function loadTeacher(event: Pick<RequestEvent, 'locals' | 'params'>, manager: boolean) {
@@ -178,8 +184,7 @@ export const actions: Actions = {
 
 	/** Status and initials: training admins only. */
 	updateAdmin: async (event) => {
-		const { session, manager } = access(event);
-		if (!manager) redirect(303, '/');
+		const { session, manager } = managerAccess(event);
 		const teacher = await loadTeacher(event, manager);
 
 		if (teacher.removedAt !== null) {
@@ -249,8 +254,7 @@ export const actions: Actions = {
 
 	/** Per-course levels: training admins only, and only within the rules. */
 	setQualifications: async (event) => {
-		const { session, manager } = access(event);
-		if (!manager) redirect(303, '/');
+		const { session, manager } = managerAccess(event);
 		const teacher = await loadTeacher(event, manager);
 
 		if (teacher.removedAt !== null) {

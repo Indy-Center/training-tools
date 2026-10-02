@@ -1,5 +1,5 @@
-import { redirect } from '@sveltejs/kit';
 import { canEditCertifications } from '$lib/utils/permissions';
+import { requireRole } from '$lib/server/guards';
 import { searchRosterMembers, ROSTER_SEARCH_LIMIT } from '$lib/server/roster';
 import { getLiveCredentialsByCid } from '$lib/server/certifications';
 import { highestCertification, findCredential } from '$lib/certifications';
@@ -14,9 +14,7 @@ import type { PageServerLoad } from './$types';
  * separately.
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
-	if (!canEditCertifications(locals.session?.roles)) {
-		redirect(303, '/');
-	}
+	requireRole(locals, canEditCertifications);
 
 	const query = url.searchParams.get('q') ?? '';
 

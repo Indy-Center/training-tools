@@ -1,5 +1,5 @@
-import { redirect } from '@sveltejs/kit';
 import { canManageTeachers } from '$lib/utils/permissions';
+import { requireRole } from '$lib/server/guards';
 import { getPeople } from '$lib/server/roster';
 import {
 	assignmentsFor,
@@ -19,9 +19,7 @@ import type { PageServerLoad } from './$types';
  * actions on this route — `/teachers/{cid}` gates its own.
  */
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!canManageTeachers(locals.session?.roles)) {
-		redirect(303, '/');
-	}
+	requireRole(locals, canManageTeachers);
 
 	const [teachers, people, qualifications, enrollments, dropdowns] = await Promise.all([
 		listTeachers(locals.db),

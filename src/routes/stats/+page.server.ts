@@ -1,4 +1,9 @@
-import { getOpenEnrollment, getWaitlistPosition, getWaitlistStats } from '$lib/server/enrollments';
+import {
+	getOwnOpenEnrollment,
+	getWaitlistPosition,
+	getWaitlistStats
+} from '$lib/server/enrollments';
+import { requireSession } from '$lib/server/guards';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -10,11 +15,11 @@ import type { PageServerLoad } from './$types';
  * course's queue; nobody else's is ever exposed.
  */
 export const load: PageServerLoad = async ({ locals }) => {
-	const session = locals.session!;
+	requireSession(locals);
 
 	const [courses, enrollment] = await Promise.all([
 		getWaitlistStats(locals.db),
-		getOpenEnrollment(locals.db, session.user.cid)
+		getOwnOpenEnrollment(locals)
 	]);
 
 	return {
