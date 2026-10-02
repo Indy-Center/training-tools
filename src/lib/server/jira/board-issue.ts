@@ -54,6 +54,7 @@ export type BoardEnrollment = {
 	name: string;
 	status: EnrollmentStatus;
 	teacher: string | null;
+	reInstructor: string | null;
 	notificationPreference: NotificationPreference | null;
 	/** Where they sit in the queue: `Waitlisted`, else when the issue was created. */
 	waitlistedAt: Date;
@@ -119,6 +120,7 @@ export function parseBoardIssue(issue: JiraBoardIssue): BoardIssueParse {
 			name: fields[JIRA_FIELDS.name]?.trim() || nameFromSummary(fields.summary) || `CID ${cid}`,
 			status: resolution.update.status,
 			teacher: resolution.update.teacher,
+			reInstructor: resolution.update.reInstructor,
 			notificationPreference:
 				NOTIFICATION_BY_OPTION_ID[fields[JIRA_FIELDS.notificationPreference]?.id ?? ''] ?? null,
 			waitlistedAt,

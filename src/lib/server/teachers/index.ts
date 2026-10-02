@@ -1,5 +1,6 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
+import { rosterMembersTable } from '$lib/db/schema/roster';
 import { teachersTable, type Teacher } from '$lib/db/schema/teachers';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import type { PersonSummary } from '$lib/server/roster';
@@ -37,6 +38,41 @@ export async function getActiveTeacher(db: Database, cid: string): Promise<Teach
 		where: and(eq(teachersTable.cid, cid), isNull(teachersTable.removedAt))
 	});
 	return teacher ?? null;
+}
+
+export type Assignee = {
+	/** What the board holds: initials, a CID, or something that is not ours (`VATUSA`). */
+	value: string;
+	/** Their name, when the value stands for someone on our teacher roster. */
+	name: string | null;
+};
+
+/**
+ * Who a TRK `Teacher` or `RE Instructor` value stands for, for showing a
+ * student who they are working with.
+ *
+ * Matched the way `isAssignedTo` matches — initials or CID, case-insensitive —
+ * and against former teachers too, since a request can outlast its teacher's
+ * place on the roster. A value nobody here holds comes back with no name
+ * rather than null: `VATUSA` on RE Instructor is a real answer.
+ */
+export async function findAssignee(db: Database, value: string | null): Promise<Assignee | null> {
+	const trimmed = value?.trim();
+	if (!trimmed) return null;
+
+	const folded = trimmed.toUpperCase();
+	const teacher = await db.query.teachersTable.findFirst({
+		where: or(eq(teachersTable.initials, folded), eq(teachersTable.cid, folded))
+	});
+	if (!teacher) return { value: trimmed, name: null };
+
+	// Removed rows included: a former member still has a name.
+	const person = await db.query.rosterMembersTable.findFirst({
+		where: eq(rosterMembersTable.cid, teacher.cid)
+	});
+	const name = person ? `${person.firstName} ${person.lastName}`.trim() : '';
+
+	return { value: teacher.initials ?? trimmed, name: name || null };
 }
 
 /** Every teacher, current and former. The table is small. */

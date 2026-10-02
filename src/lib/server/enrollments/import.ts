@@ -158,6 +158,7 @@ async function insertImportedRow(
 			course: enrollment.course,
 			status: enrollment.status,
 			teacher: enrollment.teacher,
+			reInstructor: enrollment.reInstructor,
 			notificationPreference: enrollment.notificationPreference,
 			submittedName: enrollment.name,
 			jiraIssueKey: enrollment.issueKey,

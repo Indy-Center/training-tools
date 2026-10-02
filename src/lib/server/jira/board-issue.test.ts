@@ -33,6 +33,7 @@ describe('parseBoardIssue', () => {
 				name: 'Matthew Schweitzer',
 				status: 'waitlist',
 				teacher: null,
+				reInstructor: null,
 				notificationPreference: 'discord',
 				waitlistedAt: new Date('2026-08-09T00:00:00Z'),
 				updatedAt: new Date('2026-09-05T15:02:10.000Z')
