@@ -1,16 +1,11 @@
 <script lang="ts">
 	import type { User } from '@indy-center/identity';
 	import { page } from '$app/state';
-	import {
-		canEditCertifications,
-		canManageTeachers,
-		isTrainingAdmin
-	} from '$lib/utils/permissions';
+	import { canEditCertifications, canManageTeachers } from '$lib/utils/permissions';
 	import IconClipboard from '~icons/mdi/clipboard-text';
 	import IconChartBar from '~icons/mdi/chart-bar';
 	import IconSchool from '~icons/mdi/school';
 	import IconCertificate from '~icons/mdi/certificate';
-	import IconCog from '~icons/mdi/cog';
 	import IconTeach from '~icons/mdi/human-male-board';
 	import IconTeachers from '~icons/mdi/account-group';
 
@@ -69,15 +64,6 @@
 									label: 'Teachers',
 									href: '/teachers',
 									icon: IconTeachers
-								}
-							]
-						: []),
-					...(isTrainingAdmin(roles)
-						? [
-								{
-									label: 'Admin',
-									href: '/admin',
-									icon: IconCog
 								}
 							]
 						: [])

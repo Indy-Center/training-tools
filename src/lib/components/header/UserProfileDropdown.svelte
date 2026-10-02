@@ -3,16 +3,20 @@
 	import { page } from '$app/state';
 	import { atcRating, displayName, operatingInitials } from '$lib/user';
 	import { loginUrl, logoutUrl } from '$lib/identity-links';
+	import { isTrainingAdmin } from '$lib/utils/permissions';
 	import IconRating from '~icons/mdi/radar';
 	import IconLogout from '~icons/mdi/logout';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconChevronDown from '~icons/mdi/chevron-down';
+	import IconAdmin from '~icons/mdi/shield-account';
 
 	let {
 		user,
+		roles,
 		identityUrl
 	}: {
 		user: User | undefined;
+		roles: string[] | undefined;
 		identityUrl: string;
 	} = $props();
 
@@ -91,6 +95,19 @@
 				>
 					<div class="space-y-1 p-3">
 						<div class="px-3 py-1 font-mono text-xs text-gray-400">CID: {user.cid}</div>
+
+						{#if isTrainingAdmin(roles)}
+							<!-- Admin — here rather than in the navigation, as on the community site -->
+							<a
+								href="/admin"
+								role="menuitem"
+								onclick={closeDropdown}
+								class="flex w-full cursor-pointer items-center space-x-2 rounded-lg px-3 py-2 text-sm text-gray-300 transition-colors duration-200 hover:bg-slate-600/30 hover:text-white"
+							>
+								<IconAdmin class="h-4 w-4" />
+								<span>Admin</span>
+							</a>
+						{/if}
 
 						<!-- Divider -->
 						<div class="my-2 border-t border-white/50"></div>
