@@ -20,18 +20,20 @@ export const STATUS_LABELS: Record<string, string> = {
 	waitlist: 'On the waitlist',
 	'in-training': 'In training',
 	'rating-exam': 'Rating exam',
+	'needs-catp': 'Needs CATP',
 	'certification-update': 'Updating your certificate',
 	completed: 'Completed',
 	removed: 'Removed from the waitlist',
 	withdrawn: 'Withdrawn'
 } satisfies Record<EnrollmentStatus, string>;
 
-type StatusColor = 'yellow' | 'sky' | 'green' | 'gray';
+type StatusColor = 'yellow' | 'sky' | 'orange' | 'green' | 'gray';
 
 export const STATUS_COLORS: Record<string, StatusColor> = {
 	waitlist: 'yellow',
 	'in-training': 'sky',
 	'rating-exam': 'sky',
+	'needs-catp': 'orange',
 	'certification-update': 'sky',
 	completed: 'green',
 	removed: 'gray',

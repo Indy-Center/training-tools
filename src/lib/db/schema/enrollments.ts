@@ -14,8 +14,9 @@ export type NotificationPreference = (typeof NOTIFICATION_PREFERENCES)[number];
  * Mirrors the TRK workflow, re-verified against the live project on 2026-09-20
  * after the triage step was removed.
  *
- *   Waitlist ──Assign Teacher──> In Training ──> Rating Exam
- *      │                                              └──> Certification Update ──> Completed
+ *   Waitlist ──Assign Teacher──> In Training ──> Rating Exam ──> Needs CATP ──> (back to training)
+ *      │                                 │              └──> Certification Update ──> Completed
+ *      │                                 └──(no exam)───────────────^
  *      └────Remove from Waitlist───> Removed
  *
  * **A new request starts at `waitlist`** — that is the workflow's initial
@@ -41,6 +42,7 @@ export const ENROLLMENT_STATUSES = [
 	'waitlist', // Jira: Waitlist (initial)
 	'in-training', // Jira: In Training
 	'rating-exam', // Jira: Rating Exam
+	'needs-catp', // Jira: Needs CATP — the rating exam was not passed; with the TA
 	'certification-update', // Jira: Certification Update
 	'completed', // Jira: Completed
 	'removed', // Jira: Removed — staff took them off the waitlist
@@ -142,6 +144,16 @@ export const enrollmentsTable = sqliteTable(
 		 * examines. Null until staff assign someone.
 		 */
 		reInstructor: text('re_instructor'),
+		/**
+		 * When the certification this course earns was applied to the student.
+		 *
+		 * Set once, when the request first reaches `certification-update` — however
+		 * it got there — and the credential and the card's `Certificate Updated`
+		 * date have both been written. Null means "not yet", which is what the
+		 * cron's certification pass selects on, so a failure is retried rather than
+		 * lost. See `$lib/server/enrollments/completion.ts`.
+		 */
+		certificationAppliedAt: integer('certification_applied_at', { mode: 'timestamp' }),
 		/**
 		 * When `status`, `teacher` and `reInstructor` were last read back from Jira, by the cron
 		 * sweep or the webhook. Null until the first read. See

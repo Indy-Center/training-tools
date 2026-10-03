@@ -32,3 +32,23 @@ export function formatDate(value: DateInput, style: 'short' | 'long' = 'short'):
 export function formatDateTime(value: DateInput): string {
 	return DATE_TIME.format(new Date(value));
 }
+
+/**
+ * "just now", "12 minutes ago", "3 hours ago", "2 days ago".
+ *
+ * `now` is passed in rather than read here, so a page can hand the server's
+ * clock to the browser and both render the same words.
+ */
+export function formatAgo(value: DateInput, now: DateInput): string {
+	const minutes = Math.floor((new Date(now).getTime() - new Date(value).getTime()) / 60_000);
+	if (minutes < 1) return 'just now';
+
+	const [count, unit] =
+		minutes < 60
+			? [minutes, 'minute']
+			: minutes < 60 * 24
+				? [Math.floor(minutes / 60), 'hour']
+				: [Math.floor(minutes / (60 * 24)), 'day'];
+
+	return `${count} ${unit}${count === 1 ? '' : 's'} ago`;
+}

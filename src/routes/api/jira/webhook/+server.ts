@@ -1,6 +1,12 @@
 import { json } from '@sveltejs/kit';
-import { applyIssueStatus, syncEnrollmentIssue } from '$lib/server/enrollments';
+import {
+	applyIssueStatus,
+	applyPendingCertificationUpdates,
+	clearReturnedExaminers,
+	syncEnrollmentIssue
+} from '$lib/server/enrollments';
 import { readDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
+import { JIRA_WEBHOOK_JOB, recordJobRun, type JobRun } from '$lib/server/job-health';
 import type { RequestHandler } from './$types';
 
 /**
@@ -29,6 +35,10 @@ import type { RequestHandler } from './$types';
  * | Fallback Jira read failed              | 502    | yes      |
  *
  * The 15-minute sweep catches anything that runs out of retries.
+ *
+ * Each verified delivery is also recorded for `/admin`, off the response path.
+ * Unverified requests are not: the endpoint is public, and a row anyone can
+ * write to says nothing about whether Jira is reaching us.
  * See .ai/decisions/0014-enrollment-status-from-jira.md
  */
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
@@ -59,6 +69,14 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	const delivery = readDelivery(payload, env?.JIRA_PROJECT_KEY ?? 'TRK');
 	if (!delivery) return new Response(null, { status: 204 });
 
+	const record = (result: { ok: true; summary: object } | { ok: false; error: unknown }) => {
+		const run: JobRun = { name: JIRA_WEBHOOK_JOB, at: new Date(), ...result };
+		const write = recordJobRun(locals.db, run).catch((err) =>
+			console.error('[training-tools] could not record the Jira webhook', err)
+		);
+		platform?.ctx?.waitUntil(write);
+	};
+
 	try {
 		let outcome: string;
 
@@ -84,9 +102,26 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 				outcome
 			})
 		);
+		record({ ok: true, summary: { issue: delivery.key, outcome } });
+
+		// A card that has just reached Certification Update — by any hand — gets
+		// its certification now, and one just sent back into training loses its
+		// examiner now, rather than at the next cron run. Off the response path:
+		// Jira is waiting on this request, and the cron is the guarantee.
+		if (outcome === 'updated') {
+			platform?.ctx?.waitUntil(
+				Promise.all([
+					applyPendingCertificationUpdates(locals.db, env),
+					clearReturnedExaminers(locals.db, env)
+				]).catch((err) =>
+					console.error('[training-tools] end-of-course pass after webhook failed', err)
+				)
+			);
+		}
 		return new Response(null, { status: 204 });
 	} catch (err) {
 		console.error('[training-tools] Jira webhook failed', delivery.key, err);
+		record({ ok: false, error: err });
 		return json({ error: 'upstream' }, { status: 502 });
 	}
 };

@@ -9,21 +9,26 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 ## HTTP surface
 
-| Route                        | Auth       | Purpose                                                              |
-| ---------------------------- | ---------- | -------------------------------------------------------------------- |
-| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation      |
-| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one |
-| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status          |
-| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2          |
-| `GET /stats`                 | required   | Per-course waiting/in-training counts and course length              |
-| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                 |
-| `GET /certifications`        | staff      | Search the roster by CID or name                                     |
-| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                  |
-| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                          |
-| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications              |
-| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                   |
-| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                         |
-| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications` |
+| Route                        | Auth       | Purpose                                                                |
+| ---------------------------- | ---------- | ---------------------------------------------------------------------- |
+| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation        |
+| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one   |
+| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status            |
+| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2            |
+| `GET /stats`                 | required   | Per-course waiting/in-training counts and course length                |
+| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                   |
+| `GET /certifications`        | staff      | Search the roster by CID or name                                       |
+| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                    |
+| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                            |
+| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                |
+| `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                  |
+| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                     |
+| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                           |
+| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`   |
+| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs |
+| `POST /admin`                | admin      | `?/retry` files a stuck request again                                  |
+| `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                     |
+| `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                               |
 
 `?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
 both gate on `loadTrainingContext()`, the same call `/` renders from.
@@ -109,18 +114,26 @@ Every 15 minutes (`*/15 * * * *`), in this order:
 | jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)   |
 | enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)             |
 | enrollment status sweep | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)   |
+| examiner cleanup        | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)   |
+| certification updates   | Applies what a finished course earns (`applyPendingCertificationUpdates`)      |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
+Each job records how its run went in `job_health` (one row per job, latest state
+only), and so does the Jira webhook for each verified delivery. `/admin` reads
+that back — see [Admin](#admin).
 Each job is guarded separately: VATUSA being down must not stop enrollments
 reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters five times, and each is commented in `scheduled.ts`: certification
+Order matters seven times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
-sweep runs last so an issue filed moments ago is read back in the same run.
+sweep runs after it so an issue filed moments ago is read back in the same run;
+and the examiner cleanup and certification pass run after it, so a card the sweep
+has just seen go back into training, or arrive at Certification Update, is dealt
+with in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
@@ -181,6 +194,7 @@ src/
 │   ├── certification-grant.ts pure arrival-grant logic (DEV-115)
 │   ├── content/               site copy as markdown, compiled at build time (DEV-119)
 │   ├── course-placement.ts    pure "which course is next" logic (DEV-119)
+│   ├── course-completion.ts   pure end-of-course rules: who may act, what it earns
 │   ├── courses.ts             the six courses + their Jira option ids (client-safe)
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
@@ -190,7 +204,8 @@ src/
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            Panel, CopyPanel, Button, Alert, ChoiceCard, Badge and status badges, PageHero, header/
 │   ├── format.ts              date formatting, pinned to one locale
-│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log)
+│   ├── job-health.ts          pure "is this job healthy" rules for /admin
+│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
 │   ├── server/
@@ -206,6 +221,7 @@ src/
 │   │   ├── activity.ts        activity_log writes
 │   │   ├── enrollments/       submit, withdraw, waitlist position and stats, and the Jira passes
 │   │   ├── scheduled.ts       the cron's job list, in order, and the runner that guards each
+│   │   ├── job-health.ts      records each job's last run; read back by /admin
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for / and /enroll/tier-2
 │   │   ├── jira/              Jira client, field ids, issue payload builder
 │   │   └── db/                drizzle client factory
@@ -369,6 +385,77 @@ has placed wrongly needs their certifications corrected before they can enroll.
 The student must accept the terms in `agreement.md` to submit. The enrollment
 records **when** and **which version** (`agreedAt`, `agreedTermsVersion`), since
 the wording will change and an acceptance date alone cannot say what was agreed.
+
+### The end of a course
+
+How a course finishes, and who moves it. The rules are pure functions in
+`$lib/course-completion.ts`; the Jira writes are in
+`$lib/server/enrollments/completion.ts`.
+
+| Step                       | Who                                                                  | What happens on the card                                                                                   |
+| -------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Certification Update |
+| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                                            |
+| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Certification Update                                                        |
+| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                                          |
+| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                                  |
+| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                                         |
+
+Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
+A-GC and S-LC do not, and go straight to Certification Update.
+
+**Jira is still the authority on where a request is.** Each step writes the date
+and then makes the move, and only then reads the card back onto our row. If Jira
+refuses, nothing here has changed and the person is told. Each step also leaves a
+comment naming who did it, because every write is made by one API account.
+
+**The certification is applied when a request is found at Certification Update,
+however it got there** — a step taken here, or a card somebody dragged across the
+board. The cron's last job, the webhook, and each step above all run the same
+pass; `enrollments.certification_applied_at` is what makes it happen once. So a
+mis-dragged card grants a real certification, which is why TRK's transitions need
+rules requiring the dates first (DEV-176).
+
+What a course earns is the credential of the same code, and a certification only
+ever moves someone **up**: a card for a course below what they already hold
+changes nothing. An endorsement (S-LC) is added beside their certification.
+
+A **failed exam** goes to Needs CATP, with `Training Completed` cleared: the
+training was not complete after all. The TA decides what further training the
+student gets and returns the card to training on the board; the teacher dates it
+again when it is done. RE Instructor stays on the card while it waits at Needs
+CATP, so the TA can see who examined, and is **removed when the card goes back
+into training** — by the webhook or the cron, however it was moved — so the
+retake is claimed afresh. The student's page explains, and the
+teacher still sees them on `/teach`.
+
+**The exam is an independent check**: the student's own teacher can neither claim
+nor record their exam, even if staff put them on the card by hand. Nobody acts on
+their own request, and the audit cannot be completed until the certification has
+been applied.
+
+### Admin
+
+`/admin` is for training admins (`training:admin`), and exists so that a problem
+behind the scenes is seen before a student has to report it.
+
+- **Requests not on the TRK board.** The cron stops retrying a filing after five
+  failures, on purpose. Those requests are listed with Jira's error, and **Retry
+  now** resets the count and files again; a retry that fails leaves the request
+  back in the cron's queue. Requests still inside their retries are listed
+  separately, with nothing to do.
+- **Scheduled jobs.** Each of the seven, with when it last ran and one of four
+  states: OK, Failing (its last run threw), Not running (no run for 45 minutes —
+  three missed intervals), or No runs recorded. A failure shows its message and
+  how many runs in a row; the last error stays visible after a recovery.
+- **Jira webhook.** The last verified delivery. It is never "Not running": it
+  fires when staff change an issue, so a quiet board is not a fault.
+- **Configuration.** Whether the Jira credentials, the webhook secret and the
+  Discord webhook are set — never their values.
+
+Recording a job's outcome is bookkeeping: if the write fails it is logged, and
+neither fails the job nor stops the next one. Nobody is notified yet when a
+request gets stuck or a job fails; the page has to be looked at.
 
 ### Site copy
 
