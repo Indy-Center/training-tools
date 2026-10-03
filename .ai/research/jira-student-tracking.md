@@ -51,6 +51,28 @@ changed three times in a single day.
 **A created issue lands in `Waitlist`** — it is the initial status, so filing an
 issue really does put someone in the queue.
 
+**Read again on 2026-10-02**, from one In Training and one Rating Exam issue.
+No transition has a screen or a required field, so a date cannot ride along with
+a move — it is a separate field edit, made first.
+
+| From                 | Transition (id)            | To                   |
+| -------------------- | -------------------------- | -------------------- |
+| In Training          | Recommended for RE (`12`)  | Rating Exam          |
+| In Training          | Training Complete (`13`)   | Certification Update |
+| In Training          | Cancel Enrollment (`11`)   | Removed              |
+| Rating Exam          | Rating Exam Complete (`14`) | Certification Update |
+| Rating Exam          | Cancel RE (`2`)            | Removed              |
+| any                  | Withdrawn (`3`, global)    | Withdrawn            |
+
+There is **no way back** from Rating Exam to In Training. A new **Needs CATP**
+status, for a failed exam, is being added by hand after 2026-10-02 (not yet
+verified on the board); the app moves a card there and maps it to `needs-catp`. Certification Update's
+own transitions were not read: no issue was sitting there.
+
+On the same date **RE Instructor was empty on every issue** — all six in Rating
+Exam and the completed ones — so it could not be used to say who examines. The
+app now sets it, when an evaluator takes an exam on `/teach`.
+
 Transitions from `Waitlist`: `8` "Assign Teacher" → In Training, `9` "Remove
 from Waitlist" → Removed, `3` "Withdrawn" → Withdrawn.
 
