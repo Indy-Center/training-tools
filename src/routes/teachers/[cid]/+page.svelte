@@ -222,7 +222,8 @@
 		<div class="px-4 py-5">
 			<p class="mb-4 text-sm text-gray-400">
 				Evaluations are the rating exams: S-GC (S1), A-LC (S2), T-RC (S3) and E-RC (C1). Instructors
-				evaluate all four automatically; an S3+ mentor may be made an evaluator on S-GC only.
+				evaluate all four and teach everything else automatically; an S3+ mentor may be made an
+				evaluator on S-GC only.
 			</p>
 
 			{#if form?.qualificationsSaved}
@@ -251,7 +252,7 @@
 								</label>
 								{#if qualification.automatic}
 									<span class="text-sm text-green-300">
-										{QUALIFICATION_LEVEL_LABELS.evaluator}
+										{QUALIFICATION_LEVEL_LABELS[qualification.automatic]}
 										<span class="block text-right text-xs text-gray-500">automatic</span>
 									</span>
 								{:else if canAdmin}
