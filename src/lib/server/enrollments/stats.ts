@@ -21,11 +21,13 @@ import { enrollmentsTable, type EnrollmentStatus } from '$lib/db/schema/enrollme
 /**
  * Statuses that count as "in training": the stages that occupy a mentor or an
  * instructor. `certification-update` is left out — they have passed, and are
- * waiting on paperwork, not on anyone's time.
+ * waiting on paperwork, not on anyone's time. `needs-catp` is in: they did not
+ * pass, and are going back into training.
  */
 export const IN_TRAINING_STATUSES = [
 	'in-training',
-	'rating-exam'
+	'rating-exam',
+	'needs-catp'
 ] as const satisfies readonly EnrollmentStatus[];
 
 const COUNTED_STATUSES = ['waitlist', ...IN_TRAINING_STATUSES] as const;

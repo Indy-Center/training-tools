@@ -19,6 +19,20 @@ export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcil
 export { importBoardIssues, type ImportResult } from './import';
 export { getWaitlistStats, type CourseWaitlist } from './stats';
 export {
+	applyCertificationUpdate,
+	applyPendingCertificationUpdates,
+	clearReturnedExaminers,
+	completeAudit,
+	completeExam,
+	completeTraining,
+	failExam,
+	getAuditQueue,
+	getEnrollment,
+	claimExam,
+	type CertificationPassResult,
+	type FlowResult
+} from './completion';
+export {
 	applyIssueStatus,
 	sweepEnrollmentStatuses,
 	syncEnrollmentIssue,

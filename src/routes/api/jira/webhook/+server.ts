@@ -1,5 +1,10 @@
 import { json } from '@sveltejs/kit';
-import { applyIssueStatus, syncEnrollmentIssue } from '$lib/server/enrollments';
+import {
+	applyIssueStatus,
+	applyPendingCertificationUpdates,
+	clearReturnedExaminers,
+	syncEnrollmentIssue
+} from '$lib/server/enrollments';
 import { readDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
 import { JIRA_WEBHOOK_JOB, recordJobRun, type JobRun } from '$lib/server/job-health';
 import type { RequestHandler } from './$types';
@@ -98,6 +103,21 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 			})
 		);
 		record({ ok: true, summary: { issue: delivery.key, outcome } });
+
+		// A card that has just reached Certification Update — by any hand — gets
+		// its certification now, and one just sent back into training loses its
+		// examiner now, rather than at the next cron run. Off the response path:
+		// Jira is waiting on this request, and the cron is the guarantee.
+		if (outcome === 'updated') {
+			platform?.ctx?.waitUntil(
+				Promise.all([
+					applyPendingCertificationUpdates(locals.db, env),
+					clearReturnedExaminers(locals.db, env)
+				]).catch((err) =>
+					console.error('[training-tools] end-of-course pass after webhook failed', err)
+				)
+			);
+		}
 		return new Response(null, { status: 204 });
 	} catch (err) {
 		console.error('[training-tools] Jira webhook failed', delivery.key, err);

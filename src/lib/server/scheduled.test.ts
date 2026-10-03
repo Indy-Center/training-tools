@@ -10,7 +10,7 @@ function job(name: string, run: ScheduledJob['run']): ScheduledJob {
 }
 
 describe('scheduledJobs', () => {
-	// Five of these depend on running after another; see the comments on each.
+	// Seven of these depend on running after another; see the comments on each.
 	it('runs in dependency order', () => {
 		const names = scheduledJobs({} as Database, {} as Env).map((job) => job.name);
 		expect(names).toEqual([
@@ -20,7 +20,9 @@ describe('scheduledJobs', () => {
 			'jira teacher dropdowns',
 			'jira board import',
 			'enrollment reconcile',
-			'enrollment status sweep'
+			'enrollment status sweep',
+			'examiner cleanup',
+			'certification updates'
 		]);
 	});
 

@@ -3,6 +3,8 @@ import { syncRoster } from '$lib/server/roster';
 import { grantArrivalCertifications } from '$lib/server/certifications';
 import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
+	applyPendingCertificationUpdates,
+	clearReturnedExaminers,
 	importBoardIssues,
 	reconcileEnrollments,
 	sweepEnrollmentStatuses
@@ -36,7 +38,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in five places, each noted below.
+ * Order matters in seven places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -120,6 +122,26 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await sweepEnrollmentStatuses(db, env);
 				return result.updated > 0 || result.full || !result.complete ? result : null;
+			}
+		},
+		{
+			// After the sweep, which is what notices a card that was moved to
+			// Certification Update by hand: it is certified in the same run.
+			// After the sweep, which is what notices a card the TA has sent back into
+			// training: its examiner comes off in the same run.
+			name: 'examiner cleanup',
+			description: 'Removes the examiner from cards sent back into training after a failed exam.',
+			run: async () => {
+				const result = await clearReturnedExaminers(db, env);
+				return result.pending > 0 ? result : null;
+			}
+		},
+		{
+			name: 'certification updates',
+			description: 'Applies the certification a finished course earns, and dates the card.',
+			run: async () => {
+				const result = await applyPendingCertificationUpdates(db, env);
+				return result.pending > 0 ? result : null;
 			}
 		}
 	];

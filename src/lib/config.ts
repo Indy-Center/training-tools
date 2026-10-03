@@ -1,6 +1,12 @@
 /** The ARTCC this app manages training for. */
 export const FACILITY_ID = 'ZID';
 
+/**
+ * The facility's own timezone, for dates written onto the TRK board. Indiana
+ * has its own zone name; it has kept Eastern time, with daylight saving, since 2006.
+ */
+export const FACILITY_TIME_ZONE = 'America/Indiana/Indianapolis';
+
 /** The community website: where the header logo and the "how to join us" links go. */
 export const COMMUNITY_URL = 'https://flyindycenter.com';
 

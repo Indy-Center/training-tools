@@ -85,6 +85,13 @@
       "when": 1790975957882,
       "tag": "0012_pale_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1790977686153,
+      "tag": "0013_hot_serpent_society",
+      "breakpoints": true
     }
   ]
 }

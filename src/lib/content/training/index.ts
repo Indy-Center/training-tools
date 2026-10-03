@@ -28,6 +28,7 @@ import consolidating from './consolidating.md';
 import consolidationUnknown from './consolidation-unknown.md';
 import extraCourses from './extra-courses.md';
 import inTraining from './in-training.md';
+import needsCatp from './needs-catp.md';
 import ratingExam from './rating-exam.md';
 import signedOut from './signed-out.md';
 import tier2 from './tier-2.md';
@@ -114,6 +115,10 @@ export const TRAINING_COPY = {
 	'rating-exam': {
 		title: 'Your rating exam',
 		body: ratingExam
+	},
+	'needs-catp': {
+		title: 'Your rating exam',
+		body: needsCatp
 	},
 	'certification-update': {
 		title: 'Updating your certificate',

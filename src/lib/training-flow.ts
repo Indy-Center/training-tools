@@ -34,6 +34,7 @@ export const OPEN_ENROLLMENT_STATUSES = [
 	'waitlist',
 	'in-training',
 	'rating-exam',
+	'needs-catp',
 	'certification-update'
 ] as const satisfies readonly EnrollmentStatus[];
 export type OpenEnrollmentStatus = (typeof OPEN_ENROLLMENT_STATUSES)[number];

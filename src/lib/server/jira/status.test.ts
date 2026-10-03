@@ -14,6 +14,7 @@ describe('mapJiraStatus', () => {
 		expect(mapJiraStatus('Waitlist')).toBe('waitlist');
 		expect(mapJiraStatus('In Training')).toBe('in-training');
 		expect(mapJiraStatus('Rating Exam')).toBe('rating-exam');
+		expect(mapJiraStatus('Needs CATP')).toBe('needs-catp');
 		expect(mapJiraStatus('Certification Update')).toBe('certification-update');
 		expect(mapJiraStatus('Completed')).toBe('completed');
 		expect(mapJiraStatus('Removed')).toBe('removed');
@@ -26,6 +27,7 @@ describe('mapJiraStatus', () => {
 			'Waitlist',
 			'In Training',
 			'Rating Exam',
+			'Needs CATP',
 			'Certification Update',
 			'Completed',
 			'Removed',

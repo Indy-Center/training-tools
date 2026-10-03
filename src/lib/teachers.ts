@@ -83,8 +83,12 @@ export const RATING_EXAMS: Readonly<Partial<Record<CredentialCode, string>>> = {
  */
 export const QUALIFICATION_RETENTION_MONTHS = 6;
 
-/** Enrollment statuses that put a student on a teacher's list. */
-export const ASSIGNED_STATUSES = ['in-training', 'rating-exam'] as const;
+/**
+ * Enrollment statuses that put a student on a teacher's list. `needs-catp` is
+ * here because the student is still theirs: the exam was not passed, and the
+ * TA decides what further training they get.
+ */
+export const ASSIGNED_STATUSES = ['in-training', 'rating-exam', 'needs-catp'] as const;
 
 /**
  * Enrollment statuses that use up a slot. A student at their rating exam is

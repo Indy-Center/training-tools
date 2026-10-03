@@ -13,7 +13,8 @@ export type InsertCertification = InferInsertModel<typeof certificationsTable>;
 export const GRANT_BASES = [
 	'auto-arrival', // the roster sync worked it out from rating and activity
 	'imported', // carried over from community-website, which owned certs before
-	'manual' // a staff member set it on the edit view
+	'manual', // a staff member set it on the edit view
+	'training' // earned by finishing the course, applied when the card reached Certification Update
 ] as const;
 export type GrantBasis = (typeof GRANT_BASES)[number];
 

@@ -2,6 +2,7 @@ import { fail } from '@sveltejs/kit';
 import { isTrainingAdmin } from '$lib/utils/permissions';
 import { requireRole } from '$lib/server/guards';
 import {
+	getAuditQueue,
 	getUnfiledEnrollments,
 	MAX_JIRA_SYNC_ATTEMPTS,
 	retryFiling
@@ -36,9 +37,10 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	// generated platform type only knows what `wrangler types` saw in .dev.vars.
 	const env: Partial<Env> | undefined = platform?.env;
 
-	const [unfiled, health] = await Promise.all([
+	const [unfiled, health, auditQueue] = await Promise.all([
 		getUnfiledEnrollments(locals.db),
-		getJobHealth(locals.db)
+		getJobHealth(locals.db),
+		getAuditQueue(locals.db)
 	]);
 
 	const now = new Date();
@@ -75,6 +77,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		// The page words every "ago" against this, so the server and the browser
 		// agree on them.
 		now,
+		// Finished courses waiting on the TA. The work is done on `/admin/audit`;
+		// this is how many, so the page can point there.
+		awaitingAudit: auditQueue.length,
 		// Given up on: these need a person.
 		stuck: requests.filter((request) => request.attempts >= MAX_JIRA_SYNC_ATTEMPTS),
 		// Still inside the retry budget: the cron tries again every fifteen minutes.

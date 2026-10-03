@@ -14,6 +14,7 @@
 		type JobHealthState
 	} from '$lib/job-health';
 	import IconClipboardAlert from '~icons/mdi/clipboard-alert-outline';
+	import IconClipboardCheck from '~icons/mdi/clipboard-check-outline';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconCog from '~icons/mdi/cog';
 	import IconHeartPulse from '~icons/mdi/heart-pulse';
@@ -64,6 +65,30 @@
 		Whether everything behind the scenes is working: requests that never reached the TRK board, and
 		the background jobs that keep this app, VATUSA and Jira in step.
 	</p>
+</div>
+
+<!-- The TA's own work lives on its own page; this is the way in. -->
+<div
+	class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-700/60 bg-slate-800/60 px-4 py-3"
+>
+	<div class="flex items-center gap-3 text-sm">
+		<IconClipboardCheck class="h-5 w-5 text-gray-400" />
+		<span class="text-gray-300">
+			{#if data.awaitingAudit === 0}
+				No finished courses are waiting for an audit.
+			{:else}
+				<span class="font-medium text-white">{data.awaitingAudit}</span>
+				finished {data.awaitingAudit === 1 ? 'course is' : 'courses are'} waiting for an audit.
+			{/if}
+		</span>
+	</div>
+	<Button
+		href="/admin/audit"
+		size="sm"
+		variant={data.awaitingAudit === 0 ? 'secondary' : 'primary'}
+	>
+		Training audit
+	</Button>
 </div>
 
 {#if data.stuck.length > 0 || unhealthy.length > 0 || unset.length > 0}

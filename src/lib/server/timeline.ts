@@ -40,6 +40,7 @@ export type TimelineEntry = {
 
 const GRANT_BASIS_LABELS: Record<string, string> = {
 	'auto-arrival': 'Granted on arrival',
+	training: 'Earned by completing the course',
 	imported: 'Imported from the community site',
 	manual: 'Set by training staff'
 };
