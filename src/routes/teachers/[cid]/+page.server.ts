@@ -28,7 +28,6 @@ import {
 	allowedLevels,
 	automaticLevel,
 	normalizeInitials,
-	slotSummary,
 	validateTeacherProfile,
 	type QualificationLevel,
 	type TeacherStatus
@@ -112,11 +111,6 @@ export const load: PageServerLoad = async (event) => {
 			removedAt: teacher.removedAt,
 			joinedAt: teacher.joinedAt
 		},
-		slots: slotSummary({
-			status: teacher.status,
-			studentSlots: teacher.studentSlots,
-			inTraining: assignments.inTraining
-		}),
 		students: studentRows(assignments.students, people, platform?.env.JIRA_BASE_URL),
 		qualifications: QUALIFICATION_CREDENTIALS.map((credential) => ({
 			code: credential.code,

@@ -8,7 +8,6 @@
 	import Panel from '$lib/components/Panel.svelte';
 	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
 	import Timeline from '$lib/components/Timeline.svelte';
-	import { formatDate } from '$lib/format';
 	import {
 		MAX_STUDENT_SLOTS,
 		QUALIFICATION_LEVEL_LABELS,
@@ -75,28 +74,11 @@
 			? `ZID ${data.teacher.roles.join(' + ')}`
 			: 'no ZID teaching role'} · initials {data.teacher.initials ?? 'not set'}
 	</p>
-	{#if !data.teacher.onRoster && data.teacher.removedAt}
-		<p class="mt-2 text-sm text-gray-400">
-			Left the teacher roster {formatDate(data.teacher.removedAt)}. Their qualifications are kept
-			for six months in case they return, then end. Nothing here can be edited until they are back.
-		</p>
-	{/if}
 </div>
 
 <div class="grid gap-6 lg:grid-cols-2">
 	<Panel title="Availability and slots" icon={IconCalendarClock}>
 		<div class="px-4 py-5">
-			<p class="mb-4 text-sm text-gray-400">
-				{data.slots.used} in training{#if data.slots.total !== null}
-					of {data.slots.total} slots{/if}.
-				{#if data.teacher.status === 'loa'}
-					On LOA: these slots are shown but not counted as open.
-				{:else if data.slots.available !== null}
-					{data.slots.available} open.
-				{/if}
-				Training admins are told when this changes.
-			</p>
-
 			{#if form?.profileSaved}
 				<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
 					<IconCheck class="h-4 w-4" /> Saved.
@@ -160,11 +142,6 @@
 	{#if data.manager}
 		<Panel title="Status and initials" icon={IconCog}>
 			<div class="px-4 py-5">
-				<p class="mb-4 text-sm text-gray-400">
-					Initials are what TRK's Teacher dropdown shows for them; without any, their CID is used.
-					Going on LOA with students assigned warns training admins.
-				</p>
-
 				{#if form?.adminSaved}
 					<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
 						<IconCheck class="h-4 w-4" /> Saved.
@@ -220,12 +197,6 @@
 <div class="mt-6 grid gap-6 lg:grid-cols-2">
 	<Panel title="Qualifications" icon={IconSeal}>
 		<div class="px-4 py-5">
-			<p class="mb-4 text-sm text-gray-400">
-				Evaluations are the rating exams: S-GC (S1), A-LC (S2), T-RC (S3) and E-RC (C1). Instructors
-				evaluate all four and teach everything else automatically; an S3+ mentor may be made an
-				evaluator on S-GC only.
-			</p>
-
 			{#if form?.qualificationsSaved}
 				<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
 					<IconCheck class="h-4 w-4" /> Saved.

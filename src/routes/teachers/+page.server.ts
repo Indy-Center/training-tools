@@ -66,14 +66,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		former: rows
 			.filter((row) => !row.onRoster)
 			.sort((a, b) => (b.removedAt?.getTime() ?? 0) - (a.removedAt?.getTime() ?? 0)),
-		totals: {
-			teachers: current.length,
-			onLoa: current.filter((row) => row.status === 'loa').length,
-			// Open slots across the roster. LOA teachers contribute none, whatever
-			// they have set — `slotSummary` makes their `available` 0.
-			openSlots: current.reduce((sum, row) => sum + (row.slots.available ?? 0), 0),
-			notSet: current.filter((row) => row.slots.total === null).length
-		},
 		dropdowns: dropdowns
 			? {
 					checkedAt: dropdowns.checkedAt,
