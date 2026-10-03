@@ -14,9 +14,9 @@ export { grantArrivalCertifications, type ArrivalGrantResult } from './arrival';
  * the arrival job, the staff edit view and the import all call them rather than
  * writing rows themselves.
  *
- * That is deliberate. When the Discord notification work lands (blocked on
- * DEV-113's shared notification service), it needs one producer site to hook,
- * not three call sites to go and find.
+ * That is deliberate: a notice about a certification change (through
+ * `$lib/server/notify`, when one is wanted) has one producer site to hook, not
+ * three call sites to go and find.
  */
 
 export type GrantInput = {

@@ -1,5 +1,6 @@
 import type { IdentityBinding, SessionContext } from '@indy-center/identity';
 import type { Database } from '$lib/server/db';
+import type { LarryBinding } from '$lib/server/notify/larry';
 
 declare global {
 	/**
@@ -16,11 +17,6 @@ declare global {
 		JIRA_API_TOKEN?: string;
 		/** Shared with the TRK webhook in Jira; signs each delivery. */
 		JIRA_WEBHOOK_SECRET?: string;
-		/**
-		 * Discord webhook for the training admins' channel. Temporary — see
-		 * `$lib/server/notify`. Unset, notifications are logged and skipped.
-		 */
-		DISCORD_WEBHOOK_TRAINING_ADMINS?: string;
 	}
 
 	namespace App {
@@ -30,10 +26,13 @@ declare global {
 		}
 
 		interface Platform {
-			// `wrangler types` only knows IDENTITY as a bare Fetcher, so we replace it
-			// with the typed RPC binding. Optional, because `vite dev` may run without
-			// a live binding — see src/lib/server/identity.ts.
-			env: Omit<Cloudflare.Env, 'IDENTITY'> & { IDENTITY?: IdentityBinding };
+			// `wrangler types` only knows IDENTITY and LARRY as bare Fetchers, so we
+			// replace them with the typed RPC bindings. Optional, because `vite dev`
+			// may run without a live binding — see src/lib/server/identity.ts.
+			env: Omit<Cloudflare.Env, 'IDENTITY' | 'LARRY'> & {
+				IDENTITY?: IdentityBinding;
+				LARRY?: LarryBinding;
+			};
 			cf: CfProperties;
 			ctx: ExecutionContext;
 		}
