@@ -1,7 +1,7 @@
 import sv from '../.svelte-kit/cloudflare/_worker.js';
 import { drizzle } from '$lib/server/db';
 import { runScheduledJobs, scheduledJobs } from '$lib/server/scheduled';
-import { recordJobRun } from '$lib/server/job-health';
+import { recordAndAlert } from '$lib/server/job-health';
 
 /**
  * Custom worker entry.
@@ -20,6 +20,6 @@ export default {
 
 	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
 		const db = drizzle(env.DB);
-		ctx.waitUntil(runScheduledJobs(scheduledJobs(db, env), (run) => recordJobRun(db, run)));
+		ctx.waitUntil(runScheduledJobs(scheduledJobs(db, env), (run) => recordAndAlert(db, env, run)));
 	}
 } satisfies ExportedHandler<Env>;

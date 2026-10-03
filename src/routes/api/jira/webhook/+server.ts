@@ -1,12 +1,13 @@
 import { json } from '@sveltejs/kit';
 import {
+	announceArrivals,
 	applyIssueStatus,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	syncEnrollmentIssue
 } from '$lib/server/enrollments';
 import { readDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
-import { JIRA_WEBHOOK_JOB, recordJobRun, type JobRun } from '$lib/server/job-health';
+import { JIRA_WEBHOOK_JOB, recordAndAlert, type JobRun } from '$lib/server/job-health';
 import type { RequestHandler } from './$types';
 
 /**
@@ -71,7 +72,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 
 	const record = (result: { ok: true; summary: object } | { ok: false; error: unknown }) => {
 		const run: JobRun = { name: JIRA_WEBHOOK_JOB, at: new Date(), ...result };
-		const write = recordJobRun(locals.db, run).catch((err) =>
+		const write = recordAndAlert(locals.db, env, run).catch((err) =>
 			console.error('[training-tools] could not record the Jira webhook', err)
 		);
 		platform?.ctx?.waitUntil(write);
@@ -113,9 +114,12 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 				Promise.all([
 					applyPendingCertificationUpdates(locals.db, env),
 					clearReturnedExaminers(locals.db, env)
-				]).catch((err) =>
-					console.error('[training-tools] end-of-course pass after webhook failed', err)
-				)
+				])
+					// After both: announce what the card's new place calls for.
+					.then(() => announceArrivals(locals.db, env))
+					.catch((err) =>
+						console.error('[training-tools] end-of-course pass after webhook failed', err)
+					)
 			);
 		}
 		return new Response(null, { status: 204 });

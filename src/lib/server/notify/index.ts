@@ -1,27 +1,21 @@
 /**
- * Tell people that something happened.
+ * Tell people that something happened, through Larry.
  *
- * ┌──────────────────────────────────────────────────────────────────────────┐
- * │ TEMPORARY — MIGRATE TO THE DISCORD BOT'S MESSAGE QUEUE.                  │
- * │                                                                          │
- * │ Today a notice is posted straight to a Discord webhook. That stands in   │
- * │ until the Discord bot has a message queue; then this module sends to    │
- * │ the bot instead, and only this module changes. Callers say *who* to tell │
- * │ and *what* to say, never how, so no call site needs touching.           │
- * │                                                                          │
- * │ To migrate: replace `deliver()` below with a send to the bot, delete     │
- * │ `discord.ts` and `NOTIFY_AUDIENCES`' secrets, keep `Notice` as the       │
- * │ contract. See .ai/decisions/0018-temporary-webhook-notifications.md      │
- * └──────────────────────────────────────────────────────────────────────────┘
+ * Callers say **who** to tell and **what** to say — a `Notice` — never how.
+ * This module turns it into a message (`./message.ts`) and queues it on Larry,
+ * the Indy Center Discord bot, over the `LARRY` service binding. Larry delivers
+ * it, retrying rate limits and Discord outages. See
+ * .ai/decisions/0022-notifications-through-larry.md
  *
- * Notifications never fail the thing they describe. Every failure — no secret,
- * Discord down, a bad URL — is logged and swallowed, and the change that
- * prompted the notice has already been saved.
+ * Notifications never fail the thing they describe. Every failure — no binding,
+ * an unknown channel, Larry unreachable — is logged and swallowed, and the
+ * change that prompted the notice has already been saved.
  */
-import { NOTIFY_AUDIENCES } from '$lib/config';
-import { buildDiscordPayload } from './discord';
+import { NOTIFY_CHANNELS } from '$lib/config';
+import { buildMessage } from './message';
+import type { LarryBinding } from './larry';
 
-export type NotifyAudience = keyof typeof NOTIFY_AUDIENCES;
+export type NotifyAudience = keyof typeof NOTIFY_CHANNELS;
 
 export type Notice = {
 	audience: NotifyAudience;
@@ -31,40 +25,39 @@ export type Notice = {
 	summary: string;
 	/** The specifics, as label/value pairs. */
 	fields?: { label: string; value: string }[];
+	/** Where to act on it. Makes the title a link. */
+	link?: string;
+	/**
+	 * Discord user IDs to ping. Only these are ever pinged; anything else in the
+	 * notice, typed text included, cannot mention anyone.
+	 */
+	mention?: string[];
 	/** `warning` for something that needs acting on. */
 	tone?: 'info' | 'warning';
 };
 
+/** `sent` means Larry has accepted it into its queue. */
 export type NotifyOutcome = 'sent' | 'skipped' | 'failed';
 
-/** Give up on a slow webhook rather than hold a Worker invocation open. */
-const TIMEOUT_MS = 5000;
+/**
+ * The binding, typed. `wrangler types` only knows it as a bare Fetcher, and the
+ * global `Env` cannot be narrowed by declaration merging, so the one cast in
+ * the app lives here.
+ */
+function larry(env: Partial<Env> | undefined): LarryBinding | undefined {
+	return (env as { LARRY?: LarryBinding } | undefined)?.LARRY;
+}
 
 async function deliver(env: Partial<Env> | undefined, notice: Notice): Promise<NotifyOutcome> {
-	const secret = NOTIFY_AUDIENCES[notice.audience];
-	const url = env?.[secret]?.trim();
+	const binding = larry(env);
 
-	if (!url) {
-		console.warn(`[training-tools] notify: ${secret} is not set; skipped "${notice.title}"`);
+	if (!binding) {
+		// Under `vite dev` without Larry running alongside, mostly.
+		console.warn(`[training-tools] notify: no LARRY binding; skipped "${notice.title}"`);
 		return 'skipped';
 	}
 
-	const response = await fetch(url, {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(buildDiscordPayload(notice, new Date())),
-		signal: AbortSignal.timeout(TIMEOUT_MS)
-	});
-
-	if (!response.ok) {
-		// The body names the problem (bad embed, rate limit); never the URL.
-		const detail = await response.text().catch(() => '');
-		console.error(
-			`[training-tools] notify: ${notice.audience} returned ${response.status}: ${detail.slice(0, 300)}`
-		);
-		return 'failed';
-	}
-
+	await binding.enqueue(buildMessage(notice, new Date()));
 	return 'sent';
 }
 
@@ -76,14 +69,15 @@ export async function notify(
 	try {
 		return await deliver(env, notice);
 	} catch (err) {
-		console.error('[training-tools] notify failed', err);
+		// Larry's own message: an unknown channel, a message over Discord's limits.
+		console.error(`[training-tools] notify: "${notice.title}" was refused`, err);
 		return 'failed';
 	}
 }
 
 /**
  * Send a notice after the response, from a request handler. The page does not
- * wait on Discord, and nothing about the request depends on the outcome.
+ * wait on Larry, and nothing about the request depends on the outcome.
  */
 export function notifyInBackground(platform: App.Platform | undefined, notice: Notice): void {
 	const sending = notify(platform?.env as Partial<Env> | undefined, notice);

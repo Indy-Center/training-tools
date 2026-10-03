@@ -14,10 +14,13 @@ import {
 	transitionIssueToStatus,
 	WITHDRAWN_STATUS
 } from '$lib/server/jira/enrollment';
+import { notify } from '$lib/server/notify';
+import { stuckRequestNotice } from './notices';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
 export { importBoardIssues, type ImportResult } from './import';
 export { getWaitlistStats, type CourseWaitlist } from './stats';
+export { announceArrivals, type AnnounceResult } from './announce';
 export {
 	applyCertificationUpdate,
 	applyPendingCertificationUpdates,
@@ -279,7 +282,12 @@ export async function fileWithJira(
 	const config = resolveJiraConfig(env);
 
 	if (!config) {
-		await recordFailure(db, enrollment.id, 'Jira is not configured (missing url, email or token)');
+		await recordFailure(
+			db,
+			env,
+			enrollment,
+			'Jira is not configured (missing url, email or token)'
+		);
 		console.warn('[training-tools] jira not configured; enrollment saved unfiled', enrollment.id);
 		return false;
 	}
@@ -303,25 +311,47 @@ export async function fileWithJira(
 		return true;
 	} catch (err) {
 		const message = err instanceof JiraError ? err.message : String(err);
-		await recordFailure(db, enrollment.id, message);
+		await recordFailure(db, env, enrollment, message);
 		console.error('[training-tools] jira enrollment push failed', enrollment.id, message);
 		return false;
 	}
 }
 
-async function recordFailure(db: Database, id: string, error: string): Promise<void> {
+/**
+ * Note a failed filing. The failure that uses up the last attempt also tells the
+ * training admins, once: past it the cron stops retrying, and the request is
+ * invisible to staff until someone fixes it (DEV-216).
+ */
+async function recordFailure(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment,
+	error: string
+): Promise<void> {
 	const current = await db.query.enrollmentsTable.findFirst({
-		where: eq(enrollmentsTable.id, id)
+		where: eq(enrollmentsTable.id, enrollment.id)
 	});
+	const attempts = (current?.jiraSyncAttempts ?? 0) + 1;
 
 	await db
 		.update(enrollmentsTable)
 		.set({
 			jiraSyncError: error.slice(0, 1000),
-			jiraSyncAttempts: (current?.jiraSyncAttempts ?? 0) + 1,
+			jiraSyncAttempts: attempts,
 			updatedAt: new Date()
 		})
-		.where(eq(enrollmentsTable.id, id));
+		.where(eq(enrollmentsTable.id, enrollment.id));
+
+	if (attempts === MAX_JIRA_SYNC_ATTEMPTS) {
+		await notify(
+			env,
+			stuckRequestNotice(
+				{ name: enrollment.submittedName, cid: enrollment.cid, course: enrollment.course },
+				error,
+				attempts
+			)
+		);
+	}
 }
 
 /**

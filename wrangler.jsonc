@@ -9,6 +9,10 @@
  *     IndyCenter Cloudflare account.
  *
  * See .ai/decisions/0001-identity-via-service-binding.md
+ *
+ * `services.LARRY` is the RPC binding to Larry's send Worker (`indy-larry`), which
+ * posts notices to Discord. Same account, no secret. Without it notices are
+ * logged and skipped. See .ai/decisions/0022-notifications-through-larry.md
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
@@ -45,7 +49,10 @@
 	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157
 	// members, so every 15 minutes is ample.
 	"triggers": { "crons": ["*/15 * * * *"] },
-	"services": [{ "binding": "IDENTITY", "service": "identity" }],
+	"services": [
+		{ "binding": "IDENTITY", "service": "identity" },
+		{ "binding": "LARRY", "service": "indy-larry" }
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",
