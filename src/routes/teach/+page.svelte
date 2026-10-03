@@ -29,10 +29,6 @@
 <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
 	<div>
 		<h1 class="text-3xl font-bold text-white">Teach</h1>
-		<p class="mt-2 text-gray-400">
-			Your students, the end of their courses, and what you have told training staff you can take
-			on.
-		</p>
 	</div>
 	<Button href="/teachers/{data.teacher.cid}" size="sm">
 		<IconPencil class="h-4 w-4" />
@@ -99,11 +95,7 @@
 	<div class="lg:col-span-2">
 		<Panel title="Your students" icon={IconAccountMultiple}>
 			{#if data.students.length === 0}
-				<p class="px-4 py-5 text-sm text-gray-400">
-					Nobody is in training with you right now. Students appear here once training staff set you
-					as their Teacher on the TRK board, and move to Rating Exams once their training is
-					complete.
-				</p>
+				<p class="px-4 py-5 text-sm text-gray-400">Nobody is in training with you right now.</p>
 			{:else}
 				<ul class="divide-y divide-slate-700/60">
 					{#each data.students as student (student.enrollmentId)}

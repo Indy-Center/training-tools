@@ -5,11 +5,12 @@ import {
 	downgradeFor,
 	hasEvaluation,
 	isAssignedTo,
-	isAutomaticEvaluator,
+	automaticLevel,
 	jiraOptionValue,
 	levelProblem,
 	normalizeInitials,
 	qualificationsExpired,
+	QUALIFICATION_CREDENTIALS,
 	slotSummary,
 	teacherRolesFrom,
 	validateTeacherProfile
@@ -69,10 +70,9 @@ describe('evaluations', () => {
 	});
 
 	it('are automatic for instructors on every course that has one', () => {
-		expect(isAutomaticEvaluator('E-RC', instructor)).toBe(true);
-		expect(isAutomaticEvaluator('S-GC', instructor)).toBe(true);
-		expect(isAutomaticEvaluator('A-GC', instructor)).toBe(false);
-		expect(isAutomaticEvaluator('S-GC', s3Mentor)).toBe(false);
+		expect(automaticLevel('E-RC', instructor)).toBe('evaluator');
+		expect(automaticLevel('S-GC', instructor)).toBe('evaluator');
+		expect(automaticLevel('S-GC', s3Mentor)).toBeNull();
 	});
 
 	it('let an S3+ mentor evaluate S-GC, but nothing else', () => {
@@ -89,6 +89,32 @@ describe('evaluations', () => {
 	it('are never offered on a course without one, even to instructors', () => {
 		expect(canEvaluate('S-LC', instructor)).toBe(false);
 		expect(allowedLevels('T2-CTR', instructor)).toEqual(['training', 'teacher']);
+	});
+});
+
+describe('automaticLevel', () => {
+	// Instructors teach everything, and evaluate whatever has an evaluation.
+	it('makes an instructor teacher on every course and endorsement without an evaluation', () => {
+		expect(automaticLevel('A-GC', instructor)).toBe('teacher');
+		expect(automaticLevel('S-LC', instructor)).toBe('teacher');
+		expect(automaticLevel('T2-CTR', instructor)).toBe('teacher');
+	});
+
+	it('covers every credential in the qualification grid for an instructor', () => {
+		for (const credential of QUALIFICATION_CREDENTIALS) {
+			expect(automaticLevel(credential.code, instructor)).not.toBeNull();
+		}
+	});
+
+	it('gives mentors nothing automatically', () => {
+		for (const credential of QUALIFICATION_CREDENTIALS) {
+			expect(automaticLevel(credential.code, s3Mentor)).toBeNull();
+			expect(automaticLevel(credential.code, s2Mentor)).toBeNull();
+		}
+	});
+
+	it('gives nothing for a code that is not in the catalogue', () => {
+		expect(automaticLevel('APP-SOLO', instructor)).toBeNull();
 	});
 });
 
@@ -113,6 +139,12 @@ describe('levelProblem', () => {
 	it('refuses to lower an instructor below evaluator on an evaluated course', () => {
 		expect(levelProblem('T-RC', 'teacher', instructor)).toMatch(/automatically/);
 		expect(levelProblem('T-RC', null, instructor)).toMatch(/automatically/);
+	});
+
+	it('refuses to lower an instructor below teacher anywhere else', () => {
+		expect(levelProblem('A-GC', 'training', instructor)).toMatch(/teach A-GC automatically/);
+		expect(levelProblem('S-LC', null, instructor)).toMatch(/teach S-LC automatically/);
+		expect(levelProblem('A-GC', 'teacher', instructor)).toBeNull();
 	});
 
 	it('rejects a code that is not in the catalogue', () => {

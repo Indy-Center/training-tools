@@ -293,7 +293,8 @@ availability, slots) is edited on `/teachers/{cid}`.
 Each teacher holds a **qualification per course and endorsement**: No Qual,
 Training, Teacher, or Teacher and Evaluator. Only the four rating-exam courses
 can have an evaluator — S-GC (S1), A-LC (S2), T-RC (S3), E-RC (C1). Instructors
-evaluate all four **automatically**; an S3+ mentor may be made an S-GC evaluator
+evaluate all four **automatically**, and are Teacher on every other course and
+endorsement automatically too; an S3+ mentor may be made an S-GC evaluator
 by hand; nobody else may evaluate. The cron drops any evaluator who no longer
 qualifies to Teacher. `teacher_qualifications` is an all-time log — a change
 ends one row and starts the next — and **six months off the teacher roster ends

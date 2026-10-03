@@ -121,18 +121,34 @@ describe('planTeacherRoster — membership', () => {
 	});
 });
 
-describe('planTeacherRoster — automatic evaluator', () => {
-	it('makes an instructor evaluator on the four evaluated courses', () => {
+/** Every level an instructor holds automatically, as the sync leaves it. */
+const ALL_AUTOMATIC: [string, 'evaluator' | 'teacher'][] = [
+	['S-GC', 'evaluator'],
+	['A-GC', 'teacher'],
+	['A-LC', 'evaluator'],
+	['T-RC', 'evaluator'],
+	['E-RC', 'evaluator'],
+	['S-LC', 'teacher'],
+	['T2-CTR', 'teacher']
+];
+
+describe('planTeacherRoster — automatic levels', () => {
+	it('makes an instructor evaluator on the four evaluated courses, and teacher on the rest', () => {
 		const result = plan({
 			roster: [{ cid: '1', rating: I1, roles: ['INS'] }],
 			teachers: [teacher('1', ['INS'])]
 		});
 		expect(result.qualifications.map((q) => [q.code, q.startLevel, q.endId])).toEqual([
 			['S-GC', 'evaluator', null],
+			['A-GC', 'teacher', null],
 			['A-LC', 'evaluator', null],
 			['T-RC', 'evaluator', null],
-			['E-RC', 'evaluator', null]
+			['E-RC', 'evaluator', null],
+			['S-LC', 'teacher', null],
+			['T2-CTR', 'teacher', null]
 		]);
+		expect(result.qualifications[1].note).toBe('Instructor (ZID:INS): teaches automatically');
+		expect(result.summary.automatic).toBe(7);
 	});
 
 	it('raises an instructor held at a lower level, ending that row', () => {
@@ -140,10 +156,10 @@ describe('planTeacherRoster — automatic evaluator', () => {
 			roster: [{ cid: '1', rating: I1, roles: ['INS'] }],
 			teachers: [teacher('1', ['INS'])],
 			current: [
-				qual('1', 'S-GC', 'evaluator'),
-				qual('1', 'A-LC', 'evaluator'),
-				qual('1', 'T-RC', 'teacher'),
-				qual('1', 'E-RC', 'evaluator')
+				...ALL_AUTOMATIC.map(([code, level]) => qual('1', code, level)).filter(
+					(row) => row.code !== 'T-RC'
+				),
+				qual('1', 'T-RC', 'teacher')
 			]
 		});
 		expect(result.qualifications).toHaveLength(1);
@@ -158,21 +174,27 @@ describe('planTeacherRoster — automatic evaluator', () => {
 		const result = plan({
 			roster: [{ cid: '1', rating: I1, roles: ['INS'] }],
 			teachers: [teacher('1', ['INS'])],
-			current: ['S-GC', 'A-LC', 'T-RC', 'E-RC'].map((code) => qual('1', code, 'evaluator'))
+			current: ALL_AUTOMATIC.map(([code, level]) => qual('1', code, level))
 		});
 		expect(result.qualifications).toEqual([]);
 	});
 
-	it("leaves an instructor's levels on courses without an evaluation to admins", () => {
+	// DEV-118: instructors teach every course, not only the evaluated ones.
+	it('raises an instructor held at Training, or nothing, on a course without an evaluation', () => {
 		const result = plan({
 			roster: [{ cid: '1', rating: I1, roles: ['INS'] }],
 			teachers: [teacher('1', ['INS'])],
 			current: [
-				...['S-GC', 'A-LC', 'T-RC', 'E-RC'].map((code) => qual('1', code, 'evaluator')),
+				...ALL_AUTOMATIC.map(([code, level]) => qual('1', code, level)).filter(
+					(row) => row.code !== 'A-GC' && row.code !== 'S-LC'
+				),
 				qual('1', 'A-GC', 'training')
 			]
 		});
-		expect(result.qualifications).toEqual([]);
+		expect(result.qualifications.map((q) => [q.code, q.startLevel, q.endId])).toEqual([
+			['A-GC', 'teacher', '1-A-GC'],
+			['S-LC', 'teacher', null]
+		]);
 	});
 });
 
