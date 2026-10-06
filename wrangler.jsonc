@@ -45,9 +45,10 @@
 		"JIRA_PROJECT_KEY": "TRK",
 		// Teacher roles and channels in Discord, through Larry. "off", "dry-run"
 		// (report on /teachers, change nothing) or "live". Anything else is off.
-		// Leave it off until Larry 1.1 is deployed; look at a dry run before "live",
-		// because live takes a teacher's role from anyone who should not hold it.
-		"DISCORD_SYNC": "dry-run",
+		// Live since 2026-10-06, after a dry run was read on /teachers. Live takes a
+		// teacher's role from anyone who should not hold it. Set "dry-run" to stop
+		// changes and keep the report, or "off" to stop both.
+		"DISCORD_SYNC": "live",
 		// The Discord role that can see every teacher channel Larry creates
 		// ("Training Admin"). No channels are made until this is set.
 		"DISCORD_TRAINING_ADMIN_ROLE_ID": "1389685131744383138"
