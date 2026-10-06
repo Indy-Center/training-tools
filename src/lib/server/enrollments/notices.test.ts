@@ -5,7 +5,8 @@ import {
 	awaitingAuditNotice,
 	examReadyNotice,
 	needsCatpNotice,
-	stuckRequestNotice
+	stuckRequestNotice,
+	withdrawnNotice
 } from './notices';
 
 const request = {
@@ -74,6 +75,40 @@ describe('needsCatpNotice', () => {
 		// Students are not pinged from here: TRK's own script tells them for now.
 		expect(notice.mention).toBeUndefined();
 	});
+
+	it('says the exam was failed when the card came from Rating Exam', () => {
+		const notice = needsCatpNotice(request, true);
+		expect(notice.title).toBe('Rating exam failed: Jo Rivera');
+		expect(notice.summary).toBe('Jo Rivera failed their rating exam.');
+	});
+
+	// Staff can move a card to Needs CATP from In Training, with no exam behind it.
+	it('does not mention an exam when the card came from anywhere else', () => {
+		const notice = needsCatpNotice(request, false);
+		expect(notice.title).toBe('Needs CATP: Jo Rivera');
+		expect(notice.summary).not.toMatch(/exam/i);
+	});
+});
+
+describe('withdrawnNotice', () => {
+	it('tells the training admins who withdrew, from what, and where they were', () => {
+		const notice = withdrawnNotice({ ...request, examiner: null, was: 'in-training' });
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toBe('Withdrawn: Jo Rivera');
+		expect(notice.summary).toBe('Jo Rivera withdrew from Terminal Radar Control (T-RC).');
+		expect(field(notice, 'Was')).toBe('In training');
+		expect(field(notice, 'Teacher')).toBe('SW');
+		expect(notice.link).toBe('https://jira.test/browse/TRK-42');
+	});
+
+	// Mid-course it frees a teacher's slot; from the waitlist it is only news.
+	it('is a warning mid-course and plain from the waitlist', () => {
+		expect(withdrawnNotice({ ...request, was: 'in-training' }).tone).toBe('warning');
+		expect(withdrawnNotice({ ...request, was: 'rating-exam' }).tone).toBe('warning');
+		const waiting = withdrawnNotice({ ...request, teacher: null, examiner: null, was: 'waitlist' });
+		expect(waiting.tone).toBe('info');
+		expect(field(waiting, 'Teacher')).toBeUndefined();
+	});
 });
 
 describe('awaitingAuditNotice', () => {
@@ -81,6 +116,7 @@ describe('awaitingAuditNotice', () => {
 		const notice = awaitingAuditNotice({ ...request, holds: 'T-RC' });
 		expect(notice.audience).toBe('training-admins');
 		expect(notice.link).toMatch(/\/admin\/audit$/);
+		expect(notice.summary).toBe('Jo Rivera completed T-RC.');
 		expect(field(notice, 'Now holds')).toBe('T-RC');
 	});
 
@@ -96,9 +132,10 @@ describe('awaitingAuditNotice', () => {
 });
 
 describe('stuckRequestNotice', () => {
-	it('warns the training admins with the error, and sends them to the Admin page', () => {
+	// Only the tech team can fix why Jira is refusing it.
+	it('warns the tech team with the error, and sends them to the Admin page', () => {
 		const notice = stuckRequestNotice(request, 'Jira 401: Unauthorized', 5);
-		expect(notice.audience).toBe('training-admins');
+		expect(notice.audience).toBe('tech-team');
 		expect(notice.tone).toBe('warning');
 		expect(notice.summary).toContain('5 times');
 		expect(field(notice, 'Last error')).toBe('Jira 401: Unauthorized');

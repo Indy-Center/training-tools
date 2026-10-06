@@ -1,6 +1,11 @@
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable } from '$lib/db/schema/enrollments';
+import { syncStateTable } from '$lib/db/schema/sync-state';
+import { JIRA_FIELDS } from '$lib/server/jira/fields';
+import { boardProblemsNotice, type BoardProblem } from '$lib/server/jira/notices';
+import { resolveStatusUpdate } from '$lib/server/jira/status';
+import { notify } from '$lib/server/notify';
 import { resolveJiraConfig } from '$lib/server/jira/client';
 import { listBoardIssues } from '$lib/server/jira/issues';
 import { parseBoardIssue, type BoardEnrollment } from '$lib/server/jira/board-issue';
@@ -89,8 +94,24 @@ export async function importBoardIssues(
 		complete
 	};
 
+	// Everything on the board the app cannot read, for the tech team.
+	const problems: BoardProblem[] = [];
+
 	for (const issue of issues) {
-		if (known.has(issue.key)) continue;
+		if (known.has(issue.key)) {
+			// A card we hold can still be sitting in a status we do not know — a
+			// status renamed on the board. The sweep ignores it; say so here, where
+			// the whole board is read every run.
+			const resolution = resolveStatusUpdate(issue);
+			if (resolution.action === 'unknown-status') {
+				problems.push({
+					issueKey: issue.key,
+					reason: 'unknown-status',
+					detail: resolution.statusName
+				});
+			}
+			continue;
+		}
 
 		const parsed = parseBoardIssue(issue);
 		if (!parsed.ok) {
@@ -100,6 +121,16 @@ export async function importBoardIssues(
 				'[training-tools] TRK issue not imported',
 				JSON.stringify({ issue: issue.key, reason: parsed.reason })
 			);
+			problems.push({
+				issueKey: issue.key,
+				reason: parsed.reason,
+				detail:
+					parsed.reason === 'unknown-status'
+						? (issue.fields?.status?.name ?? null)
+						: parsed.reason === 'unknown-course'
+							? (issue.fields?.[JIRA_FIELDS.course]?.value ?? null)
+							: null
+			});
 			result.skipped += 1;
 			continue;
 		}
@@ -114,7 +145,52 @@ export async function importBoardIssues(
 		}
 	}
 
+	await reportBoardProblems(db, env, problems, now).catch((err) =>
+		console.error('[training-tools] board problems notice failed', err)
+	);
+
 	return result;
+}
+
+/** `sync_state` key: the set of board problems the tech team was last told about. */
+const BOARD_PROBLEMS_KEY = 'jira-board-problems-notified';
+
+/**
+ * Tell the tech team what on the board the app cannot read — once per distinct
+ * set, not every fifteen minutes, the way the teacher-dropdown check does. A
+ * notice that could not be sent is retried next run; a board that comes clean
+ * forgets what was sent, so the same problem returning is news again.
+ */
+async function reportBoardProblems(
+	db: Database,
+	env: Partial<Env> | undefined,
+	problems: BoardProblem[],
+	now: Date
+): Promise<void> {
+	const last = await db.query.syncStateTable.findFirst({
+		where: eq(syncStateTable.key, BOARD_PROBLEMS_KEY)
+	});
+
+	const signature =
+		problems.length === 0
+			? null
+			: JSON.stringify(
+					problems
+						.map((problem) => [problem.issueKey, problem.reason, problem.detail])
+						.sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+				);
+
+	if ((last?.value ?? null) === signature) return;
+
+	if (signature !== null) {
+		const notice = boardProblemsNotice(problems, env?.JIRA_BASE_URL);
+		if (!notice || (await notify(env, notice)) !== 'sent') return;
+	}
+
+	await db
+		.insert(syncStateTable)
+		.values({ key: BOARD_PROBLEMS_KEY, cursorAt: now, value: signature })
+		.onConflictDoUpdate({ target: syncStateTable.key, set: { cursorAt: now, value: signature } });
 }
 
 /** Write the issue's key onto our unfiled row for the same request, if there is one. */

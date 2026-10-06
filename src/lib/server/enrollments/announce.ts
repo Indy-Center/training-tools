@@ -107,7 +107,13 @@ function describe(
 }
 
 /** The notice for an arrival, or null when this status tells nobody. */
-function noticeFor(enrollment: Enrollment, people: People, jiraBaseUrl?: string): Notice | null {
+function noticeFor(
+	enrollment: Enrollment,
+	people: People,
+	jiraBaseUrl: string | undefined,
+	/** The status it was last announced at: where the card has just come from. */
+	from: string | null
+): Notice | null {
 	const request = describe(enrollment, people, jiraBaseUrl);
 
 	switch (announcementFor(enrollment.status)) {
@@ -117,7 +123,7 @@ function noticeFor(enrollment: Enrollment, people: People, jiraBaseUrl?: string)
 				people.evaluators(enrollment.course, enrollment)
 			);
 		case 'needs-catp':
-			return needsCatpNotice(request);
+			return needsCatpNotice(request, from === 'rating-exam');
 		case 'awaiting-audit':
 			return awaitingAuditNotice({ ...request, holds: people.holds(enrollment.cid) });
 		default:
@@ -182,7 +188,7 @@ export async function announceArrivals(
 		if (!announcementFor(enrollment.status)) continue;
 
 		people ??= await loadPeople(db);
-		const notice = noticeFor(enrollment, people, env?.JIRA_BASE_URL);
+		const notice = noticeFor(enrollment, people, env?.JIRA_BASE_URL, previous);
 		if (!notice) continue;
 
 		const outcome = await notify(env, notice);
