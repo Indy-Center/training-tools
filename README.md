@@ -131,7 +131,7 @@ reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs after it so an issue filed moments ago is read back in the same run;
 and the examiner cleanup and certification pass run after it, so a card the sweep
-has just seen go back into training, or arrive at Certification Update, is dealt
+has just seen go back into training, or arrive at Audit, is dealt
 with in the same run; and the announcements run last, so a card certified a
 moment ago is announced in the same run.
 
@@ -333,10 +333,10 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                             |
-| ----------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a request stuck before TRK, a background job failing and recovering |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                           |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                  |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a certification held because its card is incomplete, a request stuck before TRK, a background job failing and recovering |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                |
 
 Only the people a notice names are pinged; nothing typed into a field can mention
 anyone. **Students and teachers are not messaged by the app yet** — TRK's own
@@ -383,6 +383,16 @@ plus 20% on the high end — and is labelled as an estimate. There is no
 "you'll start in N weeks": nothing records when students move between stages,
 so there is no throughput to base one on.
 
+**Custom Training** is a seventh option on TRK's course select, for training
+outside the six courses. Staff put it on a card by hand; the app imports and
+shows such a request like any other, but never offers it on the form and refuses
+a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential, and
+`/stats` lists it only while someone is in it. **Whether it ends in a rating exam
+is the teacher's choice**, made on `/teach` as they mark the training complete:
+to Rating Exam, or straight to Audit. Having no qualification of its own, its
+exam may be claimed by anyone who evaluates any course — still never the
+student's own teacher.
+
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
@@ -406,33 +416,51 @@ How a course finishes, and who moves it. The rules are pure functions in
 `$lib/course-completion.ts`; the Jira writes are in
 `$lib/server/enrollments/completion.ts`.
 
-| Step                       | Who                                                                  | What happens on the card                                                                                   |
-| -------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Certification Update |
-| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                                            |
-| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Certification Update                                                        |
-| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                                          |
-| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                                  |
-| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                                         |
+| Step                       | Who                                                                  | What happens on the card                                                                    |
+| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
+| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Audit                                                        |
+| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                           |
+| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
+| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
+
+TRK's status for a finished course waiting on the TA is **Audit** (Certification
+Update until 2026-10-06). The app's own name for it is still
+`certification-update`, and it reads either name off the board.
 
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
-A-GC and S-LC do not, and go straight to Certification Update.
+A-GC and S-LC do not, and go straight to Audit.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira
 refuses, nothing here has changed and the person is told. Each step also leaves a
 comment naming who did it, because every write is made by one API account.
 
-**The certification is applied when a request is found at Certification Update,
+**The certification is applied when a request is found at Audit,
 however it got there** — a step taken here, or a card somebody dragged across the
 board. The cron's last job, the webhook, and each step above all run the same
-pass; `enrollments.certification_applied_at` is what makes it happen once. So a
-mis-dragged card grants a real certification, which is why TRK's transitions need
-rules requiring the dates first (DEV-176).
+pass; `enrollments.certification_applied_at` is what makes it happen once.
+
+**But only if the card shows the course was finished.** Before granting anything
+the app reads the card: every course needs `Training Completed`, and the four
+that end in a rating exam also need `RE Instructor` and `RE Completed`. A card
+without them — dragged past its exam, or across before the training was done —
+is **held**: nothing is granted, the training admins are told once, and
+`/admin/audit` lists it with what it lacks. It is checked again on every pass,
+so filling in the card releases it, and moving the card back clears the hold.
+What is missing is kept in `enrollments.certification_hold`. TRK's own
+transition rules (DEV-176) are the first defence; this is the one that does not
+depend on the workflow staying as it is.
 
 What a course earns is the credential of the same code, and a certification only
 ever moves someone **up**: a card for a course below what they already hold
 changes nothing. An endorsement (S-LC) is added beside their certification.
+
+**Needs CATP** (a Corrective Action Training Plan) is reached two ways: a failed
+exam, below, or a card staff move there from In Training on the board. The app
+cannot tell which, so what it says to the student and the training admins does
+not assume an exam.
 
 A **failed exam** goes to Needs CATP, with `Training Completed` cleared: the
 training was not complete after all. The TA decides what further training the

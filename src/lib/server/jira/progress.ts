@@ -1,5 +1,8 @@
 import { FACILITY_TIME_ZONE } from '$lib/config';
+import type { CardEvidence } from '$lib/course-completion';
 import { jiraRequest, type JiraConfig } from './client';
+import { JIRA_FIELDS } from './fields';
+import { RE_INSTRUCTOR_FIELD } from './status';
 
 /**
  * Writing a request's progress onto its TRK issue: the dates staff used to fill
@@ -17,7 +20,8 @@ import { jiraRequest, type JiraConfig } from './client';
 export const RATING_EXAM_STATUS = 'Rating Exam';
 /** A failed rating exam waits here for the TA, who sends it back into training. */
 export const NEEDS_CATP_STATUS = 'Needs CATP';
-export const CERTIFICATION_UPDATE_STATUS = 'Certification Update';
+/** Ours is still `certification-update`: the board renamed its status on 2026-10-06. */
+export const CERTIFICATION_UPDATE_STATUS = 'Audit';
 export const COMPLETED_STATUS = 'Completed';
 
 /**
@@ -47,6 +51,39 @@ export async function updateIssueFields(
 		method: 'PUT',
 		body: { fields }
 	});
+}
+
+type EvidenceIssue = {
+	fields?: {
+		[JIRA_FIELDS.trainingCompleted]?: string | null;
+		[JIRA_FIELDS.reCompleted]?: string | null;
+		[RE_INSTRUCTOR_FIELD]?: { value?: string | null } | null;
+	} | null;
+};
+
+/**
+ * The fields on a card that show its course was finished, read fresh.
+ *
+ * Not kept on our row: they are only ever needed at the moment a certification
+ * is about to be applied, and that decision should rest on what the card says
+ * now. Throws JiraError, including when the issue is gone.
+ */
+export async function fetchCardEvidence(
+	config: JiraConfig,
+	issueKey: string
+): Promise<CardEvidence> {
+	const fields = [JIRA_FIELDS.trainingCompleted, JIRA_FIELDS.reCompleted, RE_INSTRUCTOR_FIELD];
+	const issue = await jiraRequest<EvidenceIssue>(
+		config,
+		`/issue/${encodeURIComponent(issueKey)}?fields=${fields.join(',')}`,
+		{ method: 'GET' }
+	);
+
+	return {
+		trainingCompleted: issue.fields?.[JIRA_FIELDS.trainingCompleted] || null,
+		reCompleted: issue.fields?.[JIRA_FIELDS.reCompleted] || null,
+		reInstructor: issue.fields?.[RE_INSTRUCTOR_FIELD]?.value?.trim() || null
+	};
 }
 
 export type SelectOption = { id: string; value: string };

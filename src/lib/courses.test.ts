@@ -5,19 +5,36 @@ import {
 	findCourse,
 	findCourseByJiraOptionId,
 	formatWeeksRange,
-	isCourseCode
+	isCourseCode,
+	isEnrollableCourseCode
 } from './courses';
 import { CLOSED_ENROLLMENT_STATUSES, ENROLLMENT_STATUSES } from './db/schema/enrollments';
 
 describe('course catalogue', () => {
-	it('covers the six courses on the Jira select', () => {
-		expect(COURSE_CODES).toEqual(['S-GC', 'A-GC', 'S-LC', 'A-LC', 'T-RC', 'E-RC']);
+	it('covers every option on the Jira select', () => {
+		expect(COURSE_CODES).toEqual(['S-GC', 'A-GC', 'S-LC', 'A-LC', 'T-RC', 'E-RC', 'CUSTOM']);
+	});
+
+	// Custom Training is put on a card by staff. The app reads and shows it, and
+	// never lets anyone enroll in it.
+	it('offers a student the six standard courses, and not Custom Training', () => {
+		expect(COURSE_CODES.filter(isEnrollableCourseCode)).toEqual([
+			'S-GC',
+			'A-GC',
+			'S-LC',
+			'A-LC',
+			'T-RC',
+			'E-RC'
+		]);
+		expect(isCourseCode('CUSTOM')).toBe(true);
+		expect(isEnrollableCourseCode('CUSTOM')).toBe(false);
+		expect(findCourseByJiraOptionId('10141')?.code).toBe('CUSTOM');
 	});
 
 	// The label is also what goes in the Jira issue summary, so it has to match
 	// the option value character for character.
 	it('labels each course as "Name (CODE)", matching Jira', () => {
-		for (const course of COURSES) {
+		for (const course of COURSES.filter((c) => isEnrollableCourseCode(c.code))) {
 			expect(course.label).toBe(`${course.name} (${course.code})`);
 		}
 	});
@@ -58,6 +75,7 @@ describe('course length estimates', () => {
 	it('start at one lesson a week, plus 20% on the high end', () => {
 		const lessons = { 'S-GC': 8, 'A-GC': 2, 'S-LC': 3, 'A-LC': 3, 'T-RC': 8, 'E-RC': 8 };
 		for (const course of COURSES) {
+			if (course.code === 'CUSTOM') continue;
 			const n = lessons[course.code];
 			expect(course.estimatedWeeks).toEqual({ min: n, max: Math.ceil(n * 1.2) });
 		}

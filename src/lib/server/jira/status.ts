@@ -31,6 +31,9 @@ const JIRA_STATUS_MAP: Readonly<Record<string, EnrollmentStatus>> = {
 	'in training': 'in-training',
 	'rating exam': 'rating-exam',
 	'needs catp': 'needs-catp',
+	// Renamed on the board on 2026-10-06. The old name stays so a rename back,
+	// or a webhook body sent before it, still reads.
+	audit: 'certification-update',
 	'certification update': 'certification-update',
 	completed: 'completed',
 	removed: 'removed',

@@ -1,7 +1,16 @@
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
-import { afterTraining, credentialChangeFor, type CredentialChange } from '$lib/course-completion';
+import {
+	afterTrainingOptions,
+	credentialChangeFor,
+	formatHold,
+	holdLabels,
+	missingEvidence,
+	type AfterTraining,
+	type CompletionEvidence,
+	type CredentialChange
+} from '$lib/course-completion';
 import { findCourse } from '$lib/courses';
 import { getHeldCredentials, grantCredential, setCertification } from '$lib/server/certifications';
 import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
@@ -11,6 +20,7 @@ import { fetchEnrollmentIssue } from '$lib/server/jira/issues';
 import {
 	CERTIFICATION_UPDATE_STATUS,
 	COMPLETED_STATUS,
+	fetchCardEvidence,
 	findSelectOption,
 	NEEDS_CATP_STATUS,
 	RATING_EXAM_STATUS,
@@ -20,6 +30,8 @@ import {
 import { RE_INSTRUCTOR_FIELD } from '$lib/server/jira/status';
 import { syncEnrollmentIssue } from './status-sync';
 import { announceArrivals } from './announce';
+import { notify } from '$lib/server/notify';
+import { certificationHeldNotice } from './notices';
 
 /**
  * The end of a course of training, as writes.
@@ -116,19 +128,24 @@ async function note(config: JiraConfig, issueKey: string, text: string): Promise
  * The teacher marks the training complete.
  *
  * Stamps `Training Completed`, then moves the card: to Rating Exam when the
- * course ends in one, otherwise straight to Certification Update.
+ * course ends in one, otherwise straight to Audit. Where a course allows either
+ * (`afterTrainingOptions()`), `to` is the teacher's choice and is required.
  */
 export async function completeTraining(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	by: string,
+	to?: AfterTraining,
 	now = new Date()
 ): Promise<FlowResult> {
-	const next =
-		afterTraining(enrollment.course) === 'rating-exam'
-			? RATING_EXAM_STATUS
-			: CERTIFICATION_UPDATE_STATUS;
+	const options = afterTrainingOptions(enrollment.course);
+	const chosen = to ?? (options.length === 1 ? options[0] : undefined);
+	if (!chosen || !options.includes(chosen)) {
+		return { ok: false, message: 'Choose whether this training ends in a rating exam.' };
+	}
+
+	const next = chosen === 'rating-exam' ? RATING_EXAM_STATUS : CERTIFICATION_UPDATE_STATUS;
 
 	return onCard(db, env, enrollment, 'complete training', async (config, issueKey) => {
 		await updateIssueFields(config, issueKey, {
@@ -252,15 +269,66 @@ export async function getAuditQueue(db: Database): Promise<Enrollment[]> {
 }
 
 export type AppliedCertification = {
-	change: CredentialChange;
+	/** Null when nothing was decided: the card could not be checked, or is held. */
+	change: CredentialChange | null;
 	/** False when the card's date could not be written; the pass is retried. */
 	stamped: boolean;
+	/** What the card lacks. Anything here means nothing was granted. */
+	missing: CompletionEvidence[];
 };
+
+/**
+ * Record that a card is held, and tell the training admins — once per distinct
+ * set of missing fields, not on every pass. If the notice cannot be sent the
+ * hold is not recorded, so the next pass tries again.
+ */
+async function holdCertification(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment,
+	missing: CompletionEvidence[]
+): Promise<void> {
+	const hold = formatHold(missing);
+	if (hold === enrollment.certificationHold) return;
+
+	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
+	const outcome = await notify(
+		env,
+		certificationHeldNotice(
+			{
+				name: enrollment.submittedName,
+				cid: enrollment.cid,
+				course: enrollment.course,
+				teacher: enrollment.teacher,
+				examiner: enrollment.reInstructor,
+				issueKey: enrollment.jiraIssueKey,
+				issueUrl:
+					base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null
+			},
+			holdLabels(hold)
+		)
+	);
+	if (outcome === 'failed') return;
+
+	await db
+		.update(enrollmentsTable)
+		.set({ certificationHold: hold })
+		.where(
+			and(eq(enrollmentsTable.id, enrollment.id), isNull(enrollmentsTable.certificationAppliedAt))
+		);
+}
 
 /**
  * Apply what a finished course earns, once.
  *
- * Three writes, in an order that makes a retry safe:
+ * **Only if the card shows the course was finished** — `missingEvidence()`. The
+ * card is read fresh from Jira first; one that lacks a field is held, the
+ * training admins are told, and nothing is granted. It is checked again on every
+ * pass, so filling the card in is all it takes to release it. With no card to
+ * read (Jira not set up, or no issue key) nothing is granted either: a
+ * certification is not handed out on what could not be checked.
+ *
+ * Then three writes, in an order that makes a retry safe:
  *
  * 1. **The credential.** Skipped when they already hold it, or hold a higher
  *    certification — `credentialChangeFor()` — so doing it twice changes nothing.
@@ -279,6 +347,17 @@ export async function applyCertificationUpdate(
 	enrollment: Enrollment,
 	now = new Date()
 ): Promise<AppliedCertification> {
+	const config = resolveJiraConfig(env);
+	if (!config || !enrollment.jiraIssueKey) return { change: null, stamped: false, missing: [] };
+
+	// Throws when Jira cannot be reached: the pass logs it and tries again.
+	const evidence = await fetchCardEvidence(config, enrollment.jiraIssueKey);
+	const missing = missingEvidence(enrollment.course, evidence);
+	if (missing.length > 0) {
+		await holdCertification(db, env, enrollment, missing);
+		return { change: null, stamped: false, missing };
+	}
+
 	const held = (await getHeldCredentials(db, enrollment.cid)).map((row) => row.code);
 	const change = credentialChangeFor(enrollment.course, held);
 
@@ -294,34 +373,31 @@ export async function applyCertificationUpdate(
 		await grantCredential(db, { cid: enrollment.cid, code: change.code, ...grant });
 	}
 
-	const config = resolveJiraConfig(env);
 	let stamped = false;
 
-	if (config && enrollment.jiraIssueKey) {
-		try {
-			await updateIssueFields(config, enrollment.jiraIssueKey, {
-				[JIRA_FIELDS.certificateUpdated]: toFacilityDate(now)
-			});
-			stamped = true;
-		} catch (err) {
-			console.error(
-				'[training-tools] could not stamp Certificate Updated',
-				enrollment.jiraIssueKey,
-				err instanceof JiraError ? err.message : err
-			);
-		}
+	try {
+		await updateIssueFields(config, enrollment.jiraIssueKey, {
+			[JIRA_FIELDS.certificateUpdated]: toFacilityDate(now)
+		});
+		stamped = true;
+	} catch (err) {
+		console.error(
+			'[training-tools] could not stamp Certificate Updated',
+			enrollment.jiraIssueKey,
+			err instanceof JiraError ? err.message : err
+		);
 	}
 
 	if (stamped) {
 		await db
 			.update(enrollmentsTable)
-			.set({ certificationAppliedAt: now, updatedAt: now })
+			.set({ certificationAppliedAt: now, certificationHold: null, updatedAt: now })
 			.where(
 				and(eq(enrollmentsTable.id, enrollment.id), isNull(enrollmentsTable.certificationAppliedAt))
 			);
 	}
 
-	return { change, stamped };
+	return { change, stamped, missing: [] };
 }
 
 export type ExaminerPassResult = {
@@ -411,14 +487,27 @@ export type CertificationPassResult = {
  * wait is seconds, and the cron is what guarantees it happens at all.
  *
  * Selecting on the status rather than hooking the transition is deliberate: it
- * does not matter how the card got there. One request failing is logged and
- * the rest still run.
+ * does not matter how the card got there. A card held for missing fields stays
+ * selected, so it is applied on the first pass after someone fills them in. One
+ * request failing is logged and the rest still run.
  */
 export async function applyPendingCertificationUpdates(
 	db: Database,
 	env: Partial<Env> | undefined,
 	now = new Date()
 ): Promise<CertificationPassResult> {
+	// A held card that was moved back off Certification Update is no longer
+	// held. Forgetting it here means a second mistaken arrival is reported again.
+	await db
+		.update(enrollmentsTable)
+		.set({ certificationHold: null })
+		.where(
+			and(
+				isNotNull(enrollmentsTable.certificationHold),
+				ne(enrollmentsTable.status, 'certification-update')
+			)
+		);
+
 	const pending = await db
 		.select()
 		.from(enrollmentsTable)
@@ -439,7 +528,7 @@ export async function applyPendingCertificationUpdates(
 		try {
 			const result = await applyCertificationUpdate(db, env, enrollment, now);
 			if (result.stamped) applied += 1;
-			if (result.change.action !== 'none') granted += 1;
+			if (result.change && result.change.action !== 'none') granted += 1;
 		} catch (err) {
 			console.error('[training-tools] certification update failed', enrollment.id, err);
 		}

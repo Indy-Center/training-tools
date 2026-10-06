@@ -43,7 +43,7 @@ export const ENROLLMENT_STATUSES = [
 	'in-training', // Jira: In Training
 	'rating-exam', // Jira: Rating Exam
 	'needs-catp', // Jira: Needs CATP — the rating exam was not passed; with the TA
-	'certification-update', // Jira: Certification Update
+	'certification-update', // Jira: Audit (Certification Update until 2026-10-06)
 	'completed', // Jira: Completed
 	'removed', // Jira: Removed — staff took them off the waitlist
 	'withdrawn' // ours only — the student stepped back
@@ -160,6 +160,15 @@ export const enrollmentsTable = sqliteTable(
 		 * lost. See `$lib/server/enrollments/completion.ts`.
 		 */
 		certificationAppliedAt: integer('certification_applied_at', { mode: 'timestamp' }),
+		/**
+		 * Why the certification has **not** been applied: the fields the TRK card
+		 * was missing when last checked, comma-separated (`formatHold()` in
+		 * `$lib/course-completion.ts`). Null when nothing is holding it.
+		 *
+		 * Also what makes the training admins hear about a hold once rather than
+		 * every fifteen minutes: they are told when this changes.
+		 */
+		certificationHold: text('certification_hold'),
 		/**
 		 * When `status`, `teacher` and `reInstructor` were last read back from Jira, by the cron
 		 * sweep or the webhook. Null until the first read. See

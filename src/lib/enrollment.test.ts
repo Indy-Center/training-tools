@@ -27,6 +27,12 @@ describe('validateEnrollment', () => {
 	});
 
 	// The form posts strings; anything else means a hand-rolled request.
+	// Staff put Custom Training on a card; it is never a student's to ask for.
+	it('rejects Custom Training', () => {
+		const result = validateEnrollment({ ...valid, course: 'CUSTOM' });
+		expect(result.ok).toBe(false);
+	});
+
 	it('rejects a missing course rather than defaulting to one', () => {
 		const result = validateEnrollment({ ...valid, course: undefined });
 

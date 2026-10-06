@@ -3,6 +3,7 @@ import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { highestCertification } from '$lib/certifications';
+import { evaluatesCourse } from '$lib/course-completion';
 import { isAssignedTo } from '$lib/teachers';
 import { getLiveCredentialsByCid } from '$lib/server/certifications';
 import { notify, type Notice } from '$lib/server/notify';
@@ -78,7 +79,7 @@ async function loadPeople(db: Database): Promise<People> {
 						teacher.removedAt === null &&
 						teacher.status === 'active' &&
 						teacher.cid !== request.cid &&
-						levels.get(teacher.cid)?.get(course) === 'evaluator' &&
+						evaluatesCourse(course, levels.get(teacher.cid) ?? new Map()) &&
 						!isAssignedTo(request.teacher, teacher)
 				)
 				.flatMap((teacher) => {

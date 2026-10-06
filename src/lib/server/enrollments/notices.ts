@@ -83,20 +83,24 @@ export function examReadyNotice(
 	};
 }
 
-/** A rating exam was not passed: the card waits for the TA to plan more training. */
+/**
+ * A card is at Needs CATP: the student needs corrective training before going
+ * on. Reached from a rating exam that was not passed, or from In Training when
+ * a teacher asks for one, so the wording does not assume an exam.
+ */
 export function needsCatpNotice(request: NoticeRequest): Notice {
 	return {
 		audience: 'training-admins',
 		tone: 'warning',
-		title: `Rating exam not passed: ${request.name}`,
+		title: `Needs CATP: ${request.name}`,
 		summary:
-			'The card is at Needs CATP. Decide on further training, then return it to training on the board.',
+			'The card is at Needs CATP. Decide on the corrective training, then return it to training on the board.',
 		link: request.issueUrl ?? undefined,
 		fields: [
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
-			{ label: 'Examined by', value: request.examiner ?? 'not set' },
+			...(request.examiner ? [{ label: 'Examined by', value: request.examiner }] : []),
 			...card(request)
 		]
 	};
@@ -116,6 +120,27 @@ export function awaitingAuditNotice(request: NoticeRequest & { holds: string | n
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
 			...(request.examiner ? [{ label: 'Examined by', value: request.examiner }] : []),
 			{ label: 'Now holds', value: request.holds ?? 'no certification' },
+			...card(request)
+		]
+	};
+}
+
+/**
+ * A card is at Certification Update without the fields that show the course was
+ * finished, so nothing has been granted. Somebody has to look at the card.
+ */
+export function certificationHeldNotice(request: NoticeRequest, missing: string[]): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `Certification not applied: ${request.name}`,
+		summary:
+			'The card is at Audit but is missing what shows the course was finished, so nothing has been granted. Fill it in on the card, or move the card back if it is there by mistake.',
+		link: request.issueUrl ?? `${SITE_URL}/admin/audit`,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Course', value: course(request.course) },
+			{ label: 'Missing on the card', value: missing.join(', ') },
 			...card(request)
 		]
 	};
