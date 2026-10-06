@@ -5,7 +5,7 @@
  * This module turns it into a message (`./message.ts`) and queues it on Larry,
  * the Indy Center Discord bot, over the `LARRY` service binding. Larry delivers
  * it, retrying rate limits and Discord outages. See
- * .ai/decisions/0022-notifications-through-larry.md
+ * decisions/0022-notifications-through-larry.md
  *
  * Notifications never fail the thing they describe. Every failure — no binding,
  * an unknown channel, Larry unreachable — is logged and swallowed, and the

@@ -5,7 +5,7 @@
  * The sweep and the webhook both go through `resolveStatusUpdate()`, so they
  * cannot disagree about what an issue means.
  *
- * See .ai/decisions/0014-enrollment-status-from-jira.md
+ * See decisions/0014-enrollment-status-from-jira.md
  */
 import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
 

@@ -11,7 +11,7 @@ import { enrollmentsTable, type EnrollmentStatus } from '$lib/db/schema/enrollme
  * long training really took. Rather than dress a guess up as a statistic, this
  * reports current headcounts, and the page pairs them with each course's
  * configured `estimatedWeeks`, labelled as an estimate. See
- * .ai/decisions/0015-waitlist-stats-without-measured-rates.md
+ * decisions/0015-waitlist-stats-without-measured-rates.md
  *
  * Counted from D1, the same source as the home page's "N ahead of you", so the
  * two pages cannot disagree. Hand-filed TRK issues are included because

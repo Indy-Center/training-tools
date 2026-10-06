@@ -47,9 +47,9 @@ and `ZID:MTR` roles, not from an identity role. `/teachers` needs
 `training:teachers:manage` (implied by `training:admin`). On `/teachers/{cid}`
 a teacher may view their own page and edit only their availability and slots;
 status, initials and qualifications are for training admins. Granting the role
-needs no identity code change — it is one row in identity's `user_roles`; see
-"Adding a role in identity by hand" in
-[`.ai/notes/2026-09-21-dev-115-certifications.md`](.ai/notes/2026-09-21-dev-115-certifications.md).
+needs no identity code change — it is one row in identity's `user_roles`. Its
+`user_id` is identity's own `users.id`, not the CID, and `granted_at` is in
+milliseconds.
 
 `/` is public only so it can render the sign-in CTA. `/stats` needs a session:
 any signed-in VATSIM member may see the counts, plus their own position. The one
@@ -84,8 +84,7 @@ self-led Tier 2 course, on the extra-courses and visitor views. For a
 **teacher** with nothing left to take — the highest certification, Tier 2, and
 no open request — the site opens on `/teach`: the bare `/` redirects there. The
 student view is still on their menu, linked as `/?view=student`, which is what
-gets past the redirect. See
-[0019](.ai/decisions/0019-default-view-by-enrollment-state.md).
+gets past the redirect.
 
 Consolidation is hours logged at the member's **current** rating, from VATSIM's
 public stats endpoint, against `CONSOLIDATION_HOURS` in `src/lib/config.ts`. A
@@ -98,8 +97,7 @@ has one. Scheduling and the student's next lesson will join it there.
 Those statuses, the assigned `Teacher` and the rating exam's `RE Instructor` are
 read back from the TRK issue two ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
 the 15-minute cron sweep as the backstop. A request the student withdrew here is
-never reopened by Jira. See
-[0014](.ai/decisions/0014-enrollment-status-from-jira.md).
+never reopened by Jira.
 
 ## Scheduled work
 
@@ -139,12 +137,12 @@ moment ago is announced in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
-`auth.flyindycenter.com` for both. See
-[`.ai/decisions/0001-identity-via-service-binding.md`](.ai/decisions/0001-identity-via-service-binding.md).
+`auth.flyindycenter.com` for both.
 
 Everything not on the public allowlist redirects to identity's `/login`. The
-gate lives in `src/hooks.server.ts`, not in a layout load —
-[why](.ai/decisions/0004-gate-in-handle-not-layout.md).
+gate lives in `src/hooks.server.ts`, not in a layout load: layout loads do not
+re-run on nested navigation, form actions run before any load, and `+server.ts`
+endpoints never run one.
 
 Every signed-in request also records the member's VATSIM email from identity
 onto their roster row. VATUSA's public roster never includes emails, so
@@ -229,7 +227,6 @@ src/
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
-.ai/                           decisions, research and session notes — start with .ai/README.md
 ```
 
 ### Roster data
@@ -242,7 +239,7 @@ their row with `removedAt` stamped, so we can tell "never on the roster" from
 Training data this app owns (certifications, endorsements, currency) keys on
 `cid` **independently** and must never take a foreign key onto `roster_members`
 — otherwise falling off the VATUSA roster would delete someone's training
-history. See [`.ai/decisions/0006-training-tools-owns-the-roster.md`](.ai/decisions/0006-training-tools-owns-the-roster.md).
+history.
 
 **D1 allows only 100 bound parameters per query** and the facility has more
 members than that, so never write `IN (...)` over the full CID list. The sync
@@ -277,9 +274,7 @@ stops a member who leaves and returns being granted a duplicate.
 Arrivals are granted automatically each cron run from their VATSIM rating, but
 only if they have controlled in the last six months — read from VATSIM API v2,
 which needs no API key. SUP and ADM are not controller ratings, so their earned
-rating is inferred from logged hours and always flagged for a TA. See
-[`.ai/decisions/0010-certifications-model.md`](.ai/decisions/0010-certifications-model.md)
-and [`.ai/research/vatsim-api.md`](.ai/research/vatsim-api.md).
+rating is inferred from logged hours and always flagged for a TA.
 
 All grants and revocations go through `grantCredential` / `revokeCredential` in
 `$lib/server/certifications/` — the arrival job, the import and the staff edit
@@ -318,8 +313,6 @@ teacher, `RE Instructor` every active teacher who evaluates anything.
 Initials are entered by training admins for now. Once community-website is on
 identity (DEV-5), take them from identity's `operatingInitials` instead.
 
-See [`.ai/decisions/0017-teacher-roster-and-qualifications.md`](.ai/decisions/0017-teacher-roster-and-qualifications.md).
-
 ### Timelines and the activity log
 
 `/teachers/{cid}` and `/certifications/{cid}` show one timeline per controller:
@@ -356,8 +349,7 @@ each end-of-course step run it. A retake that leaves Rating Exam and comes back 
 announced again. The audit notice waits until the certification is applied.
 
 A failed job is announced when it **starts** failing and when it **recovers**,
-not on every run. See
-[`.ai/decisions/0022-notifications-through-larry.md`](.ai/decisions/0022-notifications-through-larry.md).
+not on every run.
 
 The types for the binding come from `@indy-center/indy-larry-worker`.
 
@@ -373,10 +365,8 @@ A new request has status **`waitlist`**, which is TRK's initial status. Note the
 workflow changed once during DEV-108 (a triage step in front of the waitlist was
 removed), so re-verify the statuses before relying on them — and read them by
 creating a test issue, not by listing the board, which hides any status no issue
-is currently sitting in. Details and the full field/option id map are in
-[`.ai/research/jira-student-tracking.md`](.ai/research/jira-student-tracking.md);
-the reasoning is in
-[`.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md`](.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md).
+is currently sitting in. The field and option ids the app uses are in
+`src/lib/server/jira/fields.ts` and `src/lib/courses.ts`.
 
 **Issues staff file by hand on the board get rows too.** Most of TRK predates
 this app — the backlog was moved onto the board by hand on 2026-09-05 — so the
@@ -412,8 +402,8 @@ from the certifications this app holds, walking the `rank` ladder and each
 credential's `requires` — so an advanced-ground controller is sent to S-LC before
 A-LC, because A-LC requires it. It is recomputed server-side on submit, and a
 POST naming any other course is refused. (DEV-119 originally let the student
-pick any course and flagged the difference to staff; that was reversed in
-[0019](.ai/decisions/0019-default-view-by-enrollment-state.md).) Someone the app
+pick any course and flagged the difference to staff; that was reversed when `/`
+became the one student view.) Someone the app
 has placed wrongly needs their certifications corrected before they can enroll.
 
 The student must accept the terms in `agreement.md` to submit. The enrollment
@@ -530,8 +520,7 @@ markdown is plain prose with no placeholders. `index.ts` holds each view as
 
 **Course content does not live here.** This repo is public, and lesson plans,
 grade sheets and exam material are neither for the public web nor something the
-training team should need a public PR to change. See
-[`.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md`](.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md).
+training team should need a public PR to change.
 
 When you change `agreement.md` in a way that alters what a student agrees to,
 **bump `TERMS_VERSION`** in `src/lib/content/enrollment/index.ts`.

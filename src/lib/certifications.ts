@@ -8,7 +8,7 @@
  * everything that reads them wants "what does this controller hold" rather than
  * one kind or the other. `kind` is the only thing that differs structurally.
  *
- * See .ai/decisions/0010-certifications-model.md and DEV-115.
+ * See decisions/0010-certifications-model.md and DEV-115.
  */
 import type { CourseCode } from './courses';
 

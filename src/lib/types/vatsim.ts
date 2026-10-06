@@ -3,7 +3,7 @@
  *
  * Verified live against a real ZID CID on 2026-09-21. Public, **no API key** —
  * like the VATUSA roster, and for the same reason the roster sync needs no
- * secrets. See .ai/research/vatsim-api.md
+ * secrets. See research/vatsim-api.md
  */
 
 /** One network connection. `type` 1 is a pilot session, 2 is ATC. */

@@ -16,7 +16,7 @@
  *        │                                               TA: audit complete ──> Completed │
  *        └──────────────────────── TA returns it to training, on the board ───────────────┘
  *
- * See .ai/decisions/0021-end-of-course-flows.md
+ * See decisions/0021-end-of-course-flows.md
  */
 import { findCredential, highestCertification } from './certifications';
 import { findCourse } from './courses';

@@ -17,7 +17,7 @@ export type InsertActivityLogEntry = InferInsertModel<typeof activityLogTable>;
  * with no foreign key, like all our training data (0006).
  *
  * See `$lib/activity.ts` for the vocabulary, and
- * .ai/decisions/0017-teacher-roster-and-qualifications.md
+ * decisions/0017-teacher-roster-and-qualifications.md
  */
 export const activityLogTable = sqliteTable(
 	'activity_log',

@@ -24,7 +24,7 @@ import {
  *
  * Both end in `applyIssueStatus()`, which orders every write by when that state
  * was true in Jira, so the two can arrive in any order. See
- * .ai/decisions/0014-enrollment-status-from-jira.md
+ * decisions/0014-enrollment-status-from-jira.md
  */
 
 export type ApplyOutcome =

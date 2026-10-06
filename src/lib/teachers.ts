@@ -8,7 +8,7 @@
  *
  * Everything here is pure, in the same shape as `$lib/certifications.ts`, so
  * the policy is testable without a database. See
- * .ai/decisions/0017-teacher-roster-and-qualifications.md and DEV-175.
+ * decisions/0017-teacher-roster-and-qualifications.md and DEV-175.
  */
 import { CREDENTIALS, findCredential, type CredentialCode } from './certifications';
 import { FACILITY_ID, RATING_S3 } from './config';
