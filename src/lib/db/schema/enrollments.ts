@@ -43,7 +43,7 @@ export const ENROLLMENT_STATUSES = [
 	'in-training', // Jira: In Training
 	'rating-exam', // Jira: Rating Exam
 	'needs-catp', // Jira: Needs CATP — the rating exam was not passed; with the TA
-	'certification-update', // Jira: Certification Update
+	'certification-update', // Jira: Audit (Certification Update until 2026-10-06)
 	'completed', // Jira: Completed
 	'removed', // Jira: Removed — staff took them off the waitlist
 	'withdrawn' // ours only — the student stepped back

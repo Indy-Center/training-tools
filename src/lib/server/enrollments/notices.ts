@@ -83,20 +83,24 @@ export function examReadyNotice(
 	};
 }
 
-/** A rating exam was not passed: the card waits for the TA to plan more training. */
+/**
+ * A card is at Needs CATP: the student needs corrective training before going
+ * on. Reached from a rating exam that was not passed, or from In Training when
+ * a teacher asks for one, so the wording does not assume an exam.
+ */
 export function needsCatpNotice(request: NoticeRequest): Notice {
 	return {
 		audience: 'training-admins',
 		tone: 'warning',
-		title: `Rating exam not passed: ${request.name}`,
+		title: `Needs CATP: ${request.name}`,
 		summary:
-			'The card is at Needs CATP. Decide on further training, then return it to training on the board.',
+			'The card is at Needs CATP. Decide on the corrective training, then return it to training on the board.',
 		link: request.issueUrl ?? undefined,
 		fields: [
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
-			{ label: 'Examined by', value: request.examiner ?? 'not set' },
+			...(request.examiner ? [{ label: 'Examined by', value: request.examiner }] : []),
 			...card(request)
 		]
 	};

@@ -1,4 +1,4 @@
-import { isCourseCode, type CourseCode } from '$lib/courses';
+import { isEnrollableCourseCode, type CourseCode } from '$lib/courses';
 import { NOTIFICATION_PREFERENCES, type NotificationPreference } from '$lib/db/schema/enrollments';
 
 /**
@@ -38,7 +38,7 @@ function isNotificationPreference(value: unknown): value is NotificationPreferen
 export function validateEnrollment(input: EnrollmentInput): EnrollmentValidation {
 	const errors: EnrollmentErrors = {};
 
-	if (!isCourseCode(input.course)) {
+	if (!isEnrollableCourseCode(input.course)) {
 		errors.course = 'Choose the course you want to train for.';
 	}
 

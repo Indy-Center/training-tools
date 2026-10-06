@@ -66,7 +66,8 @@
 	id: string,
 	label: string,
 	question: string,
-	variant: 'primary' | 'secondary' = 'primary'
+	variant: 'primary' | 'secondary' = 'primary',
+	next: string | null = null
 )}
 	<form
 		method="POST"
@@ -85,6 +86,9 @@
 		}}
 	>
 		<input type="hidden" name="id" value={id} />
+		{#if next}
+			<input type="hidden" name="next" value={next} />
+		{/if}
 		<Button type="submit" size="sm" {variant} disabled={busyId !== null}>
 			{busyId === id ? 'Working…' : label}
 		</Button>
@@ -122,9 +126,9 @@
 									{student.availability}
 								</p>
 							{/if}
-							{#if student.canComplete}
+							{#if student.canComplete && student.next.length === 1}
 								{@const leadsTo =
-									student.next === 'rating-exam'
+									student.next[0] === 'rating-exam'
 										? 'This dates the card and moves it to Rating Exam, where an examiner takes it.'
 										: 'This dates the card, applies the certification and sends it to the TA to audit.'}
 								{@render step(
@@ -133,6 +137,26 @@
 									'Mark training complete',
 									`Mark training complete for ${student.name}?\n\n${leadsTo}`
 								)}
+							{:else if student.canComplete}
+								<!-- The teacher's call: this training may or may not need examining. -->
+								<div class="flex flex-wrap gap-2">
+									{@render step(
+										'completeTraining',
+										student.enrollmentId,
+										'Training complete: needs a rating exam',
+										`Mark training complete for ${student.name}, with a rating exam to follow?\n\nThis dates the card and moves it to Rating Exam, where an examiner takes it.`,
+										'primary',
+										'rating-exam'
+									)}
+									{@render step(
+										'completeTraining',
+										student.enrollmentId,
+										'Training complete: no exam',
+										`Mark training complete for ${student.name}, with no rating exam?\n\nThis dates the card and sends it to the TA to audit.`,
+										'secondary',
+										'certification-update'
+									)}
+								</div>
 							{/if}
 						</li>
 					{/each}

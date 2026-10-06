@@ -393,6 +393,16 @@ plus 20% on the high end — and is labelled as an estimate. There is no
 "you'll start in N weeks": nothing records when students move between stages,
 so there is no throughput to base one on.
 
+**Custom Training** is a seventh option on TRK's course select, for training
+outside the six courses. Staff put it on a card by hand; the app imports and
+shows such a request like any other, but never offers it on the form and refuses
+a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential, and
+`/stats` lists it only while someone is in it. **Whether it ends in a rating exam
+is the teacher's choice**, made on `/teach` as they mark the training complete:
+to Rating Exam, or straight to Audit. Having no qualification of its own, its
+exam may be claimed by anyone who evaluates any course — still never the
+student's own teacher.
+
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
@@ -425,6 +435,10 @@ How a course finishes, and who moves it. The rules are pure functions in
 | _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
 | Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
+TRK's status for a finished course waiting on the TA is **Audit** (Certification
+Update until 2026-10-06). The app's own name for it is still
+`certification-update`, and it reads either name off the board.
+
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
 
@@ -452,6 +466,11 @@ depend on the workflow staying as it is.
 What a course earns is the credential of the same code, and a certification only
 ever moves someone **up**: a card for a course below what they already hold
 changes nothing. An endorsement (S-LC) is added beside their certification.
+
+**Needs CATP** (a Corrective Action Training Plan) is reached two ways: a failed
+exam, below, or a card staff move there from In Training on the board. The app
+cannot tell which, so what it says to the student and the training admins does
+not assume an exam.
 
 A **failed exam** goes to Needs CATP, with `Training Completed` cleared: the
 training was not complete after all. The TA decides what further training the
