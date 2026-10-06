@@ -21,7 +21,7 @@
 	},
 	"dependencies": {
 		"@indy-center/identity": "^1.0.0",
-		"@indy-center/indy-larry-worker": "^1.0.0"
+		"@indy-center/indy-larry-worker": "^1.1.0"
 	},
 	"devDependencies": {
 		"@iconify/json": "^2.2.379",

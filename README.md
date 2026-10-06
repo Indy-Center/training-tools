@@ -355,9 +355,8 @@ must be set for any channel to be made.
 Live, a role or channel that cannot be synced fails the job, so the tech team
 hears through the job alert; the others are still done.
 
-Two things here are stand-ins: the types in `$lib/server/discord/larry.ts`
-mirror Larry 1.1.0 until it is on npm, and `$lib/server/discord/identity.ts`
-calls two identity methods that exist but are not in its published interface.
+One thing here is a stand-in: `$lib/server/discord/identity.ts` calls two
+identity methods that exist but are not in its published interface.
 
 ### Timelines and the activity log
 
