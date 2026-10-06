@@ -26,13 +26,8 @@ import {
 } from '$lib/server/vatusa';
 import { slotSummary } from '$lib/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
-import {
-	academyExamFor,
-	firstPass,
-	pickAcademyAssigner,
-	teacherGate,
-	type TeacherGate
-} from '$lib/vatusa-academy';
+import { academyExamFor, firstPass, pickAcademyAssigner, teacherGate } from '$lib/vatusa-academy';
+import type { TeacherChoice, WaitlistRow } from '$lib/waitlist';
 import { note, onCard, type FlowResult } from './completion';
 import { syncEnrollmentIssue } from './status-sync';
 
@@ -49,37 +44,6 @@ import { syncEnrollmentIssue } from './status-sync';
 
 /** TRK's status for someone with a teacher. Matched by name, like every transition. */
 const IN_TRAINING_STATUS = 'In Training';
-
-/** A teacher someone on the waitlist could be given. */
-export type TeacherChoice = {
-	cid: string;
-	label: string;
-	/** Open slots, or null when they have not said how many they take. */
-	available: number | null;
-};
-
-export type WaitlistRow = {
-	id: string;
-	cid: string;
-	name: string;
-	ratingShort: string | null;
-	course: string;
-	courseName: string;
-	/** 1 is next, within their course. */
-	position: number;
-	waitlistedAt: Date;
-	availability: string | null;
-	notificationPreference: string | null;
-	/** The written exam this course needs, or null when it needs none. */
-	exam: string | null;
-	vatusaAssignedOn: string | null;
-	vatusaCompletedOn: string | null;
-	gate: TeacherGate;
-	issueKey: string | null;
-	issueUrl: string | null;
-	/** Active teachers who may teach this course. */
-	teachers: TeacherChoice[];
-};
 
 /** Everyone on the waitlist, by course and then by how long they have waited. */
 export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Promise<WaitlistRow[]> {

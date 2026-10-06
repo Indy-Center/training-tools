@@ -15,12 +15,12 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one   |
 | `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status            |
 | `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2            |
-| `GET /stats`                 | required   | Per-course waiting/in-training counts and course length                |
+| `GET /waitlist`              | required   | Per-course counts and your own place; for staff, everyone waiting too  |
+| `GET /stats`                 | required   | Redirects to `/waitlist`, which replaced it                            |
 | `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                   |
 | `GET /certifications`        | staff      | Search the roster by CID or name                                       |
 | `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                    |
 | `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                            |
-| `GET /waitlist`              | staff      | Everyone on the waitlist, their VATUSA written course, and a teacher   |
 | `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`                |
 | `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                |
 | `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                  |
@@ -53,7 +53,7 @@ needs no identity code change — it is one row in identity's `user_roles`. Its
 `user_id` is identity's own `users.id`, not the CID, and `granted_at` is in
 milliseconds.
 
-`/` is public only so it can render the sign-in CTA. `/stats` needs a session:
+`/` is public only so it can render the sign-in CTA. `/waitlist` needs a session:
 any signed-in VATSIM member may see the counts, plus their own position. The one
 other public path is `POST /api/jira/webhook`, which authenticates Jira by HMAC
 signature instead of a session.
@@ -430,12 +430,12 @@ is currently sitting in. The field and option ids the app uses are in
 this app — the backlog was moved onto the board by hand on 2026-09-05 — so the
 cron's board import creates an `enrollments` row (with `importedAt` set) for any
 Student Enrollment issue no row holds, queued by its `Waitlisted` date. Those
-students then see their request on `/`, are counted on `/stats`, and cannot file
+students then see their request on `/`, are counted on `/waitlist`, and cannot file
 a duplicate. An issue with no usable CID, course or date is skipped and logged
 each run until someone fixes it on the board. The import is the only code that
 creates rows from Jira; the sweep and webhook only update existing ones.
 
-**`/stats` shows headcounts and estimates, not measured rates** (DEV-111). Each
+**`/waitlist` shows headcounts and estimates, not measured rates** (DEV-111). Each
 course's length is `estimatedWeeks` in `$lib/courses.ts` — one lesson a week,
 plus 20% on the high end — and is labelled as an estimate. There is no
 "you'll start in N weeks": nothing records when students move between stages,
@@ -445,7 +445,7 @@ so there is no throughput to base one on.
 outside the six courses. Staff put it on a card by hand; the app imports and
 shows such a request like any other, but never offers it on the form and refuses
 a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential, and
-`/stats` lists it only while someone is in it. **Whether it ends in a rating exam
+`/waitlist` lists it only while someone is in it. **Whether it ends in a rating exam
 is the teacher's choice**, made on `/teach` as they mark the training complete:
 to Rating Exam, or straight to Audit. Having no qualification of its own, its
 exam may be claimed by anyone who evaluates any course — still never the
@@ -470,9 +470,15 @@ the wording will change and an acceptance date alone cannot say what was agreed.
 
 ### The waitlist, for staff
 
-`/waitlist` is the queue as the people who work it need it: everyone waiting,
-across every course, in one table. It needs `training:students:manage`, which
-`training:admin` covers. (`/stats` is the public side: counts only.)
+`/waitlist` is one page for two audiences. Every signed-in member sees the
+counts per course, and their own place first if they are waiting. Someone with
+`training:students:manage` (which `training:admin` covers) also sees the staff
+sheet: everyone waiting, across every course, in one table. Staff can be on the
+waitlist themselves; they get both.
+
+**The sheet's rows are loaded only for that role, not hidden from everyone
+else.** The page is open to every member and the rows name people, so the load
+never reads them without the role; `page.server.test.ts` pins that.
 
 Two things happen to someone on it, in order:
 

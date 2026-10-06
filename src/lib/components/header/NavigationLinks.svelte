@@ -1,11 +1,7 @@
 <script lang="ts">
 	import type { User } from '@indy-center/identity';
 	import { page } from '$app/state';
-	import {
-		canEditCertifications,
-		canManageStudents,
-		canManageTeachers
-	} from '$lib/utils/permissions';
+	import { canEditCertifications, canManageTeachers } from '$lib/utils/permissions';
 	import { COMMUNITY_URL } from '$lib/config';
 	import { STUDENT_VIEW_HREF } from '$lib/training-flow';
 	import IconHome from '~icons/mdi/home';
@@ -15,7 +11,6 @@
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconTeach from '~icons/mdi/human-male-board';
 	import IconTeachers from '~icons/mdi/account-group';
-	import IconTable from '~icons/mdi/table-account';
 
 	let {
 		user,
@@ -68,21 +63,13 @@
 								}
 							]
 						: []),
+					// One page for everyone: counts for members, and the staff sheet below
+					// them for training:students:manage.
 					{
 						label: 'Waitlist',
-						href: '/stats',
+						href: '/waitlist',
 						icon: IconChartBar
 					},
-					// The staff side of the waitlist: everyone on it, and the way off it.
-					...(canManageStudents(roles)
-						? [
-								{
-									label: 'Manage Waitlist',
-									href: '/waitlist',
-									icon: IconTable
-								}
-							]
-						: []),
 					...(canEditCertifications(roles)
 						? [
 								{

@@ -4,7 +4,7 @@ import { COURSES, type CourseCode, type WeeksRange } from '$lib/courses';
 import { enrollmentsTable, type EnrollmentStatus } from '$lib/db/schema/enrollments';
 
 /**
- * Per-course counts for `/stats` (DEV-111).
+ * Per-course counts for `/waitlist` (DEV-111).
  *
  * **Only what is true right now.** Nothing records when a student moved between
  * stages, so there is no measured rate to show — how fast the queue moves, how

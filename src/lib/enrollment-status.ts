@@ -10,7 +10,7 @@
  */
 import type { EnrollmentStatus, NotificationPreference } from '$lib/db/schema/enrollments';
 
-/** How each contact option reads. The enroll form's radios, `/` and `/stats` all use these. */
+/** How each contact option reads. The enroll form's radios, `/` and `/waitlist` all use these. */
 export const NOTIFICATION_LABELS: Record<NotificationPreference, string> = {
 	discord: 'Discord message',
 	email: 'Email'

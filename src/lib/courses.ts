@@ -33,7 +33,7 @@ export type Course = {
 	/** One line of orientation on the form. */
 	description: string;
 	/**
-	 * How long the course takes once training starts. Shown on `/stats`; null
+	 * How long the course takes once training starts. Shown on `/waitlist`; null
 	 * renders as "not estimated yet" rather than a guess.
 	 *
 	 * **An estimate, not a measurement.** Nothing records when students move

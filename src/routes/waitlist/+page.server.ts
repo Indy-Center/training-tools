@@ -1,7 +1,12 @@
 import { fail } from '@sveltejs/kit';
 import { canManageStudents } from '$lib/utils/permissions';
-import { requireRole } from '$lib/server/guards';
-import { getEnrollment } from '$lib/server/enrollments';
+import { requireRole, requireSession } from '$lib/server/guards';
+import {
+	getEnrollment,
+	getOwnOpenEnrollment,
+	getWaitlistPosition,
+	getWaitlistStats
+} from '$lib/server/enrollments';
 import {
 	assignTeacher,
 	assignVatusaCourse,
@@ -12,23 +17,48 @@ import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
 /**
- * The waitlist, for the people who work it: everyone waiting, across every
- * course, in one table — with the VATUSA written course each needs and the
- * teacher to give them once it is passed.
+ * The waitlist: one page for two audiences.
  *
- * For `training:students:manage` (which `training:admin` covers), checked in
- * the load **and** in every action: a form action runs before any load, and
- * `hooks.server.ts` only proves a session.
+ * - **Any signed-in VATSIM member** gets the counts per course, and their own
+ *   place if they are waiting. `hooks.server.ts` has already proved a session.
+ * - **`training:students:manage`** (which `training:admin` covers) also gets
+ *   the staff sheet: everyone waiting, by name, with the VATUSA written course
+ *   each needs and the teacher to give them.
+ *
+ * The sheet's rows are **loaded only for that role**, not merely hidden: this
+ * page is open to every member, and the rows name people and carry what they
+ * told us about their availability. `page.server.test.ts` pins it. Each action
+ * checks the role again, because a form action runs before any load.
+ *
+ * Someone on the waitlist can hold the role too; they get both, their own
+ * place first.
  */
 export const load: PageServerLoad = async ({ locals, platform }) => {
-	requireRole(locals, canManageStudents);
-
+	const session = requireSession(locals);
 	const env: Partial<Env> | undefined = platform?.env;
 
+	const [courses, enrollment] = await Promise.all([
+		getWaitlistStats(locals.db),
+		getOwnOpenEnrollment(locals)
+	]);
+
 	return {
-		rows: await getWaitlistSheet(locals.db, platform?.env.JIRA_BASE_URL),
-		// Whether VATUSA can be asked to assign a course, or only the card dated.
-		vatusaKeySet: Boolean(env?.VATUSA_API_KEY?.trim())
+		courses,
+		mine:
+			enrollment?.status === 'waitlist'
+				? {
+						course: enrollment.course,
+						notification: enrollment.notificationPreference,
+						...(await getWaitlistPosition(locals.db, enrollment))
+					}
+				: null,
+		sheet: canManageStudents(session.roles)
+			? {
+					rows: await getWaitlistSheet(locals.db, platform?.env.JIRA_BASE_URL),
+					// Whether VATUSA can be asked to assign a course, or only the card dated.
+					vatusaKeySet: Boolean(env?.VATUSA_API_KEY?.trim())
+				}
+			: null
 	};
 };
 
