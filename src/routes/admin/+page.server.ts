@@ -110,9 +110,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 				missing: 'Board changes are only picked up by the 15-minute sweep.'
 			},
 			{
-				label: 'Discord webhook for training admins',
-				set: Boolean(env?.DISCORD_WEBHOOK_TRAINING_ADMINS?.trim()),
-				missing: 'Notices to training admins are logged and not sent.'
+				label: 'Larry, for Discord notices',
+				set: Boolean(platform?.env.LARRY),
+				missing: 'Notices to Discord are logged and not sent.'
 			}
 		]
 	};

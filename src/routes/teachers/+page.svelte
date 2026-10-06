@@ -31,13 +31,6 @@
 
 <div class="mb-8">
 	<h1 class="text-3xl font-bold text-white">Teachers</h1>
-	<p class="mt-2 text-gray-400">
-		Everyone holding ZID INS or MTR on VATUSA. {data.totals.teachers} on the roster, {data.totals
-			.onLoa} on LOA,
-		<span class="text-white">{data.totals.openSlots} open slots</span>{#if data.totals.notSet > 0}; {data
-				.totals.notSet} have not set their slots{/if}. Slots of teachers on LOA are never counted as
-		open.
-	</p>
 </div>
 
 {#if data.dropdowns}
@@ -127,17 +120,11 @@
 			</tbody>
 		</table>
 	</div>
-	<p class="border-t border-slate-700/60 px-4 py-3 text-xs text-gray-500">
-		Trn = Training · T = Teacher · T+E = Teacher and Evaluator · · = No Qual
-	</p>
 </Panel>
 
 {#if data.former.length > 0}
 	<div class="mt-6">
 		<Panel title="Former teachers" icon={IconHistory}>
-			<p class="px-4 pt-3 text-xs text-gray-500">
-				Qualifications are kept for six months after someone leaves the teacher roster, then end.
-			</p>
 			<ul class="divide-y divide-slate-700/60">
 				{#each data.former as teacher (teacher.cid)}
 					<li class="flex items-center justify-between gap-3 px-4 py-3 text-sm">

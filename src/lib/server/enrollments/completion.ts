@@ -19,6 +19,7 @@ import {
 } from '$lib/server/jira/progress';
 import { RE_INSTRUCTOR_FIELD } from '$lib/server/jira/status';
 import { syncEnrollmentIssue } from './status-sync';
+import { announceArrivals } from './announce';
 
 /**
  * The end of a course of training, as writes.
@@ -96,6 +97,7 @@ async function onCard(
 	try {
 		await syncEnrollmentIssue(db, env, issueKey);
 		await applyPendingCertificationUpdates(db, env);
+		await announceArrivals(db, env);
 	} catch (err) {
 		console.error(`[training-tools] ${step}: could not read ${issueKey} back`, err);
 	}
