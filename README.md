@@ -333,10 +333,10 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                                                                                  |
-| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a certification held because its card is incomplete, a request stuck before TRK, a background job failing and recovering |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                     |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `training-admins` | `training-admin-alerts` | a new enrollment through the form, teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a certification held because its card is incomplete, a request stuck before TRK, a background job failing and recovering |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                   |
 
 Only the people a notice names are pinged; nothing typed into a field can mention
 anyone. **Students and teachers are not messaged by the app yet** — TRK's own

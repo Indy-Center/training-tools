@@ -6,6 +6,7 @@ import {
 	certificationHeldNotice,
 	examReadyNotice,
 	needsCatpNotice,
+	newEnrollmentNotice,
 	stuckRequestNotice
 } from './notices';
 
@@ -111,6 +112,37 @@ describe('stuckRequestNotice', () => {
 		expect(notice.summary).toContain('5 times');
 		expect(field(notice, 'Last error')).toBe('Jira 401: Unauthorized');
 		expect(notice.link).toMatch(/\/admin$/);
+	});
+});
+
+describe('newEnrollmentNotice', () => {
+	const enrolled = {
+		...request,
+		teacher: null,
+		examiner: null,
+		rating: 'S1',
+		availability: 'Weeknights after 7',
+		notificationPreference: 'discord'
+	};
+
+	it('tells the training admins who enrolled, in what, and how to reach them', () => {
+		const notice = newEnrollmentNotice(enrolled);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.tone).toBeUndefined();
+		expect(notice.title).toBe('New enrollment: Jo Rivera');
+		expect(field(notice, 'Course')).toBe('Terminal Radar Control (T-RC)');
+		expect(field(notice, 'Rating')).toBe('S1');
+		expect(field(notice, 'Contact by')).toBe('Discord message');
+		expect(field(notice, 'Availability')).toBe('Weeknights after 7');
+		expect(notice.link).toBe('https://jira.test/browse/TRK-42');
+		expect(notice.mention).toBeUndefined();
+	});
+
+	// Jira was down as they submitted: the request is still theirs and ours.
+	it('says so when the card has not reached the board yet', () => {
+		const notice = newEnrollmentNotice({ ...enrolled, issueKey: null, issueUrl: null });
+		expect(field(notice, 'TRK card')).toMatch(/Not on the board yet/);
+		expect(notice.link).toBeUndefined();
 	});
 });
 
