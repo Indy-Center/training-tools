@@ -9,7 +9,7 @@ import {
 	listTeachers
 } from '$lib/server/teachers';
 import { describeDrift } from '$lib/server/teachers/notices';
-import { getRoomsReport } from '$lib/server/discord/rooms';
+import { getDiscordNames, getRoomsReport } from '$lib/server/discord/rooms';
 import { QUALIFICATION_CREDENTIALS, slotSummary } from '$lib/teachers';
 import type { PageServerLoad } from './$types';
 
@@ -22,14 +22,16 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	requireRole(locals, canManageTeachers);
 
-	const [teachers, people, qualifications, enrollments, dropdowns, rooms] = await Promise.all([
-		listTeachers(locals.db),
-		getPeople(locals.db),
-		getAllCurrentQualifications(locals.db),
-		getAssignedEnrollments(locals.db),
-		getStoredDropdownDrift(locals.db),
-		getRoomsReport(locals.db)
-	]);
+	const [teachers, people, qualifications, enrollments, dropdowns, rooms, discordNames] =
+		await Promise.all([
+			listTeachers(locals.db),
+			getPeople(locals.db),
+			getAllCurrentQualifications(locals.db),
+			getAssignedEnrollments(locals.db),
+			getStoredDropdownDrift(locals.db),
+			getRoomsReport(locals.db),
+			getDiscordNames(locals.db)
+		]);
 
 	const nameOf = (cid: string) => people.get(cid)?.name ?? cid;
 
@@ -95,8 +97,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 						channel: room.channel,
 						channelRenamedFrom: room.channelRenamedFrom ?? null,
 						added: room.added.map(nameOf),
-						// Discord IDs: whoever is losing the role may not be on our roster.
-						removed: room.removed,
+						// By name where the roster knows the Discord ID; otherwise the ID
+						// itself, since whoever is losing the role may be nobody we know.
+						removed: room.removed.map((id) => discordNames.get(id) ?? `Discord user ${id}`),
 						notInServer: room.notInServer.map(nameOf),
 						noDiscord: room.noDiscord.map(nameOf),
 						errors: room.errors
