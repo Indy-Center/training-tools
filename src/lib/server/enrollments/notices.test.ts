@@ -74,6 +74,13 @@ describe('needsCatpNotice', () => {
 		// Students are not pinged from here: TRK's own script tells them for now.
 		expect(notice.mention).toBeUndefined();
 	});
+
+	// Needs CATP is also reached from In Training, with no exam behind it.
+	it('does not assume there was an exam', () => {
+		const notice = needsCatpNotice({ ...request, examiner: null });
+		expect(notice.title).not.toMatch(/exam/i);
+		expect(field(notice, 'Examined by')).toBeUndefined();
+	});
 });
 
 describe('awaitingAuditNotice', () => {
