@@ -50,6 +50,11 @@ export type Course = {
 	 * The app reads and shows it; the form never offers it and refuses it.
 	 */
 	boardOnly?: boolean;
+	/**
+	 * True when whether the course ends in a rating exam is the teacher's call,
+	 * made as they mark the training complete, rather than a fact about the course.
+	 */
+	examOptional?: boolean;
 };
 
 export const COURSES = [
@@ -110,15 +115,17 @@ export const COURSES = [
 	},
 	{
 		// Training that is none of the six: staff file the card and choose this.
-		// It has no credential, so finishing it changes no certification, and no
-		// rating exam.
+		// It has no credential, so finishing it changes no certification. Whether
+		// it ends in a rating exam depends on what the training was, so the teacher
+		// says when they mark it complete.
 		code: 'CUSTOM',
 		name: 'Custom Training',
 		label: 'Custom Training',
 		jiraOptionId: '10141',
 		description: 'Training arranged by the training staff outside the standard courses.',
 		estimatedWeeks: null,
-		boardOnly: true
+		boardOnly: true,
+		examOptional: true
 	}
 ] as const satisfies readonly Course[];
 

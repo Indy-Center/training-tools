@@ -19,11 +19,41 @@
  * See .ai/decisions/0021-end-of-course-flows.md
  */
 import { findCredential, highestCertification } from './certifications';
+import { findCourse } from './courses';
 import { hasEvaluation, isAssignedTo, type QualificationLevel } from './teachers';
 
+export type AfterTraining = 'rating-exam' | 'certification-update';
+
 /** Where a course goes when its teacher marks the training complete. */
-export function afterTraining(course: string): 'rating-exam' | 'certification-update' {
+export function afterTraining(course: string): AfterTraining {
 	return hasEvaluation(course) ? 'rating-exam' : 'certification-update';
+}
+
+/**
+ * Everywhere a course may go when its teacher marks the training complete.
+ *
+ * One answer for the six standard courses. Two for a course whose exam is
+ * optional (Custom Training): the teacher chooses, because only they know
+ * whether what they taught needs examining.
+ */
+export function afterTrainingOptions(course: string): AfterTraining[] {
+	if (findCourse(course)?.examOptional) return ['rating-exam', 'certification-update'];
+	return [afterTraining(course)];
+}
+
+/**
+ * Whether someone with these qualifications may examine a course.
+ *
+ * For a standard course, they must be an evaluator on that course. A course
+ * with an optional exam has no qualification of its own, so anyone who
+ * evaluates any course may examine it.
+ */
+export function evaluatesCourse(
+	course: string,
+	levels: ReadonlyMap<string, QualificationLevel>
+): boolean {
+	if (findCourse(course)?.examOptional) return [...levels.values()].includes('evaluator');
+	return levels.get(course) === 'evaluator';
 }
 
 export type CredentialChange =
@@ -119,7 +149,7 @@ export function canClaimExam(
 		!request.reInstructor &&
 		!isOwn(request, teacher) &&
 		!taughtThem(request, teacher) &&
-		levels.get(request.course) === 'evaluator'
+		evaluatesCourse(request.course, levels)
 	);
 }
 

@@ -18,10 +18,11 @@ import {
 	studentRows
 } from '$lib/server/teachers';
 import {
-	afterTraining,
+	afterTrainingOptions,
 	canCompleteExam,
 	canCompleteTraining,
-	canClaimExam
+	canClaimExam,
+	evaluatesCourse
 } from '$lib/course-completion';
 import { isAssignedTo, QUALIFICATION_CREDENTIALS, slotSummary } from '$lib/teachers';
 import { displayName } from '$lib/user';
@@ -70,7 +71,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		(enrollment) =>
 			enrollment.status === 'rating-exam' &&
 			enrollment.cid !== teacher.cid &&
-			(levels.get(enrollment.course) === 'evaluator' ||
+			(evaluatesCourse(enrollment.course, levels) ||
 				isAssignedTo(enrollment.reInstructor, teacher) ||
 				isAssignedTo(enrollment.teacher, teacher))
 	);
@@ -98,8 +99,8 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 			return {
 				...row,
 				canComplete: canCompleteTraining(enrollment, teacher),
-				// What "training complete" leads to, so the button can say so.
-				next: afterTraining(enrollment.course)
+				// What "training complete" may lead to: one button each, saying so.
+				next: afterTrainingOptions(enrollment.course)
 			};
 		}),
 		exams: studentRows(exams, people, jiraBaseUrl).map((row) => {
@@ -136,10 +137,11 @@ async function acting(event: Pick<RequestEvent, 'locals' | 'request'>) {
 	const teacher = await getActiveTeacher(event.locals.db, session.user.cid);
 	if (!teacher) error(403, 'Only teachers can do this.');
 
-	const id = (await event.request.formData()).get('id');
+	const form = await event.request.formData();
+	const id = form.get('id');
 	const enrollment = typeof id === 'string' && id ? await getEnrollment(event.locals.db, id) : null;
 
-	return { session, teacher, enrollment };
+	return { session, teacher, enrollment, form };
 }
 
 const GONE = 'That request is no longer open. Reload the page.';
@@ -158,15 +160,23 @@ export const actions: Actions = {
 
 	/** The assigned teacher: the card is dated, and moves on. */
 	completeTraining: async (event) => {
-		const { session, teacher, enrollment } = await acting(event);
+		const { session, teacher, enrollment, form } = await acting(event);
 		if (!enrollment) return fail(404, { flowError: GONE });
 		if (!canCompleteTraining(enrollment, teacher)) return fail(403, { flowError: NOT_YOURS });
+
+		// Only a course with a choice sends one; anything it does not allow is
+		// refused, so a standard course cannot be steered past its exam from here.
+		const next = form.get('next');
+		const options = afterTrainingOptions(enrollment.course);
+		const to = options.find((option) => option === next);
+		if (next !== null && !to) return fail(400, { flowError: NOT_YOURS });
 
 		const result = await completeTraining(
 			event.locals.db,
 			event.platform?.env,
 			enrollment,
-			displayName(session.user)
+			displayName(session.user),
+			to
 		);
 		return finish(result, 'Training marked complete', enrollment);
 	},

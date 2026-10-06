@@ -396,8 +396,12 @@ so there is no throughput to base one on.
 **Custom Training** is a seventh option on TRK's course select, for training
 outside the six courses. Staff put it on a card by hand; the app imports and
 shows such a request like any other, but never offers it on the form and refuses
-a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential and
-has no rating exam, and `/stats` lists it only while someone is in it.
+a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential, and
+`/stats` lists it only while someone is in it. **Whether it ends in a rating exam
+is the teacher's choice**, made on `/teach` as they mark the training complete:
+to Rating Exam, or straight to Audit. Having no qualification of its own, its
+exam may be claimed by anyone who evaluates any course — still never the
+student's own teacher.
 
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
