@@ -340,10 +340,19 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                             |
-| ----------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a request stuck before TRK, a background job failing and recovering |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                           |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                        |
+| ----------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a card at Needs CATP |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                      |
+| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                           |
+
+**A status renamed on the board stops the app reading every card in it.** The
+board import checks each card's status on every run and tells the tech team
+once per distinct set of problems (`sync_state`, like the dropdown check), so
+a rename shows up within fifteen minutes rather than when a student asks.
+
+A card at Needs CATP is described as a failed exam only when it arrived from
+Rating Exam; staff can also move one there from In Training.
 
 Only the people a notice names are pinged; nothing typed into a field can mention
 anyone. **Students and teachers are not messaged by the app yet** — TRK's own
