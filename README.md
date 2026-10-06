@@ -20,6 +20,8 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | `GET /certifications`        | staff      | Search the roster by CID or name                                       |
 | `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                    |
 | `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                            |
+| `GET /waitlist`              | staff      | Everyone on the waitlist, their VATUSA written course, and a teacher   |
+| `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`                |
 | `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                |
 | `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                  |
 | `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                     |
@@ -103,19 +105,20 @@ never reopened by Jira.
 
 Every 15 minutes (`*/15 * * * *`), in this order:
 
-| Job                     | Does                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| roster sync             | Refreshes the VATUSA roster mirror (`syncRoster`)                              |
-| arrival certifications  | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)      |
-| teacher roster sync     | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)        |
-| jira teacher dropdowns  | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`) |
-| jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)   |
-| enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)             |
-| enrollment status sweep | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)   |
-| examiner cleanup        | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)   |
-| certification updates   | Applies what a finished course earns (`applyPendingCertificationUpdates`)      |
-| discord teacher rooms   | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)      |
-| announcements           | Tells evaluators and training admins what has arrived (`announceArrivals`)     |
+| Job                       | Does                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                   |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)           |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)             |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)      |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)        |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                  |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)        |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)        |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)           |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`) |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)           |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)          |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -167,11 +170,12 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
 | `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
 
-| Secret                | What it is                                                |
-| --------------------- | --------------------------------------------------------- |
-| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                |
-| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security       |
-| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery |
+| Secret                | What it is                                                       |
+| --------------------- | ---------------------------------------------------------------- |
+| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                       |
+| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security              |
+| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery        |
+| `VATUSA_API_KEY`      | ZID's VATUSA facility key; set by the deploy from the org secret |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to
@@ -463,6 +467,41 @@ has placed wrongly needs their certifications corrected before they can enroll.
 The student must accept the terms in `agreement.md` to submit. The enrollment
 records **when** and **which version** (`agreedAt`, `agreedTermsVersion`), since
 the wording will change and an acceptance date alone cannot say what was agreed.
+
+### The waitlist, for staff
+
+`/waitlist` is the queue as the people who work it need it: everyone waiting,
+across every course, in one table. It needs `training:students:manage`, which
+`training:admin` covers. (`/stats` is the public side: counts only.)
+
+Two things happen to someone on it, in order:
+
+1. **The VATUSA written course**, for the four courses that end in a rating exam
+   (S-GC → BASIC, A-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`).
+   **Assign** dates `VATUSA Course Assigned` on the card and, for S2, S3 and C1,
+   assigns the course on VATUSA itself through its API, in the name of the
+   facility's TA — or the ATM when there is no TA. VATUSA emails the student.
+   VATUSA has no course to assign for BASIC, so there only the card is dated and
+   staff assign it by hand.
+2. **A teacher.** The dropdown lists active teachers qualified to teach that
+   course, most open slots first. Choosing one sets `Teacher` and
+   `Teacher Assigned` on the card and moves it to In Training. It is refused
+   until the written course is passed; A-GC, S-LC and Custom Training have none
+   and can be given a teacher straight away.
+
+**Passing is picked up automatically.** The cron reads the VATUSA transcript of
+everyone whose course is assigned and not yet passed, and dates
+`VATUSA Course Completed` with the day they first scored 80% or more. **Mark
+passed** on the page is the fallback.
+
+Both dates are read back from the card like `Teacher`, so a date typed on the
+board shows here too.
+
+`VATUSA_API_KEY` is ZID's facility key. Without it nothing is assigned on VATUSA
+and no transcript is read; the buttons still date the card. The deploy sets it
+from the `ENV_VATUSA_API_KEY` organisation secret. The VATUSA calls were written
+from its API description and public source and **had not been run with a real
+key** when this was written.
 
 ### The end of a course
 
