@@ -45,23 +45,27 @@ export type StatusCount = { course: string; status: string; count: number };
 /**
  * Fold grouped counts into one entry per course, in catalogue order. Courses
  * with nobody in them still appear, as zeros — "nobody is waiting" is the
- * answer someone deciding whether to enroll wants to see.
+ * answer someone deciding whether to enroll wants to see. A course nobody can
+ * enroll in (`boardOnly`) is the exception: it is listed only while in use.
  */
 export function summariseWaitlist(rows: readonly StatusCount[]): CourseWaitlist[] {
-	return COURSES.map((course) => {
+	return COURSES.flatMap((course) => {
 		const forCourse = rows.filter((row) => row.course === course.code);
 		const total = (statuses: readonly string[]) =>
 			forCourse
 				.filter((row) => statuses.includes(row.status))
 				.reduce((sum, row) => sum + Number(row.count), 0);
 
-		return {
+		const entry = {
 			code: course.code,
 			label: course.label,
 			waiting: total(['waitlist']),
 			inTraining: total(IN_TRAINING_STATUSES),
 			estimatedWeeks: course.estimatedWeeks
 		};
+
+		const unused = entry.waiting + entry.inTraining === 0;
+		return 'boardOnly' in course && course.boardOnly && unused ? [] : [entry];
 	});
 }
 

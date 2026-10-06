@@ -45,6 +45,11 @@ export type Course = {
 	 * See .ai/decisions/0015-waitlist-stats-without-measured-rates.md
 	 */
 	estimatedWeeks: WeeksRange | null;
+	/**
+	 * True for a course staff put on a card by hand and nobody can enroll in.
+	 * The app reads and shows it; the form never offers it and refuses it.
+	 */
+	boardOnly?: boolean;
 };
 
 export const COURSES = [
@@ -102,6 +107,18 @@ export const COURSES = [
 		description: 'Enroute control on Indianapolis Center sectors.',
 		// 8 lessons.
 		estimatedWeeks: { min: 8, max: 10 }
+	},
+	{
+		// Training that is none of the six: staff file the card and choose this.
+		// It has no credential, so finishing it changes no certification, and no
+		// rating exam.
+		code: 'CUSTOM',
+		name: 'Custom Training',
+		label: 'Custom Training',
+		jiraOptionId: '10141',
+		description: 'Training arranged by the training staff outside the standard courses.',
+		estimatedWeeks: null,
+		boardOnly: true
 	}
 ] as const satisfies readonly Course[];
 
@@ -118,6 +135,11 @@ export function findCourseByJiraOptionId(id: string | null | undefined): Course 
 
 export function isCourseCode(value: unknown): value is CourseCode {
 	return typeof value === 'string' && COURSES.some((course) => course.code === value);
+}
+
+/** A course a student may ask for: every one except those only staff assign. */
+export function isEnrollableCourseCode(value: unknown): value is CourseCode {
+	return isCourseCode(value) && !findCourse(value)?.boardOnly;
 }
 
 /** "8–10 weeks", or null when there is no estimate. */

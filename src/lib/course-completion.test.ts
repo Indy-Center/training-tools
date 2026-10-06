@@ -6,7 +6,7 @@ import {
 	canClaimExam,
 	credentialChangeFor
 } from './course-completion';
-import { COURSES } from './courses';
+import { COURSES, isEnrollableCourseCode } from './courses';
 import type { QualificationLevel } from './teachers';
 
 describe('afterTraining', () => {
@@ -83,12 +83,21 @@ describe('credentialChangeFor', () => {
 	});
 
 	it('names a credential for every course on the form', () => {
-		for (const course of COURSES) {
+		for (const course of COURSES.filter((c) => isEnrollableCourseCode(c.code))) {
 			expect(credentialChangeFor(course.code, [])).not.toEqual({
 				action: 'none',
 				reason: 'no-credential'
 			});
 		}
+	});
+
+	// Custom Training earns nothing: finishing it changes no certification.
+	it('changes nothing for Custom Training, which has no exam either', () => {
+		expect(credentialChangeFor('CUSTOM', ['S-GC'])).toEqual({
+			action: 'none',
+			reason: 'no-credential'
+		});
+		expect(afterTraining('CUSTOM')).toBe('certification-update');
 	});
 });
 

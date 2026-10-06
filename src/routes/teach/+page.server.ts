@@ -55,7 +55,10 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	]);
 
 	const assignments = assignmentsFor(teacher, enrollments);
-	const levels = new Map(qualifications.map((row) => [row.code, row.level]));
+	// Keyed by plain string: a request's course need not be a credential (Custom Training).
+	const levels = new Map<string, (typeof qualifications)[number]['level']>(
+		qualifications.map((row) => [row.code, row.level])
+	);
 	const byId = new Map(enrollments.map((enrollment) => [enrollment.id, enrollment]));
 	const jiraBaseUrl = platform?.env.JIRA_BASE_URL;
 
