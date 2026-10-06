@@ -8,6 +8,7 @@
  * See decisions/0014-enrollment-status-from-jira.md
  */
 import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
+import { JIRA_FIELDS } from './fields';
 
 /** `Teacher` on the Student Enrollment issue type: a select of instructor initials. */
 export const TEACHER_FIELD = 'customfield_10250';
@@ -16,7 +17,14 @@ export const TEACHER_FIELD = 'customfield_10250';
 export const RE_INSTRUCTOR_FIELD = 'customfield_10254';
 
 /** The only fields a status read asks Jira for. `updated` orders the reads. */
-export const STATUS_FIELDS = ['status', TEACHER_FIELD, RE_INSTRUCTOR_FIELD, 'updated'] as const;
+export const STATUS_FIELDS = [
+	'status',
+	TEACHER_FIELD,
+	RE_INSTRUCTOR_FIELD,
+	JIRA_FIELDS.vatusaAssigned,
+	JIRA_FIELDS.vatusaCompleted,
+	'updated'
+] as const;
 
 /**
  * TRK status names, lowercased, to ours.
@@ -51,6 +59,9 @@ export type JiraStatusIssue = {
 		status?: { name?: string | null } | null;
 		[TEACHER_FIELD]?: { value?: string | null } | null;
 		[RE_INSTRUCTOR_FIELD]?: { value?: string | null } | null;
+		/** Date only, "YYYY-MM-DD". */
+		[JIRA_FIELDS.vatusaAssigned]?: string | null;
+		[JIRA_FIELDS.vatusaCompleted]?: string | null;
 		/** Jira's last-updated time, e.g. "2026-09-23T10:32:53.283-0400". */
 		updated?: string | null;
 	} | null;
@@ -89,7 +100,14 @@ export type StatusUpdate = {
 	status: EnrollmentStatus;
 	teacher: string | null;
 	reInstructor: string | null;
+	vatusaAssignedOn: string | null;
+	vatusaCompletedOn: string | null;
 };
+
+/** A Jira date field, or null for anything that is not a plain `YYYY-MM-DD`. */
+function dateOnly(value: string | null | undefined): string | null {
+	return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
 
 export type StatusResolution =
 	| { action: 'update'; update: StatusUpdate }
@@ -107,7 +125,9 @@ export function resolveStatusUpdate(issue: JiraStatusIssue): StatusResolution {
 		update: {
 			status,
 			teacher: issue.fields?.[TEACHER_FIELD]?.value?.trim() || null,
-			reInstructor: issue.fields?.[RE_INSTRUCTOR_FIELD]?.value?.trim() || null
+			reInstructor: issue.fields?.[RE_INSTRUCTOR_FIELD]?.value?.trim() || null,
+			vatusaAssignedOn: dateOnly(issue.fields?.[JIRA_FIELDS.vatusaAssigned]),
+			vatusaCompletedOn: dateOnly(issue.fields?.[JIRA_FIELDS.vatusaCompleted])
 		}
 	};
 }

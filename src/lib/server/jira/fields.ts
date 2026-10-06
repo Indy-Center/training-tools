@@ -27,7 +27,13 @@ export const JIRA_FIELDS = {
 	/** Date. Stamped when the certification the course earns is applied. */
 	certificateUpdated: 'customfield_10249',
 	/** Date. Stamped when the examiner marks the rating exam complete. */
-	reCompleted: 'customfield_10253'
+	reCompleted: 'customfield_10253',
+	/** Date. Stamped when a teacher is assigned from `/waitlist`. */
+	teacherAssigned: 'customfield_10247',
+	/** Date. When the VATUSA written course for this rating was assigned. */
+	vatusaAssigned: 'customfield_10289',
+	/** Date. When they passed it. */
+	vatusaCompleted: 'customfield_10288'
 } as const;
 
 /**

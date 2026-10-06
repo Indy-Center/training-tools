@@ -235,6 +235,8 @@ async function insertImportedRow(
 			status: enrollment.status,
 			teacher: enrollment.teacher,
 			reInstructor: enrollment.reInstructor,
+			vatusaAssignedOn: enrollment.vatusaAssignedOn,
+			vatusaCompletedOn: enrollment.vatusaCompletedOn,
 			notificationPreference: enrollment.notificationPreference,
 			submittedName: enrollment.name,
 			jiraIssueKey: enrollment.issueKey,

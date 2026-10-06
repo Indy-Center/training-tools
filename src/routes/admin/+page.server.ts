@@ -115,6 +115,12 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 				missing: 'Board changes are only picked up by the 15-minute sweep.'
 			},
 			{
+				label: 'VATUSA API key',
+				set: Boolean(env?.VATUSA_API_KEY?.trim()),
+				missing:
+					'Written courses cannot be assigned on VATUSA from the waitlist, and passes are not picked up automatically.'
+			},
+			{
 				label: 'Larry, for Discord notices',
 				set: Boolean(platform?.env.LARRY),
 				missing: 'Notices to Discord are logged and not sent.'

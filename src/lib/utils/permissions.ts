@@ -27,7 +27,12 @@ export enum Role {
 	 * `ZID:INS` / `ZID:MTR` facility roles, and grants only a teacher's own
 	 * `/teach` page and profile. This is the training-admin side of it.
 	 */
-	TEACHERS = 'training:teachers:manage'
+	TEACHERS = 'training:teachers:manage',
+	/**
+	 * See everyone on the waitlist, record their VATUSA written course, and
+	 * assign them a teacher (`/waitlist`).
+	 */
+	STUDENTS = 'training:students:manage'
 }
 
 export function isTrainingAdmin(roles?: string[] | null): boolean {
@@ -53,4 +58,9 @@ export function canEditCertifications(roles?: string[] | null): boolean {
 /** May see the teacher roster and edit any teacher's profile (DEV-175). */
 export function canManageTeachers(roles?: string[] | null): boolean {
 	return canManage(roles, Role.TEACHERS);
+}
+
+/** May see the whole waitlist and move people off it onto a teacher. */
+export function canManageStudents(roles?: string[] | null): boolean {
+	return canManage(roles, Role.STUDENTS);
 }

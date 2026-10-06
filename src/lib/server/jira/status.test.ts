@@ -62,7 +62,13 @@ describe('resolveStatusUpdate', () => {
 			})
 		).toEqual({
 			action: 'update',
-			update: { status: 'in-training', teacher: 'CT', reInstructor: null }
+			update: {
+				status: 'in-training',
+				teacher: 'CT',
+				reInstructor: null,
+				vatusaAssignedOn: null,
+				vatusaCompletedOn: null
+			}
 		});
 	});
 
@@ -74,7 +80,13 @@ describe('resolveStatusUpdate', () => {
 			})
 		).toEqual({
 			action: 'update',
-			update: { status: 'waitlist', teacher: null, reInstructor: null }
+			update: {
+				status: 'waitlist',
+				teacher: null,
+				reInstructor: null,
+				vatusaAssignedOn: null,
+				vatusaCompletedOn: null
+			}
 		});
 	});
 
@@ -91,7 +103,13 @@ describe('resolveStatusUpdate', () => {
 			})
 		).toEqual({
 			action: 'update',
-			update: { status: 'rating-exam', teacher: 'CT', reInstructor: 'VATUSA' }
+			update: {
+				status: 'rating-exam',
+				teacher: 'CT',
+				reInstructor: 'VATUSA',
+				vatusaAssignedOn: null,
+				vatusaCompletedOn: null
+			}
 		});
 	});
 
@@ -149,5 +167,33 @@ describe('isStale', () => {
 	it('lets anything through when either time is unknown', () => {
 		expect(isStale(null, teacherEdit)).toBe(false);
 		expect(isStale(transition, null)).toBe(false);
+	});
+});
+
+describe('resolveStatusUpdate, VATUSA course dates', () => {
+	const issue = (assigned: unknown, completed: unknown) => ({
+		key: 'TRK-1',
+		fields: {
+			status: { name: 'Waitlist' },
+			customfield_10289: assigned as string | null,
+			customfield_10288: completed as string | null
+		}
+	});
+
+	it('reads the two dates off the card', () => {
+		const resolution = resolveStatusUpdate(issue('2026-10-01', '2026-10-05'));
+		expect(resolution).toMatchObject({
+			update: { vatusaAssignedOn: '2026-10-01', vatusaCompletedOn: '2026-10-05' }
+		});
+	});
+
+	// A date field is a plain day or nothing; anything else is not trusted.
+	it('treats a missing or malformed date as not set', () => {
+		expect(resolveStatusUpdate(issue(null, undefined))).toMatchObject({
+			update: { vatusaAssignedOn: null, vatusaCompletedOn: null }
+		});
+		expect(resolveStatusUpdate(issue('yesterday', '2026-10-05T10:00:00Z'))).toMatchObject({
+			update: { vatusaAssignedOn: null, vatusaCompletedOn: null }
+		});
 	});
 });

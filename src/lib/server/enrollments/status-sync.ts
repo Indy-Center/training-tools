@@ -73,7 +73,7 @@ export async function applyIssueStatus(
 		return 'unknown-status';
 	}
 
-	const { status, teacher, reInstructor } = resolution.update;
+	const { status, teacher, reInstructor, vatusaAssignedOn, vatusaCompletedOn } = resolution.update;
 
 	// Compare-and-set. Two deliveries handled at once both read the row before
 	// either writes, so each write is conditional on the row still holding the
@@ -90,7 +90,11 @@ export async function applyIssueStatus(
 		if (isStale(row.jiraUpdatedAt, observedAt)) return 'stale';
 
 		const changed =
-			row.status !== status || row.teacher !== teacher || row.reInstructor !== reInstructor;
+			row.status !== status ||
+			row.teacher !== teacher ||
+			row.reInstructor !== reInstructor ||
+			row.vatusaAssignedOn !== vatusaAssignedOn ||
+			row.vatusaCompletedOn !== vatusaCompletedOn;
 		const jiraUpdatedAt = observedAt ?? row.jiraUpdatedAt;
 
 		const written = await db
@@ -101,6 +105,8 @@ export async function applyIssueStatus(
 							status,
 							teacher,
 							reInstructor,
+							vatusaAssignedOn,
+							vatusaCompletedOn,
 							jiraUpdatedAt,
 							jiraStatusSyncedAt: now,
 							updatedAt: now
