@@ -30,6 +30,9 @@ function describeSlots(value: number | null): string {
 /**
  * Availability and slot changes, for the training admins' information. Null
  * when neither changed — initials and status are not this notice's business.
+ *
+ * Shows what each is **now**, not what it was: the old value is on the
+ * teacher's timeline for anyone who wants it.
  */
 export function capacityNotice(input: {
 	teacher: string;
@@ -49,20 +52,16 @@ export function capacityNotice(input: {
 		{ label: 'Changed by', value: input.changedBy }
 	];
 	if (slots) {
-		fields.push({
-			label: 'Student slots',
-			value: `${describeSlots(slots.from)} → ${describeSlots(slots.to)}`
-		});
+		fields.push({ label: 'Student slots', value: describeSlots(slots.to) });
 	}
 	if (availability) {
-		fields.push({ label: 'Availability was', value: availability.from ?? 'not set' });
-		fields.push({ label: 'Availability is now', value: availability.to ?? 'not set' });
+		fields.push({ label: 'Availability', value: availability.to ?? 'not set' });
 	}
 
 	return {
 		audience: 'training-admins',
 		title: `Teacher ${what} updated`,
-		summary: `For training admins' information: ${input.teacher}'s ${what} changed. Nothing needs doing unless it affects who they can take on.`,
+		summary: `${input.teacher}'s ${what} changed.`,
 		fields
 	};
 }

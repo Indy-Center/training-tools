@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { capacityNotice, dropdownNotice, statusNotice } from './notices';
 
 describe('capacityNotice', () => {
-	it('tells admins about a slot change, with before and after', () => {
+	it('tells admins about a slot change, with the new number only', () => {
 		const notice = capacityNotice({
 			teacher: 'Jo Rivera (JR)',
 			changedBy: 'Jo Rivera',
@@ -10,18 +10,18 @@ describe('capacityNotice', () => {
 		});
 		expect(notice?.audience).toBe('training-admins');
 		expect(notice?.title).toBe('Teacher student slots updated');
-		expect(notice?.summary).toMatch(/information/);
-		expect(notice?.fields).toContainEqual({ label: 'Student slots', value: '2 → 3' });
+		expect(notice?.summary).toBe("Jo Rivera (JR)'s student slots changed.");
+		expect(notice?.fields).toContainEqual({ label: 'Student slots', value: '3' });
 	});
 
-	it('includes the old and new availability', () => {
+	it('includes the new availability, and not the old', () => {
 		const notice = capacityNotice({
 			teacher: 'Jo',
 			changedBy: 'Jo',
-			changes: [{ field: 'availability', from: null, to: 'Weekends' }]
+			changes: [{ field: 'availability', from: 'Weeknights', to: 'Weekends' }]
 		});
-		expect(notice?.fields).toContainEqual({ label: 'Availability was', value: 'not set' });
-		expect(notice?.fields).toContainEqual({ label: 'Availability is now', value: 'Weekends' });
+		expect(notice?.fields).toContainEqual({ label: 'Availability', value: 'Weekends' });
+		expect(JSON.stringify(notice)).not.toContain('Weeknights');
 	});
 
 	it('covers both in one message', () => {
