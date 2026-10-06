@@ -27,7 +27,7 @@ export type GrantBasis = (typeof GRANT_BASES)[number];
  * Like `enrollments`, this keys on `cid` and takes **no foreign key onto
  * `roster_members`** — a VATUSA roster removal must never cascade away someone's
  * certification history, which is precisely the record we exist to keep. See
- * .ai/decisions/0006-training-tools-owns-the-roster.md
+ * decisions/0006-training-tools-owns-the-roster.md
  *
  * **Rows are never deleted, and there is no expiry column.** A credential is
  * held while `revokedAt` is null and is history once it is set, so "what did
@@ -37,7 +37,7 @@ export type GrantBasis = (typeof GRANT_BASES)[number];
  * and it must be re-earned. The currency job that writes those revocations is
  * later work — this table is what it will write to.
  *
- * See .ai/decisions/0010-certifications-model.md
+ * See decisions/0010-certifications-model.md
  */
 export const certificationsTable = sqliteTable(
 	'certifications',

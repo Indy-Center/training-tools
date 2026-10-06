@@ -3,10 +3,14 @@
 Controller training management for Indy Center (VATSIM ARTCC), at
 `training.flyindycenter.com`. SvelteKit on Cloudflare Workers + D1.
 
-**Read [`.ai/README.md`](.ai/README.md) before making architectural changes.**
-Decisions live in `.ai/decisions/`, integration research in `.ai/research/`, and
-session notes in `.ai/notes/`. Add to them as you go — especially when something
-surprises you.
+**The project notes are not in this repo.** They live on the maintainer's machine
+at `~/ai-notes/training-app/`: decisions in `decisions/`, integration research
+in `research/`, session notes in `notes/`. Read its `README.md` before making
+architectural changes, and add to the notes as you go — especially when
+something surprises you. Do not recreate a `.ai/` folder here.
+
+A path such as `decisions/0014-enrollment-status-from-jira.md` in a code comment
+is relative to that folder.
 
 ## Four constraints that are not negotiable
 
@@ -14,17 +18,17 @@ surprises you.
    `afd63515948c9b2188ce14ef1504b2c1`, served from `*.flyindycenter.com`.** Auth
    works via a Cloudflare RPC service binding plus a cookie scoped to that
    domain. Off that account or that domain, authentication cannot work at all —
-   there is no HTTP fallback. ([0001](.ai/decisions/0001-identity-via-service-binding.md))
+   there is no HTTP fallback. (`decisions/0001`)
 2. **Identity is not an OAuth/OIDC provider.** Do not reach for an OIDC client.
    Read `fic_session`, call `IDENTITY.getSessionContext(token)`. The reference
    implementation is `Indy-Center/charts`, **not** `community-website` — the
    latter still runs its own VATSIM OAuth and its README is stale on this point.
-   ([research](.ai/research/identity-integration.md))
+   (`research/identity-integration.md`)
 3. **Route gating goes in `handle` (`src/hooks.server.ts`), never in a
    `+layout.server.ts`.** Layout loads don't re-run on nested navigation, form
    actions run before any load, and `+server.ts` endpoints never run one — a
    layout gate silently stops protecting things.
-   ([0004](.ai/decisions/0004-gate-in-handle-not-layout.md))
+   (`decisions/0004`)
 4. **`return_url` passed to identity must be absolute** (`event.url.href` /
    `page.url.href`). Bare paths get a 400. Never derive it from
    `window.location`, which is undefined during SSR.
@@ -52,7 +56,7 @@ the cron in `src/worker.ts`.
 - **Tailwind v4** — there is no `tailwind.config.js` and no `@theme` block. The
   theme is convention: dark, stock palette, **sky** accent. Match the classes
   already in use rather than inventing tokens.
-  ([0003](.ai/decisions/0003-styles-copied-from-community-website.md))
+  (`decisions/0003`)
 - **Icons** are `unplugin-icons` from `~icons/mdi/*`, aliased `IconFoo`. Not lucide.
 - **Prettier only, no ESLint.** Tabs, single quotes, no trailing comma, 100 cols.
 - **Server-only code lives under `$lib/server/`.** Anything a component imports

@@ -14,7 +14,7 @@
  * fixed six; keeping the mapping in one shape gives that generator one place to
  * write instead of two modules to keep in step.
  *
- * See .ai/research/jira-student-tracking.md
+ * See research/jira-student-tracking.md
  */
 export type CourseCode = (typeof COURSES)[number]['code'];
 
@@ -42,9 +42,19 @@ export type Course = {
 	 * lesson count, and `max` adds 20% for missed weeks and repeated lessons,
 	 * rounded up. Training staff own these numbers.
 	 *
-	 * See .ai/decisions/0015-waitlist-stats-without-measured-rates.md
+	 * See decisions/0015-waitlist-stats-without-measured-rates.md
 	 */
 	estimatedWeeks: WeeksRange | null;
+	/**
+	 * True for a course staff put on a card by hand and nobody can enroll in.
+	 * The app reads and shows it; the form never offers it and refuses it.
+	 */
+	boardOnly?: boolean;
+	/**
+	 * True when whether the course ends in a rating exam is the teacher's call,
+	 * made as they mark the training complete, rather than a fact about the course.
+	 */
+	examOptional?: boolean;
 };
 
 export const COURSES = [
@@ -102,6 +112,20 @@ export const COURSES = [
 		description: 'Enroute control on Indianapolis Center sectors.',
 		// 8 lessons.
 		estimatedWeeks: { min: 8, max: 10 }
+	},
+	{
+		// Training that is none of the six: staff file the card and choose this.
+		// It has no credential, so finishing it changes no certification. Whether
+		// it ends in a rating exam depends on what the training was, so the teacher
+		// says when they mark it complete.
+		code: 'CUSTOM',
+		name: 'Custom Training',
+		label: 'Custom Training',
+		jiraOptionId: '10141',
+		description: 'Training arranged by the training staff outside the standard courses.',
+		estimatedWeeks: null,
+		boardOnly: true,
+		examOptional: true
 	}
 ] as const satisfies readonly Course[];
 
@@ -118,6 +142,11 @@ export function findCourseByJiraOptionId(id: string | null | undefined): Course 
 
 export function isCourseCode(value: unknown): value is CourseCode {
 	return typeof value === 'string' && COURSES.some((course) => course.code === value);
+}
+
+/** A course a student may ask for: every one except those only staff assign. */
+export function isEnrollableCourseCode(value: unknown): value is CourseCode {
+	return isCourseCode(value) && !findCourse(value)?.boardOnly;
 }
 
 /** "8–10 weeks", or null when there is no estimate. */

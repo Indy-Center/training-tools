@@ -18,7 +18,7 @@ const STATS_TIMEOUT_MS = 5000;
  * controller's certification grant is not worth failing the whole cron over,
  * and the caller treats "we could not find out" as "leave them for next time"
  * rather than as "they have never controlled". See
- * .ai/research/vatsim-api.md
+ * research/vatsim-api.md
  */
 
 /**

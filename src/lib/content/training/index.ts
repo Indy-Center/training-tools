@@ -13,7 +13,7 @@
  * Bodies are rendered to HTML at build time (see vite.config.ts) and shown with
  * `{@html}`, which is safe only because the markdown is ours. A CMS changes
  * that: its content needs a runtime renderer and sanitising. See
- * .ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md
+ * decisions/0011-site-copy-in-repo-course-content-elsewhere.md
  *
  * What the page draws itself, around this copy: anything that is data rather
  * than prose — the place in the queue, consolidation hours, the assigned
@@ -117,7 +117,7 @@ export const TRAINING_COPY = {
 		body: ratingExam
 	},
 	'needs-catp': {
-		title: 'Your rating exam',
+		title: 'Further training',
 		body: needsCatp
 	},
 	'certification-update': {

@@ -52,7 +52,7 @@ const CHUNK_SIZE = 25;
  * have earned a rating elsewhere, or gone long enough without controlling that
  * the answer has changed.
  *
- * See .ai/decisions/0010-certifications-model.md and DEV-115.
+ * See decisions/0010-certifications-model.md and DEV-115.
  */
 export async function grantArrivalCertifications(
 	db: Database,

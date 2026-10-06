@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a59a7648-b471-4fe5-a025-a9555718fe12",
-  "prevId": "44a4d072-861b-4201-b808-94918f01f91a",
+  "id": "4ea57784-f791-4401-9310-3b08e8a3e524",
+  "prevId": "a59a7648-b471-4fe5-a025-a9555718fe12",
   "tables": {
     "activity_log": {
       "name": "activity_log",
@@ -738,6 +738,20 @@
         },
         "initials": {
           "name": "initials",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "discord_role_id": {
+          "name": "discord_role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "discord_channel_id": {
+          "name": "discord_channel_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

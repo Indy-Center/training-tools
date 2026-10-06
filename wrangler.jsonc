@@ -8,11 +8,11 @@
  *     internet-reachable and needs no secret, but it only resolves on the
  *     IndyCenter Cloudflare account.
  *
- * See .ai/decisions/0001-identity-via-service-binding.md
+ * See decisions/0001-identity-via-service-binding.md
  *
  * `services.LARRY` is the RPC binding to Larry's send Worker (`indy-larry`), which
  * posts notices to Discord. Same account, no secret. Without it notices are
- * logged and skipped. See .ai/decisions/0022-notifications-through-larry.md
+ * logged and skipped. See decisions/0022-notifications-through-larry.md
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
@@ -35,7 +35,7 @@
 		"PUBLIC_IDENTITY_URL": "https://auth.flyindycenter.com",
 		// The training waitlist the staff actually work. Enrollments are recorded
 		// in D1 first and filed here second — see
-		// .ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
+		// decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
 		//
 		// JIRA_USER_EMAIL and JIRA_API_TOKEN are secrets, not vars:
 		//   wrangler secret put JIRA_USER_EMAIL

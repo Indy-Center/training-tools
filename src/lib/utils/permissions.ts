@@ -2,7 +2,7 @@
  * Identity stores roles as an unconstrained `text` column with no published
  * vocabulary, so this app namespaces the ones it owns. Nothing grants these
  * yet — they read false until someone writes them into identity's user_roles
- * table. See .ai/decisions/0005-namespaced-role-vocabulary.md
+ * table. See decisions/0005-namespaced-role-vocabulary.md
  */
 export enum Role {
 	/** Training staff: full access, implies every other training role. */

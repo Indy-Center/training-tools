@@ -5,6 +5,7 @@ import { getLiveCredentialsByCid } from '$lib/server/certifications';
 import { completeAudit, getAuditQueue, getEnrollment } from '$lib/server/enrollments';
 import { getPeople } from '$lib/server/roster';
 import { findCredential, highestCertification } from '$lib/certifications';
+import { holdLabels } from '$lib/course-completion';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -13,7 +14,8 @@ import type { Actions, PageServerLoad } from './$types';
  *
  * By the time a request is here its training is done, any rating exam is
  * passed, and the certification the course earns has been applied (or is about
- * to be — `certificationAppliedAt`). The TA checks it and presses **Audit
+ * to be — `certificationAppliedAt`). The exception is a card that arrived
+ * without the fields that show that, which is held and listed with what it lacks. The TA checks it and presses **Audit
  * complete**, which moves the card to Completed and closes the request.
  *
  * Training admins only, checked in the load **and** the action.
@@ -48,6 +50,8 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 				// Null until the course's certification has been applied and the card
 				// dated. The audit cannot be completed before then.
 				appliedAt: enrollment.certificationAppliedAt,
+				// The fields the card lacks, when that is why nothing has been applied.
+				missing: holdLabels(enrollment.certificationHold),
 				issueKey: enrollment.jiraIssueKey,
 				issueUrl:
 					jiraBaseUrl && enrollment.jiraIssueKey
@@ -76,6 +80,12 @@ export const actions: Actions = {
 		// Closing the card before its certification is applied would leave the
 		// cron's pass with nothing to find: it only looks at Certification Update.
 		if (!enrollment.certificationAppliedAt) {
+			const missing = holdLabels(enrollment.certificationHold);
+			if (missing.length > 0) {
+				return fail(409, {
+					auditError: `The certification for this request is on hold: the card is missing ${missing.join(', ')}.`
+				});
+			}
 			return fail(409, {
 				auditError:
 					'The certification for this request has not been applied yet. It is retried every 15 minutes; if it stays like this, check the Admin page.'
