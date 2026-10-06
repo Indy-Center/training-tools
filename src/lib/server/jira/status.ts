@@ -30,6 +30,7 @@ const JIRA_STATUS_MAP: Readonly<Record<string, EnrollmentStatus>> = {
 	waitlist: 'waitlist',
 	'in training': 'in-training',
 	'rating exam': 'rating-exam',
+	'needs catp': 'needs-catp',
 	'certification update': 'certification-update',
 	completed: 'completed',
 	removed: 'removed',

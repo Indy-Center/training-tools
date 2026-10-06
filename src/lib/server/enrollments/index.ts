@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	CLOSED_ENROLLMENT_STATUSES,
@@ -14,10 +14,27 @@ import {
 	transitionIssueToStatus,
 	WITHDRAWN_STATUS
 } from '$lib/server/jira/enrollment';
+import { notify } from '$lib/server/notify';
+import { stuckRequestNotice } from './notices';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
 export { importBoardIssues, type ImportResult } from './import';
 export { getWaitlistStats, type CourseWaitlist } from './stats';
+export { announceArrivals, type AnnounceResult } from './announce';
+export {
+	applyCertificationUpdate,
+	applyPendingCertificationUpdates,
+	clearReturnedExaminers,
+	completeAudit,
+	completeExam,
+	completeTraining,
+	failExam,
+	getAuditQueue,
+	getEnrollment,
+	claimExam,
+	type CertificationPassResult,
+	type FlowResult
+} from './completion';
 export {
 	applyIssueStatus,
 	sweepEnrollmentStatuses,
@@ -138,6 +155,66 @@ export async function getWaitlistPosition(
 	return { ahead: Number(row?.ahead ?? 0), waiting: Number(row?.waiting ?? 0) };
 }
 
+/** Rows the admin page lists; far more than could plausibly be unfiled at once. */
+const UNFILED_LIMIT = 100;
+
+/**
+ * Requests that have not reached the TRK board: no issue key, not withdrawn.
+ *
+ * Covers both kinds — those the cron is still retrying, and those past
+ * `MAX_JIRA_SYNC_ATTEMPTS` that it has given up on. `/admin` shows them apart.
+ * Oldest first, because that is who has been invisible to staff longest.
+ */
+export async function getUnfiledEnrollments(db: Database): Promise<Enrollment[]> {
+	return db
+		.select()
+		.from(enrollmentsTable)
+		.where(and(isNull(enrollmentsTable.jiraIssueKey), isNull(enrollmentsTable.withdrawnAt)))
+		.orderBy(asc(enrollmentsTable.createdAt))
+		.limit(UNFILED_LIMIT);
+}
+
+export type RetryOutcome =
+	| 'filed'
+	/** Jira refused it again. The reason is on the row. */
+	| 'failed'
+	/** Already filed, withdrawn, or not a request at all. */
+	| 'not-unfiled';
+
+/**
+ * Try again to file a request the cron has given up on.
+ *
+ * Resets the attempt count first, so a retry that fails leaves the request
+ * back in the cron's queue rather than stuck again after one go — whoever
+ * pressed the button has presumably fixed what was wrong.
+ *
+ * Guarded on a null key in the same statement, so a request that was filed in
+ * the meantime is left alone. An issue whose key never made it back here is
+ * adopted by the board import on the next cron run, before this could file a
+ * second one.
+ */
+export async function retryFiling(
+	db: Database,
+	env: Partial<Env> | undefined,
+	id: string
+): Promise<RetryOutcome> {
+	const [enrollment] = await db
+		.update(enrollmentsTable)
+		.set({ jiraSyncAttempts: 0, updatedAt: new Date() })
+		.where(
+			and(
+				eq(enrollmentsTable.id, id),
+				isNull(enrollmentsTable.jiraIssueKey),
+				isNull(enrollmentsTable.withdrawnAt)
+			)
+		)
+		.returning();
+
+	if (!enrollment) return 'not-unfiled';
+
+	return (await fileWithJira(db, env, enrollment)) ? 'filed' : 'failed';
+}
+
 export type SubmitResult = {
 	enrollment: Enrollment;
 	/** False when Jira could not be reached. The submission still succeeded. */
@@ -205,7 +282,12 @@ export async function fileWithJira(
 	const config = resolveJiraConfig(env);
 
 	if (!config) {
-		await recordFailure(db, enrollment.id, 'Jira is not configured (missing url, email or token)');
+		await recordFailure(
+			db,
+			env,
+			enrollment,
+			'Jira is not configured (missing url, email or token)'
+		);
 		console.warn('[training-tools] jira not configured; enrollment saved unfiled', enrollment.id);
 		return false;
 	}
@@ -229,25 +311,47 @@ export async function fileWithJira(
 		return true;
 	} catch (err) {
 		const message = err instanceof JiraError ? err.message : String(err);
-		await recordFailure(db, enrollment.id, message);
+		await recordFailure(db, env, enrollment, message);
 		console.error('[training-tools] jira enrollment push failed', enrollment.id, message);
 		return false;
 	}
 }
 
-async function recordFailure(db: Database, id: string, error: string): Promise<void> {
+/**
+ * Note a failed filing. The failure that uses up the last attempt also tells the
+ * training admins, once: past it the cron stops retrying, and the request is
+ * invisible to staff until someone fixes it (DEV-216).
+ */
+async function recordFailure(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment,
+	error: string
+): Promise<void> {
 	const current = await db.query.enrollmentsTable.findFirst({
-		where: eq(enrollmentsTable.id, id)
+		where: eq(enrollmentsTable.id, enrollment.id)
 	});
+	const attempts = (current?.jiraSyncAttempts ?? 0) + 1;
 
 	await db
 		.update(enrollmentsTable)
 		.set({
 			jiraSyncError: error.slice(0, 1000),
-			jiraSyncAttempts: (current?.jiraSyncAttempts ?? 0) + 1,
+			jiraSyncAttempts: attempts,
 			updatedAt: new Date()
 		})
-		.where(eq(enrollmentsTable.id, id));
+		.where(eq(enrollmentsTable.id, enrollment.id));
+
+	if (attempts === MAX_JIRA_SYNC_ATTEMPTS) {
+		await notify(
+			env,
+			stuckRequestNotice(
+				{ name: enrollment.submittedName, cid: enrollment.cid, course: enrollment.course },
+				error,
+				attempts
+			)
+		);
+	}
 }
 
 /**

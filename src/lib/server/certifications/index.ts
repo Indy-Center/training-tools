@@ -14,9 +14,9 @@ export { grantArrivalCertifications, type ArrivalGrantResult } from './arrival';
  * the arrival job, the staff edit view and the import all call them rather than
  * writing rows themselves.
  *
- * That is deliberate. When the Discord notification work lands (blocked on
- * DEV-113's shared notification service), it needs one producer site to hook,
- * not three call sites to go and find.
+ * That is deliberate: a notice about a certification change (through
+ * `$lib/server/notify`, when one is wanted) has one producer site to hook, not
+ * three call sites to go and find.
  */
 
 export type GrantInput = {
@@ -133,12 +133,16 @@ export async function revokeCredential(db: Database, input: RevokeInput): Promis
  * whatever is held before granting. Endorsements are untouched — they sit
  * alongside a certification rather than being superseded by it, which is why
  * S-LC survives a change of ground certification.
+ *
+ * `actorCid` is null when nobody did this by hand — the end-of-course flow —
+ * and `grant` then says how the new certification came about.
  */
 export async function setCertification(
 	db: Database,
 	cid: string,
 	code: string | null,
-	actorCid: string
+	actorCid: string | null,
+	grant: { basis: GrantBasis; note?: string | null } = { basis: 'manual' }
 ): Promise<void> {
 	const held = await getHeldCredentials(db, cid);
 	const current = highestCertification(held.map((row) => row.code));
@@ -161,7 +165,13 @@ export async function setCertification(
 		throw new Error(`${code} is not a certification`);
 	}
 
-	await grantCredential(db, { cid, code, basis: 'manual', grantedBy: actorCid });
+	await grantCredential(db, {
+		cid,
+		code,
+		basis: grant.basis,
+		note: grant.note ?? null,
+		grantedBy: actorCid
+	});
 }
 
 /** Add or remove an endorsement, leaving the certification alone. */

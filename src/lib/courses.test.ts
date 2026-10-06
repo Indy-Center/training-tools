@@ -84,6 +84,7 @@ describe('enrollment statuses', () => {
 			'waitlist',
 			'in-training',
 			'rating-exam',
+			'needs-catp',
 			'certification-update',
 			'completed',
 			'removed',

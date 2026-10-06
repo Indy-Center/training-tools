@@ -160,6 +160,8 @@
 							{@render fact('Your instructor', assigneeLabel(request.instructor))}
 						</dl>
 					</CopyPanel>
+				{:else if request.status === 'needs-catp'}
+					<CopyPanel copy={TRAINING_COPY['needs-catp']} icon={IconSchool} />
 				{:else}
 					<CopyPanel copy={TRAINING_COPY['certification-update']} icon={IconCertificate} />
 				{/if}

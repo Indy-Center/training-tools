@@ -26,9 +26,8 @@ import {
 	QUALIFICATION_LEVELS,
 	TEACHER_STATUSES,
 	allowedLevels,
-	isAutomaticEvaluator,
+	automaticLevel,
 	normalizeInitials,
-	slotSummary,
 	validateTeacherProfile,
 	type QualificationLevel,
 	type TeacherStatus
@@ -112,11 +111,6 @@ export const load: PageServerLoad = async (event) => {
 			removedAt: teacher.removedAt,
 			joinedAt: teacher.joinedAt
 		},
-		slots: slotSummary({
-			status: teacher.status,
-			studentSlots: teacher.studentSlots,
-			inTraining: assignments.inTraining
-		}),
 		students: studentRows(assignments.students, people, platform?.env.JIRA_BASE_URL),
 		qualifications: QUALIFICATION_CREDENTIALS.map((credential) => ({
 			code: credential.code,
@@ -124,9 +118,9 @@ export const load: PageServerLoad = async (event) => {
 			kind: credential.kind,
 			level: levels.get(credential.code) ?? null,
 			allowed: allowedLevels(credential.code, facts),
-			// Instructors evaluate these without anyone granting it; the form
-			// shows the level but does not offer to change it.
-			automatic: isAutomaticEvaluator(credential.code, facts)
+			// Instructors hold these without anyone granting it; the form shows the
+			// level but does not offer to change it.
+			automatic: automaticLevel(credential.code, facts)
 		})),
 		timeline,
 		names: namesFor(
@@ -270,7 +264,7 @@ export const actions: Actions = {
 		const edits: QualificationEdit[] = [];
 		for (const credential of QUALIFICATION_CREDENTIALS) {
 			// Automatic levels are not on the form, and are not the admin's to set.
-			if (isAutomaticEvaluator(credential.code, facts)) continue;
+			if (automaticLevel(credential.code, facts)) continue;
 
 			const raw = String(data.get(`level:${credential.code}`) ?? '');
 			if (raw !== '' && !QUALIFICATION_LEVELS.includes(raw as QualificationLevel)) {

@@ -5,9 +5,9 @@
  * opaque id, not by name, so these are the contract — renaming a field in Jira
  * will not break us, but deleting and recreating one will.
  *
- * The full field inventory, including the ones only training staff write
- * (Teacher, Teacher Assigned, Training Completed, RE Completed, RE Instructor,
- * Certificate Updated, Removed), is in .ai/research/jira-student-tracking.md.
+ * `Teacher` and `RE Instructor` are in `./status.ts`, beside the code that reads
+ * them back. The full inventory, including the fields only training staff write
+ * (Teacher Assigned, Removed), is in .ai/research/jira-student-tracking.md.
  */
 export const JIRA_FIELDS = {
 	/** Select. Options are the `jiraOptionId` values in $lib/courses.ts. */
@@ -21,7 +21,13 @@ export const JIRA_FIELDS = {
 	/** Textarea. */
 	availability: 'customfield_10245',
 	/** Date. Queue position derives from this, so we always set it. */
-	waitlisted: 'customfield_10246'
+	waitlisted: 'customfield_10246',
+	/** Date. Stamped when the teacher marks the training complete. */
+	trainingCompleted: 'customfield_10248',
+	/** Date. Stamped when the certification the course earns is applied. */
+	certificateUpdated: 'customfield_10249',
+	/** Date. Stamped when the examiner marks the rating exam complete. */
+	reCompleted: 'customfield_10253'
 } as const;
 
 /**

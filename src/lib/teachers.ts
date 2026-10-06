@@ -83,8 +83,12 @@ export const RATING_EXAMS: Readonly<Partial<Record<CredentialCode, string>>> = {
  */
 export const QUALIFICATION_RETENTION_MONTHS = 6;
 
-/** Enrollment statuses that put a student on a teacher's list. */
-export const ASSIGNED_STATUSES = ['in-training', 'rating-exam'] as const;
+/**
+ * Enrollment statuses that put a student on a teacher's list. `needs-catp` is
+ * here because the student is still theirs: the exam was not passed, and the
+ * TA decides what further training they get.
+ */
+export const ASSIGNED_STATUSES = ['in-training', 'rating-exam', 'needs-catp'] as const;
 
 /**
  * Enrollment statuses that use up a slot. A student at their rating exam is
@@ -121,17 +125,26 @@ export function hasEvaluation(code: string): boolean {
 }
 
 /**
- * Instructors evaluate every course that has an evaluation, without anyone
- * granting it. `ZID:INS` is how we know someone is an I1 for us.
+ * The level an instructor holds on a course without anyone granting it, or
+ * null for anyone who is not an instructor. `ZID:INS` is how we know someone is
+ * an I1 for us.
+ *
+ * Instructors teach everything: they evaluate every course that has an
+ * evaluation, and are Teacher on every other course and endorsement.
  */
-export function isAutomaticEvaluator(code: string, teacher: Pick<TeacherFacts, 'roles'>): boolean {
-	return hasEvaluation(code) && isInstructor(teacher);
+export function automaticLevel(
+	code: string,
+	teacher: Pick<TeacherFacts, 'roles'>
+): QualificationLevel | null {
+	if (!isInstructor(teacher) || !findCredential(code)) return null;
+	return hasEvaluation(code) ? 'evaluator' : 'teacher';
 }
 
 /**
  * Whether a teacher may be an evaluator on a course at all.
  *
- * - Instructors: on every course with an evaluation (automatically).
+ * - Instructors: on every course with an evaluation (automatically —
+ *   `automaticLevel`).
  * - Mentors rated S3 or higher: on S-GC only, and only when granted by hand.
  * - Nobody else — not an S2 mentor, and not a mentor on E-RC.
  */
@@ -159,8 +172,12 @@ export function levelProblem(
 ): string | null {
 	if (!findCredential(code)) return `${code} is not a course or endorsement`;
 
-	if (isAutomaticEvaluator(code, teacher) && level !== 'evaluator') {
-		return `Instructors evaluate ${code} automatically`;
+	// The sync would put it straight back, so the form must not pretend.
+	const automatic = automaticLevel(code, teacher);
+	if (automatic && level !== automatic) {
+		return automatic === 'evaluator'
+			? `Instructors evaluate ${code} automatically`
+			: `Instructors teach ${code} automatically`;
 	}
 
 	if (level === 'evaluator' && !canEvaluate(code, teacher)) {
@@ -176,8 +193,8 @@ export function levelProblem(
  * The level the rules would move a held one to, or null when it stands.
  *
  * Only ever lowers `evaluator` to `teacher` — for someone who lost INS, or a
- * mentor whose rating dropped below S3. Raising an instructor to evaluator is
- * `isAutomaticEvaluator`'s job, not this one's.
+ * mentor whose rating dropped below S3. Raising an instructor is
+ * `automaticLevel`'s job, not this one's.
  */
 export function downgradeFor(
 	code: string,

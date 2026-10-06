@@ -17,7 +17,7 @@ import {
 	QUALIFICATION_CREDENTIALS,
 	QUALIFICATION_RETENTION_MONTHS,
 	downgradeFor,
-	isAutomaticEvaluator,
+	automaticLevel,
 	qualificationsExpired,
 	teacherRolesFrom,
 	type QualificationLevel,
@@ -60,7 +60,8 @@ export type TeacherRosterPlan = {
 		returned: number;
 		left: number;
 		roleChanges: number;
-		automaticEvaluator: number;
+		/** Levels raised to what an instructor holds automatically. */
+		automatic: number;
 		downgraded: number;
 		expired: number;
 	};
@@ -79,7 +80,9 @@ function sameRoles(a: readonly string[], b: readonly string[]): boolean {
  * 1. **Membership.** Anyone holding `ZID:INS`/`ZID:MTR` on the active roster is
  *    a teacher; anyone else is not. New people are added, returners restored,
  *    leavers soft-removed, and role changes recorded.
- * 2. **Instructors evaluate automatically** on every course with an evaluation.
+ * 2. **Instructors teach everything automatically**: Teacher and Evaluator on
+ *    every course with an evaluation, Teacher on every other course and
+ *    endorsement.
  * 3. **Evaluators who no longer qualify drop to Teacher** — someone who lost
  *    INS, or a mentor rated below S3 holding S-GC.
  * 4. **Six months off the roster ends every qualification.** Before that they
@@ -101,7 +104,7 @@ export function planTeacherRoster(input: {
 		returned: 0,
 		left: 0,
 		roleChanges: 0,
-		automaticEvaluator: 0,
+		automatic: 0,
 		downgraded: 0,
 		expired: 0
 	};
@@ -185,17 +188,19 @@ export function planTeacherRoster(input: {
 		for (const credential of QUALIFICATION_CREDENTIALS) {
 			const row = held.find((candidate) => candidate.code === credential.code) ?? null;
 
-			if (isAutomaticEvaluator(credential.code, member)) {
-				if (row?.level === 'evaluator') continue;
+			const automatic = automaticLevel(credential.code, member);
+			if (automatic) {
+				if (row?.level === automatic) continue;
+				const does = automatic === 'evaluator' ? 'evaluates' : 'teaches';
 				qualifications.push({
 					cid: member.cid,
 					code: credential.code,
 					endId: row?.id ?? null,
-					reason: 'Instructor: evaluates automatically',
-					startLevel: 'evaluator',
-					note: 'Instructor (ZID:INS): evaluates automatically'
+					reason: `Instructor: ${does} automatically`,
+					startLevel: automatic,
+					note: `Instructor (ZID:INS): ${does} automatically`
 				});
-				summary.automaticEvaluator += 1;
+				summary.automatic += 1;
 				continue;
 			}
 
