@@ -1,5 +1,11 @@
+import { SITE_URL } from '$lib/config';
 import type { Notice } from '$lib/server/notify';
-import { TEACHER_STATUS_LABELS, type TeacherStatus } from '$lib/teachers';
+import {
+	QUALIFICATION_LEVEL_LABELS,
+	TEACHER_STATUS_LABELS,
+	type QualificationLevel,
+	type TeacherStatus
+} from '$lib/teachers';
 
 /**
  * What training admins are told about teacher changes. Pure, so who gets told
@@ -111,11 +117,84 @@ export function statusNotice(input: {
 		tone: stranded ? 'warning' : 'info',
 		title: stranded
 			? `${input.teacher} is going on LOA with students assigned`
-			: `${input.teacher}'s teacher status changed automatically`,
+			: `${input.teacher}'s teacher status changed`,
 		summary: stranded
-			? 'These students are still assigned to a teacher who is now on LOA. They may need reassigning on the TRK board.'
-			: "For training admins' information: this was not changed by a person.",
+			? 'These students are assigned to a teacher on LOA.'
+			: 'This was changed automatically, not by a person.',
 		fields
+	};
+}
+
+/**
+ * A teacher has come off the teacher roster — they no longer hold ZID:INS or
+ * ZID:MTR on VATUSA — while students are still assigned to them. The same
+ * problem as going on LOA with students, except nobody chose it. Null when
+ * they had no students: leaving is then only a line on their timeline.
+ */
+export function leftRosterNotice(input: {
+	teacher: string;
+	assigned: readonly AssignedStudent[];
+}): Notice | null {
+	if (input.assigned.length === 0) return null;
+
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `${input.teacher} has left the teacher roster with students assigned`,
+		summary: 'These students are assigned to a teacher who is no longer available.',
+		fields: [
+			{ label: 'Teacher', value: input.teacher },
+			{
+				label: `Students assigned (${input.assigned.length})`,
+				value: input.assigned
+					.map((student) => `${student.name} — ${student.course} (${student.status})`)
+					.join('\n')
+			}
+		]
+	};
+}
+
+/** A qualification the cron changed on its own, as the notice describes it. */
+export type AutomaticQualificationChange = {
+	teacher: string;
+	code: string;
+	from: QualificationLevel;
+	/** Null when the qualification ended outright. */
+	to: QualificationLevel | null;
+	reason: string;
+};
+
+/**
+ * Qualifications the cron lowered or ended this run: an evaluator who no longer
+ * meets the rules, or someone off the teacher roster for six months. One notice
+ * for the run, grouped by teacher. Null when there were none.
+ */
+export function qualificationChangesNotice(
+	changes: readonly AutomaticQualificationChange[]
+): Notice | null {
+	if (changes.length === 0) return null;
+
+	const byTeacher = new Map<string, AutomaticQualificationChange[]>();
+	for (const change of changes) {
+		const list = byTeacher.get(change.teacher);
+		if (list) list.push(change);
+		else byTeacher.set(change.teacher, [change]);
+	}
+
+	return {
+		audience: 'training-admins',
+		title: 'Teacher qualifications changed automatically',
+		summary: 'These no longer met the rules, so they were lowered or ended.',
+		link: `${SITE_URL}/teachers`,
+		fields: [...byTeacher].map(([teacher, list]) => ({
+			label: teacher,
+			value: list
+				.map((change) => {
+					const to = change.to ? QUALIFICATION_LEVEL_LABELS[change.to] : 'ended';
+					return `${change.code}: ${QUALIFICATION_LEVEL_LABELS[change.from]} → ${to}. ${change.reason}`;
+				})
+				.join('\n')
+		}))
 	};
 }
 
@@ -153,7 +232,7 @@ export function dropdownNotice(drift: TeacherDropdownDrift): Notice | null {
 	if (fields.length === 0) return null;
 
 	return {
-		audience: 'training-admins',
+		audience: 'tech-team',
 		tone: 'warning',
 		title: "TRK's teacher dropdowns need updating",
 		summary:

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { capacityNotice, dropdownNotice, statusNotice } from './notices';
+import {
+	capacityNotice,
+	dropdownNotice,
+	leftRosterNotice,
+	qualificationChangesNotice,
+	statusNotice
+} from './notices';
 
 describe('capacityNotice', () => {
 	it('tells admins about a slot change, with the new number only', () => {
@@ -117,10 +123,67 @@ describe('dropdownNotice', () => {
 			teacher: { add: ['SC'], remove: ['JR'], rename: [] },
 			reInstructor: { add: [], remove: [], rename: [{ from: 'Sw', to: 'SW' }] }
 		});
+		expect(notice?.audience).toBe('tech-team');
 		expect(notice?.tone).toBe('warning');
 		expect(notice?.fields).toEqual([
 			{ label: 'Teacher dropdown', value: 'Add: SC\nRemove or disable: JR' },
 			{ label: 'RE Instructor dropdown', value: 'Rename: Sw → SW' }
 		]);
+	});
+});
+
+describe('leftRosterNotice', () => {
+	const assigned = [{ name: 'Sam Lee', course: 'S-GC', status: 'in-training' }];
+
+	it('warns the training admins when a teacher leaves with students assigned', () => {
+		const notice = leftRosterNotice({ teacher: 'Jo Rivera (JR)', assigned });
+		expect(notice?.audience).toBe('training-admins');
+		expect(notice?.tone).toBe('warning');
+		expect(notice?.title).toBe('Jo Rivera (JR) has left the teacher roster with students assigned');
+		expect(notice?.fields).toContainEqual({
+			label: 'Students assigned (1)',
+			value: 'Sam Lee — S-GC (in-training)'
+		});
+	});
+
+	// Leaving with nobody assigned is a line on their timeline and nothing more.
+	it('says nothing when they had no students', () => {
+		expect(leftRosterNotice({ teacher: 'Jo', assigned: [] })).toBeNull();
+	});
+});
+
+describe('qualificationChangesNotice', () => {
+	it('says nothing when the run changed nothing', () => {
+		expect(qualificationChangesNotice([])).toBeNull();
+	});
+
+	it('groups what was lowered or ended by teacher, with the reason', () => {
+		const notice = qualificationChangesNotice([
+			{
+				teacher: 'Jo Rivera (JR)',
+				code: 'S-GC',
+				from: 'evaluator',
+				to: 'teacher',
+				reason: 'Mentors must be rated S3 or higher to evaluate S-GC'
+			},
+			{
+				teacher: 'Sam Lee (SL)',
+				code: 'T-RC',
+				from: 'teacher',
+				to: null,
+				reason: 'Off the roster'
+			},
+			{ teacher: 'Sam Lee (SL)', code: 'E-RC', from: 'teacher', to: null, reason: 'Off the roster' }
+		]);
+		expect(notice?.audience).toBe('training-admins');
+		expect(notice?.fields).toHaveLength(2);
+		expect(notice?.fields?.[0]).toEqual({
+			label: 'Jo Rivera (JR)',
+			value:
+				'S-GC: Teacher and Evaluator → Teacher. Mentors must be rated S3 or higher to evaluate S-GC'
+		});
+		expect(notice?.fields?.[1].value).toBe(
+			'T-RC: Teacher → ended. Off the roster\nE-RC: Teacher → ended. Off the roster'
+		);
 	});
 });
