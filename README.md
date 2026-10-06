@@ -47,9 +47,9 @@ and `ZID:MTR` roles, not from an identity role. `/teachers` needs
 `training:teachers:manage` (implied by `training:admin`). On `/teachers/{cid}`
 a teacher may view their own page and edit only their availability and slots;
 status, initials and qualifications are for training admins. Granting the role
-needs no identity code change — it is one row in identity's `user_roles`; see
-"Adding a role in identity by hand" in
-[`.ai/notes/2026-09-21-dev-115-certifications.md`](.ai/notes/2026-09-21-dev-115-certifications.md).
+needs no identity code change — it is one row in identity's `user_roles`. Its
+`user_id` is identity's own `users.id`, not the CID, and `granted_at` is in
+milliseconds.
 
 `/` is public only so it can render the sign-in CTA. `/stats` needs a session:
 any signed-in VATSIM member may see the counts, plus their own position. The one
@@ -84,8 +84,7 @@ self-led Tier 2 course, on the extra-courses and visitor views. For a
 **teacher** with nothing left to take — the highest certification, Tier 2, and
 no open request — the site opens on `/teach`: the bare `/` redirects there. The
 student view is still on their menu, linked as `/?view=student`, which is what
-gets past the redirect. See
-[0019](.ai/decisions/0019-default-view-by-enrollment-state.md).
+gets past the redirect.
 
 Consolidation is hours logged at the member's **current** rating, from VATSIM's
 public stats endpoint, against `CONSOLIDATION_HOURS` in `src/lib/config.ts`. A
@@ -98,8 +97,7 @@ has one. Scheduling and the student's next lesson will join it there.
 Those statuses, the assigned `Teacher` and the rating exam's `RE Instructor` are
 read back from the TRK issue two ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
 the 15-minute cron sweep as the backstop. A request the student withdrew here is
-never reopened by Jira. See
-[0014](.ai/decisions/0014-enrollment-status-from-jira.md).
+never reopened by Jira.
 
 ## Scheduled work
 
@@ -133,18 +131,18 @@ reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs after it so an issue filed moments ago is read back in the same run;
 and the examiner cleanup and certification pass run after it, so a card the sweep
-has just seen go back into training, or arrive at Certification Update, is dealt
+has just seen go back into training, or arrive at Audit, is dealt
 with in the same run; and the announcements run last, so a card certified a
 moment ago is announced in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
-`auth.flyindycenter.com` for both. See
-[`.ai/decisions/0001-identity-via-service-binding.md`](.ai/decisions/0001-identity-via-service-binding.md).
+`auth.flyindycenter.com` for both.
 
 Everything not on the public allowlist redirects to identity's `/login`. The
-gate lives in `src/hooks.server.ts`, not in a layout load —
-[why](.ai/decisions/0004-gate-in-handle-not-layout.md).
+gate lives in `src/hooks.server.ts`, not in a layout load: layout loads do not
+re-run on nested navigation, form actions run before any load, and `+server.ts`
+endpoints never run one.
 
 Every signed-in request also records the member's VATSIM email from identity
 onto their roster row. VATUSA's public roster never includes emails, so
@@ -229,7 +227,6 @@ src/
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
-.ai/                           decisions, research and session notes — start with .ai/README.md
 ```
 
 ### Roster data
@@ -242,7 +239,7 @@ their row with `removedAt` stamped, so we can tell "never on the roster" from
 Training data this app owns (certifications, endorsements, currency) keys on
 `cid` **independently** and must never take a foreign key onto `roster_members`
 — otherwise falling off the VATUSA roster would delete someone's training
-history. See [`.ai/decisions/0006-training-tools-owns-the-roster.md`](.ai/decisions/0006-training-tools-owns-the-roster.md).
+history.
 
 **D1 allows only 100 bound parameters per query** and the facility has more
 members than that, so never write `IN (...)` over the full CID list. The sync
@@ -277,9 +274,7 @@ stops a member who leaves and returns being granted a duplicate.
 Arrivals are granted automatically each cron run from their VATSIM rating, but
 only if they have controlled in the last six months — read from VATSIM API v2,
 which needs no API key. SUP and ADM are not controller ratings, so their earned
-rating is inferred from logged hours and always flagged for a TA. See
-[`.ai/decisions/0010-certifications-model.md`](.ai/decisions/0010-certifications-model.md)
-and [`.ai/research/vatsim-api.md`](.ai/research/vatsim-api.md).
+rating is inferred from logged hours and always flagged for a TA.
 
 All grants and revocations go through `grantCredential` / `revokeCredential` in
 `$lib/server/certifications/` — the arrival job, the import and the staff edit
@@ -318,8 +313,6 @@ teacher, `RE Instructor` every active teacher who evaluates anything.
 Initials are entered by training admins for now. Once community-website is on
 identity (DEV-5), take them from identity's `operatingInitials` instead.
 
-See [`.ai/decisions/0017-teacher-roster-and-qualifications.md`](.ai/decisions/0017-teacher-roster-and-qualifications.md).
-
 ### Timelines and the activity log
 
 `/teachers/{cid}` and `/certifications/{cid}` show one timeline per controller:
@@ -340,11 +333,11 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                        |
-| ----------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a card at Needs CATP |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                      |
-| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                           |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                              |
+| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                   |
 
 **A status renamed on the board stops the app reading every card in it.** The
 board import checks each card's status on every run and tells the tech team
@@ -365,8 +358,7 @@ each end-of-course step run it. A retake that leaves Rating Exam and comes back 
 announced again. The audit notice waits until the certification is applied.
 
 A failed job is announced when it **starts** failing and when it **recovers**,
-not on every run. See
-[`.ai/decisions/0022-notifications-through-larry.md`](.ai/decisions/0022-notifications-through-larry.md).
+not on every run.
 
 The types for the binding come from `@indy-center/indy-larry-worker`.
 
@@ -382,10 +374,8 @@ A new request has status **`waitlist`**, which is TRK's initial status. Note the
 workflow changed once during DEV-108 (a triage step in front of the waitlist was
 removed), so re-verify the statuses before relying on them — and read them by
 creating a test issue, not by listing the board, which hides any status no issue
-is currently sitting in. Details and the full field/option id map are in
-[`.ai/research/jira-student-tracking.md`](.ai/research/jira-student-tracking.md);
-the reasoning is in
-[`.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md`](.ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md).
+is currently sitting in. The field and option ids the app uses are in
+`src/lib/server/jira/fields.ts` and `src/lib/courses.ts`.
 
 **Issues staff file by hand on the board get rows too.** Most of TRK predates
 this app — the backlog was moved onto the board by hand on 2026-09-05 — so the
@@ -402,6 +392,16 @@ plus 20% on the high end — and is labelled as an estimate. There is no
 "you'll start in N weeks": nothing records when students move between stages,
 so there is no throughput to base one on.
 
+**Custom Training** is a seventh option on TRK's course select, for training
+outside the six courses. Staff put it on a card by hand; the app imports and
+shows such a request like any other, but never offers it on the form and refuses
+a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential, and
+`/stats` lists it only while someone is in it. **Whether it ends in a rating exam
+is the teacher's choice**, made on `/teach` as they mark the training complete:
+to Rating Exam, or straight to Audit. Having no qualification of its own, its
+exam may be claimed by anyone who evaluates any course — still never the
+student's own teacher.
+
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
@@ -411,8 +411,8 @@ from the certifications this app holds, walking the `rank` ladder and each
 credential's `requires` — so an advanced-ground controller is sent to S-LC before
 A-LC, because A-LC requires it. It is recomputed server-side on submit, and a
 POST naming any other course is refused. (DEV-119 originally let the student
-pick any course and flagged the difference to staff; that was reversed in
-[0019](.ai/decisions/0019-default-view-by-enrollment-state.md).) Someone the app
+pick any course and flagged the difference to staff; that was reversed when `/`
+became the one student view.) Someone the app
 has placed wrongly needs their certifications corrected before they can enroll.
 
 The student must accept the terms in `agreement.md` to submit. The enrollment
@@ -425,33 +425,51 @@ How a course finishes, and who moves it. The rules are pure functions in
 `$lib/course-completion.ts`; the Jira writes are in
 `$lib/server/enrollments/completion.ts`.
 
-| Step                       | Who                                                                  | What happens on the card                                                                                   |
-| -------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Certification Update |
-| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                                            |
-| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Certification Update                                                        |
-| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                                          |
-| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                                  |
-| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                                         |
+| Step                       | Who                                                                  | What happens on the card                                                                    |
+| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
+| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Audit                                                        |
+| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                           |
+| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
+| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
+
+TRK's status for a finished course waiting on the TA is **Audit** (Certification
+Update until 2026-10-06). The app's own name for it is still
+`certification-update`, and it reads either name off the board.
 
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
-A-GC and S-LC do not, and go straight to Certification Update.
+A-GC and S-LC do not, and go straight to Audit.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira
 refuses, nothing here has changed and the person is told. Each step also leaves a
 comment naming who did it, because every write is made by one API account.
 
-**The certification is applied when a request is found at Certification Update,
+**The certification is applied when a request is found at Audit,
 however it got there** — a step taken here, or a card somebody dragged across the
 board. The cron's last job, the webhook, and each step above all run the same
-pass; `enrollments.certification_applied_at` is what makes it happen once. So a
-mis-dragged card grants a real certification, which is why TRK's transitions need
-rules requiring the dates first (DEV-176).
+pass; `enrollments.certification_applied_at` is what makes it happen once.
+
+**But only if the card shows the course was finished.** Before granting anything
+the app reads the card: every course needs `Training Completed`, and the four
+that end in a rating exam also need `RE Instructor` and `RE Completed`. A card
+without them — dragged past its exam, or across before the training was done —
+is **held**: nothing is granted, the training admins are told once, and
+`/admin/audit` lists it with what it lacks. It is checked again on every pass,
+so filling in the card releases it, and moving the card back clears the hold.
+What is missing is kept in `enrollments.certification_hold`. TRK's own
+transition rules (DEV-176) are the first defence; this is the one that does not
+depend on the workflow staying as it is.
 
 What a course earns is the credential of the same code, and a certification only
 ever moves someone **up**: a card for a course below what they already hold
 changes nothing. An endorsement (S-LC) is added beside their certification.
+
+**Needs CATP** (a Corrective Action Training Plan) is reached two ways: a failed
+exam, below, or a card staff move there from In Training on the board. The
+student's page does not say which. The training admins' notice says an exam was
+failed only when the card arrived from Rating Exam.
 
 A **failed exam** goes to Needs CATP, with `Training Completed` cleared: the
 training was not complete after all. The TA decides what further training the
@@ -511,8 +529,7 @@ markdown is plain prose with no placeholders. `index.ts` holds each view as
 
 **Course content does not live here.** This repo is public, and lesson plans,
 grade sheets and exam material are neither for the public web nor something the
-training team should need a public PR to change. See
-[`.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md`](.ai/decisions/0011-site-copy-in-repo-course-content-elsewhere.md).
+training team should need a public PR to change.
 
 When you change `agreement.md` in a way that alters what a student agrees to,
 **bump `TERMS_VERSION`** in `src/lib/content/enrollment/index.ts`.

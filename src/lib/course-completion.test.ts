@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
 	afterTraining,
+	afterTrainingOptions,
+	evaluatesCourse,
 	canCompleteExam,
 	canCompleteTraining,
 	canClaimExam,
-	credentialChangeFor
+	credentialChangeFor,
+	formatHold,
+	holdLabels,
+	missingEvidence
 } from './course-completion';
-import { COURSES } from './courses';
+import { COURSES, isEnrollableCourseCode } from './courses';
 import type { QualificationLevel } from './teachers';
 
 describe('afterTraining', () => {
@@ -83,12 +88,21 @@ describe('credentialChangeFor', () => {
 	});
 
 	it('names a credential for every course on the form', () => {
-		for (const course of COURSES) {
+		for (const course of COURSES.filter((c) => isEnrollableCourseCode(c.code))) {
 			expect(credentialChangeFor(course.code, [])).not.toEqual({
 				action: 'none',
 				reason: 'no-credential'
 			});
 		}
+	});
+
+	// Custom Training earns nothing: finishing it changes no certification.
+	it('changes nothing for Custom Training, which has no exam either', () => {
+		expect(credentialChangeFor('CUSTOM', ['S-GC'])).toEqual({
+			action: 'none',
+			reason: 'no-credential'
+		});
+		expect(afterTraining('CUSTOM')).toBe('certification-update');
 	});
 });
 
@@ -184,5 +198,118 @@ describe('canCompleteExam', () => {
 	it('is not for their own request, or outside the exam stage', () => {
 		expect(canCompleteExam({ ...scheduled, cid: '100' }, teacher)).toBe(false);
 		expect(canCompleteExam({ ...scheduled, status: 'in-training' }, teacher)).toBe(false);
+	});
+});
+
+describe('missingEvidence', () => {
+	const full = { trainingCompleted: '2026-10-01', reInstructor: 'HI', reCompleted: '2026-10-05' };
+	const none = { trainingCompleted: null, reInstructor: null, reCompleted: null };
+
+	it('asks every course for Training Completed', () => {
+		for (const course of COURSES) {
+			expect(missingEvidence(course.code, none)).toContain('training-completed');
+		}
+	});
+
+	it('asks the rating-exam courses for an examiner and RE Completed too', () => {
+		for (const course of ['S-GC', 'A-LC', 'T-RC', 'E-RC']) {
+			expect(missingEvidence(course, none)).toEqual([
+				'training-completed',
+				're-instructor',
+				're-completed'
+			]);
+		}
+	});
+
+	// A-GC and S-LC have no exam, so nothing about one can hold them.
+	it('asks the courses with no exam for nothing more', () => {
+		for (const course of ['A-GC', 'S-LC']) {
+			expect(missingEvidence(course, none)).toEqual(['training-completed']);
+			expect(missingEvidence(course, { ...none, trainingCompleted: '2026-10-01' })).toEqual([]);
+		}
+	});
+
+	// The mistake this exists for: an exam course dragged past its exam.
+	it('holds an exam course that has its training date but no exam', () => {
+		expect(missingEvidence('S-GC', { ...none, trainingCompleted: '2026-10-01' })).toEqual([
+			're-instructor',
+			're-completed'
+		]);
+	});
+
+	it('names each missing field on its own', () => {
+		expect(missingEvidence('T-RC', { ...full, reCompleted: null })).toEqual(['re-completed']);
+		expect(missingEvidence('T-RC', { ...full, reInstructor: null })).toEqual(['re-instructor']);
+		expect(missingEvidence('T-RC', { ...full, trainingCompleted: null })).toEqual([
+			'training-completed'
+		]);
+	});
+
+	it('finds nothing missing on a complete card, for every course', () => {
+		for (const course of COURSES) {
+			expect(missingEvidence(course.code, full)).toEqual([]);
+		}
+	});
+});
+
+describe('formatHold and holdLabels', () => {
+	it('stores nothing when nothing is missing', () => {
+		expect(formatHold([])).toBeNull();
+		expect(holdLabels(null)).toEqual([]);
+	});
+
+	it('round-trips to the field names on the card', () => {
+		const hold = formatHold(['training-completed', 're-instructor', 're-completed']);
+		expect(holdLabels(hold)).toEqual(['Training Completed', 'RE Instructor', 'RE Completed']);
+	});
+
+	it('ignores a key it does not know', () => {
+		expect(holdLabels('re-completed,something-else')).toEqual(['RE Completed']);
+	});
+});
+
+describe('afterTrainingOptions', () => {
+	it('gives the six standard courses exactly one way on', () => {
+		for (const course of ['S-GC', 'A-LC', 'T-RC', 'E-RC']) {
+			expect(afterTrainingOptions(course)).toEqual(['rating-exam']);
+		}
+		for (const course of ['A-GC', 'S-LC']) {
+			expect(afterTrainingOptions(course)).toEqual(['certification-update']);
+		}
+	});
+
+	// Only the teacher knows whether what they taught needs examining.
+	it('leaves Custom Training to the teacher', () => {
+		expect(afterTrainingOptions('CUSTOM')).toEqual(['rating-exam', 'certification-update']);
+	});
+});
+
+describe('evaluatesCourse', () => {
+	const levels = (entries: [string, QualificationLevel][]) => new Map(entries);
+
+	it('needs an evaluator on that course, for a standard course', () => {
+		expect(evaluatesCourse('T-RC', levels([['T-RC', 'evaluator']]))).toBe(true);
+		expect(evaluatesCourse('T-RC', levels([['S-GC', 'evaluator']]))).toBe(false);
+		expect(evaluatesCourse('T-RC', levels([['T-RC', 'teacher']]))).toBe(false);
+	});
+
+	// Custom Training has no qualification of its own.
+	it('lets anyone who evaluates any course examine Custom Training', () => {
+		expect(evaluatesCourse('CUSTOM', levels([['S-GC', 'evaluator']]))).toBe(true);
+		expect(evaluatesCourse('CUSTOM', levels([['S-GC', 'teacher']]))).toBe(false);
+		expect(evaluatesCourse('CUSTOM', levels([]))).toBe(false);
+	});
+
+	it('still keeps a Custom Training exam from the student’s own teacher', () => {
+		const custom = {
+			cid: '200',
+			course: 'CUSTOM',
+			status: 'rating-exam',
+			teacher: 'JR',
+			reInstructor: null
+		};
+		const evaluator = levels([['S-GC', 'evaluator']]);
+		expect(canClaimExam(custom, teacher, evaluator)).toBe(false);
+		expect(canClaimExam({ ...custom, teacher: 'SW' }, teacher, evaluator)).toBe(true);
 	});
 });

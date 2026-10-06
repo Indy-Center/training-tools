@@ -5,7 +5,7 @@
  * case is testable without a network call. The fetch lives in
  * `$lib/server/consolidation.ts`.
  *
- * See .ai/decisions/0012-enrollment-eligibility.md
+ * See decisions/0012-enrollment-eligibility.md
  */
 import { CONSOLIDATION_HOURS } from './config';
 import type { AtcHoursByRating } from './certification-grant';

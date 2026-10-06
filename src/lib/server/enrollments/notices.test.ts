@@ -3,8 +3,10 @@ import { ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 import {
 	announcementFor,
 	awaitingAuditNotice,
+	certificationHeldNotice,
 	examReadyNotice,
 	needsCatpNotice,
+	newEnrollmentNotice,
 	stuckRequestNotice,
 	withdrawnNotice
 } from './notices';
@@ -140,5 +142,58 @@ describe('stuckRequestNotice', () => {
 		expect(notice.summary).toContain('5 times');
 		expect(field(notice, 'Last error')).toBe('Jira 401: Unauthorized');
 		expect(notice.link).toMatch(/\/admin$/);
+	});
+});
+
+describe('newEnrollmentNotice', () => {
+	const enrolled = {
+		...request,
+		teacher: null,
+		examiner: null,
+		rating: 'S1',
+		availability: 'Weeknights after 7',
+		notificationPreference: 'discord'
+	};
+
+	it('tells the training admins who enrolled, in what, and how to reach them', () => {
+		const notice = newEnrollmentNotice(enrolled);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.tone).toBeUndefined();
+		expect(notice.title).toBe('New enrollment: Jo Rivera');
+		expect(field(notice, 'Course')).toBe('Terminal Radar Control (T-RC)');
+		expect(field(notice, 'Rating')).toBe('S1');
+		expect(field(notice, 'Contact by')).toBe('Discord message');
+		expect(field(notice, 'Availability')).toBe('Weeknights after 7');
+		expect(notice.link).toBe('https://jira.test/browse/TRK-42');
+		expect(notice.mention).toBeUndefined();
+	});
+
+	// Jira was down as they submitted: the request is still theirs and ours.
+	it('says so when the card has not reached the board yet', () => {
+		const notice = newEnrollmentNotice({ ...enrolled, issueKey: null, issueUrl: null });
+		expect(field(notice, 'TRK card')).toMatch(/Not on the board yet/);
+		expect(notice.link).toBeUndefined();
+	});
+});
+
+describe('certificationHeldNotice', () => {
+	const notice = certificationHeldNotice(request, ['RE Instructor', 'RE Completed']);
+
+	it('warns the training admins, naming what the card lacks', () => {
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.tone).toBe('warning');
+		expect(field(notice, 'Missing on the card')).toBe('RE Instructor, RE Completed');
+		expect(notice.summary).toContain('nothing has been granted');
+	});
+
+	it('links to the card, or to the audit page when Jira’s address is unknown', () => {
+		expect(notice.link).toBe('https://jira.test/browse/TRK-42');
+		expect(certificationHeldNotice({ ...request, issueUrl: null }, ['x']).link).toMatch(
+			/\/admin\/audit$/
+		);
+	});
+
+	it('pings nobody', () => {
+		expect(notice.mention).toBeUndefined();
 	});
 });

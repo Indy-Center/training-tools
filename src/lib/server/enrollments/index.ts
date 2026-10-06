@@ -232,7 +232,7 @@ export type SubmitResult = {
  * One attempt, no inline retry loop — making someone wait on a service that is
  * already unhappy helps nobody when the cron will pick it up within 15 minutes.
  *
- * See .ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
+ * See decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
  */
 export async function submitEnrollment(
 	db: Database,

@@ -11,7 +11,7 @@ import { enrollmentsTable, type EnrollmentStatus } from '$lib/db/schema/enrollme
  * long training really took. Rather than dress a guess up as a statistic, this
  * reports current headcounts, and the page pairs them with each course's
  * configured `estimatedWeeks`, labelled as an estimate. See
- * .ai/decisions/0015-waitlist-stats-without-measured-rates.md
+ * decisions/0015-waitlist-stats-without-measured-rates.md
  *
  * Counted from D1, the same source as the home page's "N ahead of you", so the
  * two pages cannot disagree. Hand-filed TRK issues are included because
@@ -45,23 +45,27 @@ export type StatusCount = { course: string; status: string; count: number };
 /**
  * Fold grouped counts into one entry per course, in catalogue order. Courses
  * with nobody in them still appear, as zeros — "nobody is waiting" is the
- * answer someone deciding whether to enroll wants to see.
+ * answer someone deciding whether to enroll wants to see. A course nobody can
+ * enroll in (`boardOnly`) is the exception: it is listed only while in use.
  */
 export function summariseWaitlist(rows: readonly StatusCount[]): CourseWaitlist[] {
-	return COURSES.map((course) => {
+	return COURSES.flatMap((course) => {
 		const forCourse = rows.filter((row) => row.course === course.code);
 		const total = (statuses: readonly string[]) =>
 			forCourse
 				.filter((row) => statuses.includes(row.status))
 				.reduce((sum, row) => sum + Number(row.count), 0);
 
-		return {
+		const entry = {
 			code: course.code,
 			label: course.label,
 			waiting: total(['waitlist']),
 			inTraining: total(IN_TRAINING_STATUSES),
 			estimatedWeeks: course.estimatedWeeks
 		};
+
+		const unused = entry.waiting + entry.inTraining === 0;
+		return 'boardOnly' in course && course.boardOnly && unused ? [] : [entry];
 	});
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE `enrollments` ADD `certification_hold` text;

@@ -1,6 +1,6 @@
 import { SITE_URL } from '$lib/config';
 import { findCourse } from '$lib/courses';
-import { STATUS_LABELS } from '$lib/enrollment-status';
+import { NOTIFICATION_LABELS, STATUS_LABELS } from '$lib/enrollment-status';
 import type { Notice } from '$lib/server/notify';
 
 /**
@@ -108,11 +108,14 @@ export function examReadyNotice(
 	};
 }
 
-/** A rating exam was not passed: the card waits for the TA to plan more training. */
+/**
+ * A card is at Needs CATP: the student needs corrective training before going
+ * on. Reached from a rating exam that was not passed, or from In Training when
+ * a teacher asks for one, so it only says an exam was failed when told so.
+ */
 export function needsCatpNotice(
 	request: NoticeRequest,
-	// Needs CATP is also reached from In Training on the board, with no exam
-	// behind it. Only a card that came from Rating Exam failed one.
+	// Only a card that came from Rating Exam failed one.
 	afterExam = true
 ): Notice {
 	return {
@@ -127,7 +130,7 @@ export function needsCatpNotice(
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
-			{ label: 'Examined by', value: request.examiner ?? 'not set' },
+			...(request.examiner ? [{ label: 'Examined by', value: request.examiner }] : []),
 			...card(request)
 		]
 	};
@@ -144,6 +147,27 @@ export function awaitingAuditNotice(request: NoticeRequest & { holds: string | n
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
 			...(request.examiner ? [{ label: 'Examined by', value: request.examiner }] : []),
 			{ label: 'Now holds', value: request.holds ?? 'no certification' },
+			...card(request)
+		]
+	};
+}
+
+/**
+ * A card is at Certification Update without the fields that show the course was
+ * finished, so nothing has been granted. Somebody has to look at the card.
+ */
+export function certificationHeldNotice(request: NoticeRequest, missing: string[]): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `Certification not applied: ${request.name}`,
+		summary:
+			'The card is at Audit but is missing what shows the course was finished, so nothing has been granted. Fill it in on the card, or move the card back if it is there by mistake.',
+		link: request.issueUrl ?? `${SITE_URL}/admin/audit`,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Course', value: course(request.course) },
+			{ label: 'Missing on the card', value: missing.join(', ') },
 			...card(request)
 		]
 	};
@@ -168,6 +192,43 @@ export function stuckRequestNotice(
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
 			{ label: 'Last error', value: error }
+		]
+	};
+}
+
+/**
+ * Someone has enrolled through the form. Sent as they submit, whether or not
+ * the card has reached the TRK board yet: a card that has not is filed by the
+ * cron, and the training admins hear separately if that keeps failing.
+ *
+ * Not sent for a card staff file by hand on the board — they already know.
+ */
+export function newEnrollmentNotice(
+	request: NoticeRequest & {
+		rating: string | null;
+		availability: string | null;
+		notificationPreference: string | null;
+	}
+): Notice {
+	const contact = request.notificationPreference
+		? (NOTIFICATION_LABELS[request.notificationPreference as keyof typeof NOTIFICATION_LABELS] ??
+			request.notificationPreference)
+		: null;
+
+	return {
+		audience: 'training-admins',
+		title: `New enrollment: ${request.name}`,
+		summary: `${request.name} has enrolled in ${course(request.course)} and is on the waitlist.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Course', value: course(request.course) },
+			...(request.rating ? [{ label: 'Rating', value: request.rating }] : []),
+			...(contact ? [{ label: 'Contact by', value: contact }] : []),
+			...(request.availability ? [{ label: 'Availability', value: request.availability }] : []),
+			...(request.issueKey
+				? card(request)
+				: [{ label: 'TRK card', value: 'Not on the board yet. It is filed automatically.' }])
 		]
 	};
 }

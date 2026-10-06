@@ -16,14 +16,44 @@
  *        │                                               TA: audit complete ──> Completed │
  *        └──────────────────────── TA returns it to training, on the board ───────────────┘
  *
- * See .ai/decisions/0021-end-of-course-flows.md
+ * See decisions/0021-end-of-course-flows.md
  */
 import { findCredential, highestCertification } from './certifications';
+import { findCourse } from './courses';
 import { hasEvaluation, isAssignedTo, type QualificationLevel } from './teachers';
 
+export type AfterTraining = 'rating-exam' | 'certification-update';
+
 /** Where a course goes when its teacher marks the training complete. */
-export function afterTraining(course: string): 'rating-exam' | 'certification-update' {
+export function afterTraining(course: string): AfterTraining {
 	return hasEvaluation(course) ? 'rating-exam' : 'certification-update';
+}
+
+/**
+ * Everywhere a course may go when its teacher marks the training complete.
+ *
+ * One answer for the six standard courses. Two for a course whose exam is
+ * optional (Custom Training): the teacher chooses, because only they know
+ * whether what they taught needs examining.
+ */
+export function afterTrainingOptions(course: string): AfterTraining[] {
+	if (findCourse(course)?.examOptional) return ['rating-exam', 'certification-update'];
+	return [afterTraining(course)];
+}
+
+/**
+ * Whether someone with these qualifications may examine a course.
+ *
+ * For a standard course, they must be an evaluator on that course. A course
+ * with an optional exam has no qualification of its own, so anyone who
+ * evaluates any course may examine it.
+ */
+export function evaluatesCourse(
+	course: string,
+	levels: ReadonlyMap<string, QualificationLevel>
+): boolean {
+	if (findCourse(course)?.examOptional) return [...levels.values()].includes('evaluator');
+	return levels.get(course) === 'evaluator';
 }
 
 export type CredentialChange =
@@ -63,6 +93,62 @@ export function credentialChangeFor(course: string, held: readonly string[]): Cr
 	if (currentRank > credential.rank) return { action: 'none', reason: 'holds-higher' };
 
 	return { action: 'set-certification', code: credential.code };
+}
+
+/** Something a card must carry before its course's certification is applied. */
+export type CompletionEvidence = 'training-completed' | 're-instructor' | 're-completed';
+
+/** Each by the name of its field on the TRK card, which is where it gets fixed. */
+export const COMPLETION_EVIDENCE_LABELS: Record<CompletionEvidence, string> = {
+	'training-completed': 'Training Completed',
+	're-instructor': 'RE Instructor',
+	're-completed': 'RE Completed'
+};
+
+/** The fields on a TRK card that show a course was finished. */
+export type CardEvidence = {
+	trainingCompleted: string | null;
+	reInstructor: string | null;
+	reCompleted: string | null;
+};
+
+/**
+ * What a card at Certification Update still lacks, for its course.
+ *
+ * Every course needs `Training Completed`. The four that end in a rating exam
+ * also need an examiner and `RE Completed`. A card that reached Certification
+ * Update without them was dragged there — past the exam, or before the training
+ * was done — and certifying from it would grant something nobody earned. Every
+ * step taken through this app writes its field before it moves the card, so a
+ * card moved here never lacks one.
+ */
+export function missingEvidence(course: string, card: CardEvidence): CompletionEvidence[] {
+	const missing: CompletionEvidence[] = [];
+
+	if (!card.trainingCompleted) missing.push('training-completed');
+	if (afterTraining(course) === 'rating-exam') {
+		if (!card.reInstructor) missing.push('re-instructor');
+		if (!card.reCompleted) missing.push('re-completed');
+	}
+
+	return missing;
+}
+
+/** As stored on a request (`certification_hold`): the keys, comma-separated. */
+export function formatHold(missing: readonly CompletionEvidence[]): string | null {
+	return missing.length > 0 ? missing.join(',') : null;
+}
+
+/** A stored hold, as the field names an admin has to fill in. */
+export function holdLabels(hold: string | null): string[] {
+	if (!hold) return [];
+	return hold
+		.split(',')
+		.flatMap((key) =>
+			key in COMPLETION_EVIDENCE_LABELS
+				? [COMPLETION_EVIDENCE_LABELS[key as CompletionEvidence]]
+				: []
+		);
 }
 
 type Request = {
@@ -119,7 +205,7 @@ export function canClaimExam(
 		!request.reInstructor &&
 		!isOwn(request, teacher) &&
 		!taughtThem(request, teacher) &&
-		levels.get(request.course) === 'evaluator'
+		evaluatesCourse(request.course, levels)
 	);
 }
 

@@ -1,5 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { getWaitlistPosition, submitEnrollment, withdrawEnrollment } from '$lib/server/enrollments';
+import {
+	getEnrollment,
+	getWaitlistPosition,
+	submitEnrollment,
+	withdrawEnrollment
+} from '$lib/server/enrollments';
+import { newEnrollmentNotice } from '$lib/server/enrollments/notices';
+import { notifyInBackground } from '$lib/server/notify';
 import { requireSession } from '$lib/server/guards';
 import { findAssignee, getActiveTeacher } from '$lib/server/teachers';
 import { loadTrainingContext } from '$lib/server/training-flow';
@@ -23,7 +30,7 @@ import type { Actions, PageServerLoad } from './$types';
  * `/teach` instead. This page is still theirs to visit — the header links to it
  * with `?view=student`, which is what gets past the redirect.
  *
- * See .ai/decisions/0019-default-view-by-enrollment-state.md
+ * See decisions/0019-default-view-by-enrollment-state.md
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const session = locals.session;
@@ -187,7 +194,7 @@ export const actions: Actions = {
 			});
 		}
 
-		await submitEnrollment(locals.db, platform?.env, {
+		const { enrollment } = await submitEnrollment(locals.db, platform?.env, {
 			cid: session.user.cid,
 			course: nextCourse,
 			submittedName: displayName(session.user),
@@ -197,6 +204,27 @@ export const actions: Actions = {
 			agreedAt: new Date(),
 			agreedTermsVersion: TERMS_VERSION
 		});
+
+		// Tell the training admins. Read back first, for the card's key if the
+		// filing went through; sent either way, and never awaited by the student.
+		const saved = (await getEnrollment(locals.db, enrollment.id)) ?? enrollment;
+		const jiraBaseUrl = platform?.env.JIRA_BASE_URL?.trim().replace(/\/$/, '');
+		notifyInBackground(
+			platform,
+			newEnrollmentNotice({
+				name: saved.submittedName,
+				cid: saved.cid,
+				course: saved.course,
+				teacher: null,
+				examiner: null,
+				issueKey: saved.jiraIssueKey,
+				issueUrl:
+					jiraBaseUrl && saved.jiraIssueKey ? `${jiraBaseUrl}/browse/${saved.jiraIssueKey}` : null,
+				rating: saved.submittedRating,
+				availability: saved.availability,
+				notificationPreference: saved.notificationPreference
+			})
+		);
 
 		// Redirect regardless of whether Jira accepted it: the request is recorded,
 		// and the cron files anything that didn't make it. Post/redirect/get so a

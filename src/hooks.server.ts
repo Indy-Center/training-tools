@@ -46,7 +46,7 @@ const dbHandle: Handle = async ({ event, resolve }) => {
  * changes, form actions run before any load, and +server.ts endpoints never run
  * one at all. A layout gate covers the first view and then quietly stops, so a
  * revoked session keeps working until a full reload.
- * See .ai/decisions/0004-gate-in-handle-not-layout.md
+ * See decisions/0004-gate-in-handle-not-layout.md
  */
 const authHandle: Handle = async ({ event, resolve }) => {
 	event.locals.session = await getSessionContext(event);
