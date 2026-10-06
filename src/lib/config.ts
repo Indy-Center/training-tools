@@ -60,6 +60,8 @@ export const MOODLE_COURSE_URLS: Readonly<Partial<Record<string, string>>> = {};
 export const NOTIFY_CHANNELS = {
 	/** Training admins: teacher changes, finished courses to audit, failed exams, things stuck. */
 	'training-admins': 'training-admin-alerts',
+	/** The tech team: things only they can fix — jobs failing, the board and the app out of step. */
+	'tech-team': 'tech-team-alerts',
 	/** Instructors and evaluators: rating exams waiting to be claimed. */
 	instructors: 'instructor-actions'
 } as const;

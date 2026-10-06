@@ -6,9 +6,10 @@ const failed: JobRun = { name: 'roster sync', at, ok: false, error: new Error('V
 const worked: JobRun = { name: 'roster sync', at, ok: true, summary: null };
 
 describe('jobAlert', () => {
-	it('warns when a job starts failing', () => {
+	// A failing job is the tech team's to fix, not the training admins'.
+	it('warns the tech team when a job starts failing', () => {
 		const notice = jobAlert(failed, 0);
-		expect(notice).toMatchObject({ audience: 'training-admins', tone: 'warning' });
+		expect(notice).toMatchObject({ audience: 'tech-team', tone: 'warning' });
 		expect(notice?.title).toContain('roster sync');
 		expect(notice?.fields).toEqual([{ label: 'Error', value: 'VATUSA down' }]);
 	});
@@ -21,6 +22,7 @@ describe('jobAlert', () => {
 
 	it('says when it recovers, and after how many failures', () => {
 		const notice = jobAlert(worked, 3);
+		expect(notice?.audience).toBe('tech-team');
 		expect(notice?.title).toContain('recovered');
 		expect(notice?.summary).toContain('3 failed runs');
 		expect(jobAlert(worked, 1)?.summary).toContain('1 failed run.');
