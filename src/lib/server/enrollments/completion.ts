@@ -38,7 +38,7 @@ import { announceArrivals } from './announce';
  * `certification-update` without having had it — which covers a card a teacher
  * completed here, and equally one somebody dragged across the board by hand.
  *
- * See .ai/decisions/0021-end-of-course-flows.md
+ * See decisions/0021-end-of-course-flows.md
  */
 
 export type FlowResult = { ok: true } | { ok: false; message: string };

@@ -23,7 +23,7 @@ import type { Actions, PageServerLoad } from './$types';
  * `/teach` instead. This page is still theirs to visit — the header links to it
  * with `?view=student`, which is what gets past the redirect.
  *
- * See .ai/decisions/0019-default-view-by-enrollment-state.md
+ * See decisions/0019-default-view-by-enrollment-state.md
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const session = locals.session;

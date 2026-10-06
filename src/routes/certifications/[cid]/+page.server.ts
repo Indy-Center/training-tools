@@ -24,7 +24,7 @@ import type { Actions, PageServerLoad } from './$types';
  * Not one or the other: `hooks.server.ts` proves only that a session exists,
  * and a form action runs before any load — so gating in the load alone would
  * leave both actions wide open to any signed-in user. See
- * .ai/decisions/0004-gate-in-handle-not-layout.md
+ * decisions/0004-gate-in-handle-not-layout.md
  */
 const requireCertificationEditor = (locals: App.Locals) =>
 	requireRole(locals, canEditCertifications);

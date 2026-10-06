@@ -7,7 +7,7 @@
  *
  * `Teacher` and `RE Instructor` are in `./status.ts`, beside the code that reads
  * them back. The full inventory, including the fields only training staff write
- * (Teacher Assigned, Removed), is in .ai/research/jira-student-tracking.md.
+ * (Teacher Assigned, Removed), is in research/jira-student-tracking.md.
  */
 export const JIRA_FIELDS = {
 	/** Select. Options are the `jiraOptionId` values in $lib/courses.ts. */

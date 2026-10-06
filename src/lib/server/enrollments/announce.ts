@@ -28,7 +28,7 @@ import {
  * Run by the cron's last job, by the webhook after a delivery, and after each
  * end-of-course step here.
  *
- * See .ai/decisions/0022-notifications-through-larry.md
+ * See decisions/0022-notifications-through-larry.md
  */
 
 export type AnnounceResult = {

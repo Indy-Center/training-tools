@@ -10,7 +10,7 @@ import { jiraRequest, type JiraConfig } from './client';
  * ride along with a transition — each is a field edit made **before** the move,
  * which is also the order a "required before transition" rule in Jira needs.
  *
- * See .ai/research/jira-student-tracking.md for the workflow and field ids.
+ * See research/jira-student-tracking.md for the workflow and field ids.
  */
 
 /** TRK's status names for the end of a course. Matched by name, like every transition. */

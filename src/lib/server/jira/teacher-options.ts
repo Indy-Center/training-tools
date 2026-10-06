@@ -16,7 +16,7 @@ import { RE_INSTRUCTOR_FIELD, TEACHER_FIELD } from './status';
  * The options themselves are readable through the issue create metadata,
  * which is what this does.
  *
- * See .ai/decisions/0017-teacher-roster-and-qualifications.md
+ * See decisions/0017-teacher-roster-and-qualifications.md
  */
 
 export const TEACHER_DROPDOWNS = {

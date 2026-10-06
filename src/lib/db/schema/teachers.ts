@@ -23,7 +23,7 @@ export type TeacherQualification = InferSelectModel<typeof teacherQualifications
  * them. Rows are soft-removed for the same reason, and because their
  * qualifications survive six months off the roster.
  *
- * See .ai/decisions/0017-teacher-roster-and-qualifications.md
+ * See decisions/0017-teacher-roster-and-qualifications.md
  */
 export const teachersTable = sqliteTable(
 	'teachers',

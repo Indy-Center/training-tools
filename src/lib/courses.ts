@@ -14,7 +14,7 @@
  * fixed six; keeping the mapping in one shape gives that generator one place to
  * write instead of two modules to keep in step.
  *
- * See .ai/research/jira-student-tracking.md
+ * See research/jira-student-tracking.md
  */
 export type CourseCode = (typeof COURSES)[number]['code'];
 
@@ -42,7 +42,7 @@ export type Course = {
 	 * lesson count, and `max` adds 20% for missed weeks and repeated lessons,
 	 * rounded up. Training staff own these numbers.
 	 *
-	 * See .ai/decisions/0015-waitlist-stats-without-measured-rates.md
+	 * See decisions/0015-waitlist-stats-without-measured-rates.md
 	 */
 	estimatedWeeks: WeeksRange | null;
 };

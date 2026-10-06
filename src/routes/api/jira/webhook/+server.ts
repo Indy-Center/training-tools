@@ -40,7 +40,7 @@ import type { RequestHandler } from './$types';
  * Each verified delivery is also recorded for `/admin`, off the response path.
  * Unverified requests are not: the endpoint is public, and a row anyone can
  * write to says nothing about whether Jira is reaching us.
- * See .ai/decisions/0014-enrollment-status-from-jira.md
+ * See decisions/0014-enrollment-status-from-jira.md
  */
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	// Widened to the global Env, where app.d.ts declares the secrets: the
