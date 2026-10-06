@@ -78,7 +78,7 @@ export const DISCORD_TEACHER_CATEGORY = 'training';
  * undone, and a teacher can drop off the VATUSA roster by mistake; this is the
  * window in which coming back loses nothing.
  */
-export const DISCORD_ROOM_GRACE_HOURS = 1;
+export const DISCORD_ROOM_GRACE_HOURS = 48;
 
 /** Where this app lives, for links in messages sent from outside a request (the cron). */
 export const SITE_URL = 'https://training.flyindycenter.com';

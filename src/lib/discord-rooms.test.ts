@@ -16,7 +16,7 @@ const teacher = (overrides: Partial<RoomTeacher> = {}): RoomTeacher => ({
 
 const NOW = new Date('2026-10-06T12:00:00Z');
 const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 60 * 60 * 1000);
-/** One hour of grace, as configured. */
+/** A one-hour grace here, to keep the times small; the real one is in config. */
 const plan = (teachers: RoomTeacher[]) => planTeacherRooms(teachers, NOW, 1);
 
 describe('channelSlug', () => {
