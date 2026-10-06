@@ -17,8 +17,8 @@ export type RoomTeacher = {
 	cid: string;
 	/** Null until a training admin has entered them. */
 	initials: string | null;
-	/** False once they no longer hold INS or MTR here. */
-	onRoster: boolean;
+	/** When they stopped holding INS or MTR here. Null while they are on the teacher roster. */
+	leftAt: Date | null;
 	/** What Larry found or made last time, if anything. */
 	roleId: string | null;
 	channelId: string | null;
@@ -47,7 +47,10 @@ export type TeacherRoom = {
 
 export type RoomSkip = { cid: string; reason: 'no-initials' | 'no-name' };
 
-export type TeacherRoomPlan = { rooms: TeacherRoom[]; skipped: RoomSkip[] };
+/** A role and channel to delete: their teacher left longer ago than the grace period. */
+export type RoomRemoval = { cid: string; roleId: string | null; channelId: string | null };
+
+export type TeacherRoomPlan = { rooms: TeacherRoom[]; skipped: RoomSkip[]; remove: RoomRemoval[] };
 
 /** A channel name as Discord stores it, to tell when two teachers would collide. */
 export function channelSlug(name: string): string {
@@ -72,21 +75,37 @@ function displayName(teacher: RoomTeacher): string | null {
  *
  * - **No initials, no room.** The role is named for them, so there is nothing
  *   to make until a training admin has entered some.
- * - **A teacher who has left keeps their room** if they ever had one: it stays
- *   in step with whoever is still assigned to them, so a student moved to
- *   someone else loses the old role. One who left before any room existed is
- *   not given one.
+ * - **A teacher on LOA keeps their room.** LOA is not leaving.
+ * - **A teacher who has left loses theirs after `graceHours`.** Until then it is
+ *   kept exactly as it was, so one who comes back — a role removed on VATUSA by
+ *   mistake — loses nothing. After that the role and the channel are deleted,
+ *   and anyone still assigned to them loses access with it. One who left before
+ *   any room existed has nothing to delete and is not given one.
  * - **Two teachers who would get the same channel** are both named by first
  *   name and CID instead, so neither depends on who was there first.
  */
-export function planTeacherRooms(teachers: readonly RoomTeacher[]): TeacherRoomPlan {
+export function planTeacherRooms(
+	teachers: readonly RoomTeacher[],
+	now: Date,
+	graceHours: number
+): TeacherRoomPlan {
 	const rooms: TeacherRoom[] = [];
 	const skipped: RoomSkip[] = [];
+	const remove: RoomRemoval[] = [];
 	const named: { teacher: RoomTeacher; name: string }[] = [];
 
 	for (const teacher of teachers) {
 		const hadRoom = teacher.roleId !== null || teacher.channelId !== null;
-		if (!teacher.onRoster && !hadRoom) continue;
+
+		if (teacher.leftAt) {
+			if (!hadRoom) continue;
+			const graceEnds = teacher.leftAt.getTime() + graceHours * 60 * 60 * 1000;
+			if (now.getTime() >= graceEnds) {
+				remove.push({ cid: teacher.cid, roleId: teacher.roleId, channelId: teacher.channelId });
+				continue;
+			}
+			// Still inside the grace period: carried on exactly as before.
+		}
 
 		if (!teacher.initials) {
 			skipped.push({ cid: teacher.cid, reason: 'no-initials' });
@@ -127,7 +146,7 @@ export function planTeacherRooms(teachers: readonly RoomTeacher[]): TeacherRoomP
 		});
 	}
 
-	return { rooms, skipped };
+	return { rooms, skipped, remove };
 }
 
 /** How the sync is switched: nothing, report only, or for real. */
@@ -160,6 +179,15 @@ export type RoomReport = {
 	errors: string[];
 };
 
+/** A departed teacher's role and channel, as the last sync deleted them, or would. */
+export type RemovalReport = {
+	cid: string;
+	/** `none` when there was nothing of that kind to delete. */
+	role: 'deleted' | 'would-delete' | 'gone' | 'failed' | 'none';
+	channel: 'deleted' | 'would-delete' | 'gone' | 'failed' | 'none';
+	errors: string[];
+};
+
 export type RoomsReport = {
 	mode: DiscordSyncMode;
 	at: number;
@@ -167,4 +195,5 @@ export type RoomsReport = {
 	canSeeMembers: boolean;
 	rooms: RoomReport[];
 	skipped: RoomSkip[];
+	removed: RemovalReport[];
 };

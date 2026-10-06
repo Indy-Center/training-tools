@@ -145,6 +145,13 @@
 					{/each}
 				</ul>
 
+				{#each data.discord.deleted as gone (gone.cid)}
+					<p class="text-xs text-orange-300">
+						{gone.teacher} has left the teacher roster: role {gone.role}, channel {gone.channel}.
+						{gone.errors.join(' ')}
+					</p>
+				{/each}
+
 				{#if data.discord.skipped.length > 0}
 					<p class="text-xs text-gray-400">
 						No role or channel for:

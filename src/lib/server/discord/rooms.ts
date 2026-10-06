@@ -3,11 +3,12 @@ import type { Database } from '$lib/server/db';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { syncStateTable } from '$lib/db/schema/sync-state';
 import { teachersTable } from '$lib/db/schema/teachers';
-import { DISCORD_TEACHER_CATEGORY } from '$lib/config';
+import { DISCORD_ROOM_GRACE_HOURS, DISCORD_TEACHER_CATEGORY } from '$lib/config';
 import {
 	discordSyncMode,
 	planTeacherRooms,
 	type DiscordSyncMode,
+	type RemovalReport,
 	type RoomReport,
 	type RoomsReport,
 	type RoomTeacher
@@ -48,6 +49,8 @@ export type RoomsSyncResult = {
 	added: number;
 	removed: number;
 	errors: number;
+	/** Departed teachers whose role and channel were deleted. */
+	deleted: number;
 	/** Initials written to identity this run. */
 	initialsWritten: number;
 };
@@ -110,7 +113,7 @@ export async function syncTeacherRooms(
 			return {
 				cid: teacher.cid,
 				initials: teacher.initials,
-				onRoster: teacher.removedAt === null,
+				leftAt: teacher.removedAt,
 				roleId: teacher.discordRoleId,
 				channelId: teacher.discordChannelId,
 				preferredName: identity.known.get(teacher.cid)?.preferredName ?? null,
@@ -121,7 +124,9 @@ export async function syncTeacherRooms(
 					discordId: discordIdOf(student.cid)
 				}))
 			};
-		})
+		}),
+		now,
+		DISCORD_ROOM_GRACE_HOURS
 	);
 
 	// Discord ID back to CID, for the report. Removed people may be nobody we know.
@@ -169,11 +174,15 @@ export async function syncTeacherRooms(
 			: { dryRun, channels: [] };
 	const channelByCid = new Map(channels.channels.map((channel) => [channel.key, channel]));
 
+	// Teachers gone longer than the grace period: their role and channel go.
+	const removed = await removeRooms(db, larry, plan.remove, dryRun);
+
 	const report: RoomsReport = {
 		mode,
 		at: now.getTime(),
 		canSeeMembers: roles.canSeeMembers,
 		skipped: plan.skipped,
+		removed,
 		rooms: plan.rooms.map((room): RoomReport => {
 			const role = roleByCid.get(room.cid);
 			const channel = channelByCid.get(room.cid);
@@ -240,7 +249,12 @@ export async function syncTeacherRooms(
 			set: { cursorAt: now, value: JSON.stringify(report) }
 		});
 
-	const failed = report.rooms.filter((room) => room.errors.length > 0);
+	const failed = [
+		...report.rooms.filter((room) => room.errors.length > 0),
+		...removed
+			.filter((removal) => removal.errors.length > 0)
+			.map((removal) => ({ roleName: `removing ${removal.cid}`, errors: removal.errors }))
+	];
 	const result: RoomsSyncResult = {
 		mode,
 		rooms: report.rooms.length,
@@ -249,6 +263,9 @@ export async function syncTeacherRooms(
 		added: report.rooms.reduce((sum, room) => sum + room.added.length, 0),
 		removed: report.rooms.reduce((sum, room) => sum + room.removed.length, 0),
 		errors: failed.length,
+		deleted: removed.filter(
+			(removal) => removal.role === 'deleted' || removal.channel === 'deleted'
+		).length,
 		initialsWritten
 	};
 
@@ -262,6 +279,65 @@ export async function syncTeacherRooms(
 	}
 
 	return result;
+}
+
+/**
+ * Delete the role and channel of each teacher who left longer ago than the
+ * grace period, and forget their IDs once Discord no longer has them.
+ *
+ * The IDs are cleared only for what is actually deleted or already gone, so
+ * one that Larry refused or could not reach is tried again next run.
+ */
+async function removeRooms(
+	db: Database,
+	larry: NonNullable<ReturnType<typeof larryGuild>>,
+	remove: readonly { cid: string; roleId: string | null; channelId: string | null }[],
+	dryRun: boolean
+): Promise<RemovalReport[]> {
+	if (remove.length === 0) return [];
+
+	const ids = (pick: (removal: (typeof remove)[number]) => string | null) =>
+		remove.flatMap((removal) => (pick(removal) ? [pick(removal)!] : []));
+
+	// Channels first: a channel whose role has gone would be left visible only to the admins.
+	const channels = await larry.deleteChannels({ ids: ids((removal) => removal.channelId), dryRun });
+	const roles = await larry.deleteRoles({ ids: ids((removal) => removal.roleId), dryRun });
+	const channelOutcome = new Map(channels.deleted.map((deletion) => [deletion.id, deletion]));
+	const roleOutcome = new Map(roles.deleted.map((deletion) => [deletion.id, deletion]));
+
+	const reports: RemovalReport[] = [];
+
+	for (const removal of remove) {
+		const role = removal.roleId ? roleOutcome.get(removal.roleId) : undefined;
+		const channel = removal.channelId ? channelOutcome.get(removal.channelId) : undefined;
+		const done = (deletion: typeof role) =>
+			!!deletion &&
+			!deletion.error &&
+			(deletion.outcome === 'deleted' || deletion.outcome === 'gone');
+
+		if (!dryRun) {
+			const roleId = done(role) ? null : removal.roleId;
+			const channelId = done(channel) ? null : removal.channelId;
+			if (roleId !== removal.roleId || channelId !== removal.channelId) {
+				await db
+					.update(teachersTable)
+					.set({ discordRoleId: roleId, discordChannelId: channelId })
+					.where(eq(teachersTable.cid, removal.cid));
+			}
+		}
+
+		const outcome = (id: string | null, deletion: typeof role): RemovalReport['role'] =>
+			!id ? 'none' : !deletion || deletion.error ? 'failed' : deletion.outcome;
+
+		reports.push({
+			cid: removal.cid,
+			role: outcome(removal.roleId, role),
+			channel: outcome(removal.channelId, channel),
+			errors: [role?.error, channel?.error].filter((error): error is string => !!error)
+		});
+	}
+
+	return reports;
 }
 
 /** The last run's report, for `/teachers`. Null before the first run. */

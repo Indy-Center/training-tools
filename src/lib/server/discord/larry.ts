@@ -50,7 +50,12 @@ export type ChannelSyncResult = {
 
 export type ChannelsResult = { dryRun: boolean; channels: ChannelSyncResult[] };
 
+export type Deletion = { id: string; outcome: 'deleted' | 'would-delete' | 'gone'; error?: string };
+export type DeleteResult = { dryRun: boolean; deleted: Deletion[] };
+
 export type LarryGuild = {
+	deleteRoles(request: { ids: string[]; dryRun?: boolean }): Promise<DeleteResult>;
+	deleteChannels(request: { ids: string[]; dryRun?: boolean }): Promise<DeleteResult>;
 	syncRoles(request: { roles: RoleSync[]; dryRun?: boolean }): Promise<RolesResult>;
 	syncChannels(request: { channels: ManagedChannel[]; dryRun?: boolean }): Promise<ChannelsResult>;
 };

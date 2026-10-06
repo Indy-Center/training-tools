@@ -335,8 +335,12 @@ and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules and
   Rating Exam or Needs CATP. It comes off on the next run after they finish,
   withdraw, are removed or are reassigned. **Anyone else holding it loses it**,
   however they got it.
-- **No initials, no role or channel.** A teacher on LOA keeps theirs. One who has
-  left keeps theirs too, in step with whoever is still assigned to them.
+- **No initials, no role or channel.** A teacher on LOA keeps theirs.
+- **A teacher who leaves the teacher roster loses both an hour later**
+  (`DISCORD_ROOM_GRACE_HOURS`). The role and the channel are **deleted**, with
+  the channel's messages, and anyone still assigned to them loses access. Inside
+  the hour nothing changes, so a role removed on VATUSA by mistake and put back
+  costs nothing. A teacher who returns later starts again with a new channel.
 - **Channel name:** their preferred name from identity when they have one,
   otherwise their roster name; kept in step if either changes. Two teachers who
   would collide are both named by first name and CID.

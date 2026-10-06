@@ -155,7 +155,8 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await syncTeacherRooms(db, env);
 				if (!result) return null;
-				const changed = result.created + result.added + result.removed + result.initialsWritten;
+				const changed =
+					result.created + result.added + result.removed + result.deleted + result.initialsWritten;
 				return changed > 0 || result.errors > 0 ? result : null;
 			}
 		},

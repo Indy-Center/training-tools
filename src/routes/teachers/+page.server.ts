@@ -77,6 +77,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 					at: new Date(rooms.at),
 					canSeeMembers: rooms.canSeeMembers,
 					skipped: rooms.skipped.map((skip) => ({ name: nameOf(skip.cid), reason: skip.reason })),
+					// Teachers who left: their role and channel deleted, or about to be.
+					deleted: (rooms.removed ?? []).map((removal) => ({
+						cid: removal.cid,
+						teacher: nameOf(removal.cid),
+						role: removal.role,
+						channel: removal.channel,
+						errors: removal.errors
+					})),
 					rooms: rooms.rooms.map((room) => ({
 						cid: room.cid,
 						teacher: nameOf(room.cid),
