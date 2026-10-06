@@ -3,6 +3,7 @@ import { ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 import {
 	announcementFor,
 	awaitingAuditNotice,
+	certificationHeldNotice,
 	examReadyNotice,
 	needsCatpNotice,
 	stuckRequestNotice
@@ -110,5 +111,27 @@ describe('stuckRequestNotice', () => {
 		expect(notice.summary).toContain('5 times');
 		expect(field(notice, 'Last error')).toBe('Jira 401: Unauthorized');
 		expect(notice.link).toMatch(/\/admin$/);
+	});
+});
+
+describe('certificationHeldNotice', () => {
+	const notice = certificationHeldNotice(request, ['RE Instructor', 'RE Completed']);
+
+	it('warns the training admins, naming what the card lacks', () => {
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.tone).toBe('warning');
+		expect(field(notice, 'Missing on the card')).toBe('RE Instructor, RE Completed');
+		expect(notice.summary).toContain('nothing has been granted');
+	});
+
+	it('links to the card, or to the audit page when Jira’s address is unknown', () => {
+		expect(notice.link).toBe('https://jira.test/browse/TRK-42');
+		expect(certificationHeldNotice({ ...request, issueUrl: null }, ['x']).link).toMatch(
+			/\/admin\/audit$/
+		);
+	});
+
+	it('pings nobody', () => {
+		expect(notice.mention).toBeUndefined();
 	});
 });
