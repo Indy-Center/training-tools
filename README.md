@@ -133,7 +133,7 @@ reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs after it so an issue filed moments ago is read back in the same run;
 and the examiner cleanup and certification pass run after it, so a card the sweep
-has just seen go back into training, or arrive at Certification Update, is dealt
+has just seen go back into training, or arrive at Audit, is dealt
 with in the same run; and the announcements run last, so a card certified a
 moment ago is announced in the same run.
 
@@ -416,24 +416,24 @@ How a course finishes, and who moves it. The rules are pure functions in
 `$lib/course-completion.ts`; the Jira writes are in
 `$lib/server/enrollments/completion.ts`.
 
-| Step                       | Who                                                                  | What happens on the card                                                                                   |
-| -------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Certification Update |
-| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                                            |
-| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Certification Update                                                        |
-| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                                          |
-| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                                  |
-| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                                         |
+| Step                       | Who                                                                  | What happens on the card                                                                    |
+| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
+| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Audit                                                        |
+| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                           |
+| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
+| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
-A-GC and S-LC do not, and go straight to Certification Update.
+A-GC and S-LC do not, and go straight to Audit.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira
 refuses, nothing here has changed and the person is told. Each step also leaves a
 comment naming who did it, because every write is made by one API account.
 
-**The certification is applied when a request is found at Certification Update,
+**The certification is applied when a request is found at Audit,
 however it got there** — a step taken here, or a card somebody dragged across the
 board. The cron's last job, the webhook, and each step above all run the same
 pass; `enrollments.certification_applied_at` is what makes it happen once.

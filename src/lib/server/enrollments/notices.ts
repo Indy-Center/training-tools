@@ -131,7 +131,7 @@ export function certificationHeldNotice(request: NoticeRequest, missing: string[
 		tone: 'warning',
 		title: `Certification not applied: ${request.name}`,
 		summary:
-			'The card is at Certification Update but is missing what shows the course was finished, so nothing has been granted. Fill it in on the card, or move the card back if it is there by mistake.',
+			'The card is at Audit but is missing what shows the course was finished, so nothing has been granted. Fill it in on the card, or move the card back if it is there by mistake.',
 		link: request.issueUrl ?? `${SITE_URL}/admin/audit`,
 		fields: [
 			{ label: 'Student', value: student(request) },
