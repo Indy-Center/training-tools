@@ -1,6 +1,6 @@
 import type { IdentityBinding, SessionContext } from '@indy-center/identity';
 import type { Database } from '$lib/server/db';
-import type { LarryBinding } from '$lib/server/notify/larry';
+import type { LarryBinding } from '@indy-center/indy-larry-worker';
 
 declare global {
 	/**

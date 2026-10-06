@@ -1,6 +1,6 @@
 import { NOTIFY_CHANNELS } from '$lib/config';
 import type { Notice } from './index';
-import type { ChannelSend } from './larry';
+import type { ChannelSend } from '@indy-center/indy-larry-worker';
 
 /**
  * A notice as a message for Larry to post.

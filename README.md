@@ -359,9 +359,7 @@ A failed job is announced when it **starts** failing and when it **recovers**,
 not on every run. See
 [`.ai/decisions/0022-notifications-through-larry.md`](.ai/decisions/0022-notifications-through-larry.md).
 
-The types for the binding are a stand-in (`notify/larry.ts`) until
-`@indy-center/larry` is published (Indy-Center/indy-larry#15); then install it
-and delete that file.
+The types for the binding come from `@indy-center/indy-larry-worker`.
 
 ### Enrollments
 

@@ -13,7 +13,7 @@
  */
 import { NOTIFY_CHANNELS } from '$lib/config';
 import { buildMessage } from './message';
-import type { LarryBinding } from './larry';
+import type { LarryBinding } from '@indy-center/indy-larry-worker';
 
 export type NotifyAudience = keyof typeof NOTIFY_CHANNELS;
 
