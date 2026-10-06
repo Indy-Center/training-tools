@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Alert from '$lib/components/Alert.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Panel from '$lib/components/Panel.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
 	import { formatDateTime } from '$lib/format';
 	import type { RoomsPanel } from '$lib/discord-rooms';
 	import IconForum from '~icons/mdi/forum-outline';

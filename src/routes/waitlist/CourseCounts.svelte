@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Badge from '$lib/components/Badge.svelte';
-	import Panel from '$lib/components/Panel.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
 	import { formatWeeksRange, type WeeksRange } from '$lib/courses';
 	import IconChartBar from '~icons/mdi/chart-bar';
 	import IconInformation from '~icons/mdi/information-outline';

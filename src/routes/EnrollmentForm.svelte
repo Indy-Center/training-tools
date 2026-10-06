@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Panel from '$lib/components/Panel.svelte';
-	import Alert from '$lib/components/Alert.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import ChoiceCard from '$lib/components/ChoiceCard.svelte';
-	import CopyPanel from '$lib/components/CopyPanel.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
+	import CopyPanel from '$lib/components/content/CopyPanel.svelte';
 	import { formatWeeksRange, type Course } from '$lib/courses';
 	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
 	import type { CopyBlock } from '$lib/content/training';

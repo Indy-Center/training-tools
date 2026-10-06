@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Badge from '$lib/components/Badge.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
 	import { TEACHER_STATUS_LABELS, type TeacherStatus } from '$lib/teachers';
 
 	/** Active or on LOA. */

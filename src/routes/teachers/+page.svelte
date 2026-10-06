@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Alert from '$lib/components/Alert.svelte';
-	import Panel from '$lib/components/Panel.svelte';
-	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import { formatDate, formatDateTime } from '$lib/format';
 	import {
 		QUALIFICATION_LEVEL_LABELS,

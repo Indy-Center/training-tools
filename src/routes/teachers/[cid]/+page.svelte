@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Alert from '$lib/components/Alert.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import ChoiceCard from '$lib/components/ChoiceCard.svelte';
-	import EnrollmentStatusBadge from '$lib/components/EnrollmentStatusBadge.svelte';
-	import Panel from '$lib/components/Panel.svelte';
-	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
-	import Timeline from '$lib/components/Timeline.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
+	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
+	import Timeline from '$lib/components/controller/Timeline.svelte';
 	import {
 		MAX_STUDENT_SLOTS,
 		QUALIFICATION_LEVEL_LABELS,

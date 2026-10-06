@@ -1,8 +1,8 @@
 <script lang="ts">
-	import PageHero from '$lib/components/PageHero.svelte';
-	import Panel from '$lib/components/Panel.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import PageHero from '$lib/components/ui/PageHero.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import IconSchool from '~icons/mdi/school';
 	import IconInformation from '~icons/mdi/information-outline';
 	import IconOpenInNew from '~icons/mdi/open-in-new';

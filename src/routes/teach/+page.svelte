@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import Alert from '$lib/components/Alert.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import EnrollmentStatusBadge from '$lib/components/EnrollmentStatusBadge.svelte';
-	import Panel from '$lib/components/Panel.svelte';
-	import TeacherStatusBadge from '$lib/components/TeacherStatusBadge.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import { QUALIFICATION_LEVEL_LABELS } from '$lib/teachers';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCalendarClock from '~icons/mdi/calendar-clock';

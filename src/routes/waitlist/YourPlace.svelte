@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Panel from '$lib/components/Panel.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
 	import { findCourse, formatWeeksRange } from '$lib/courses';
 	import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
 	import type { NotificationPreference } from '$lib/db/schema/enrollments';

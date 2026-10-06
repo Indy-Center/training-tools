@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Panel from '$lib/components/Panel.svelte';
-	import Badge from '$lib/components/Badge.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
 	import { formatDate } from '$lib/format';
 	import IconTimeline from '~icons/mdi/timeline-clock-outline';
 	import IconAccountGroup from '~icons/mdi/account-group';
