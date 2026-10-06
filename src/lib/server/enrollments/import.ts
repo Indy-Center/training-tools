@@ -235,6 +235,7 @@ async function insertImportedRow(
 			status: enrollment.status,
 			teacher: enrollment.teacher,
 			reInstructor: enrollment.reInstructor,
+			availability: enrollment.availability,
 			vatusaAssignedOn: enrollment.vatusaAssignedOn,
 			vatusaCompletedOn: enrollment.vatusaCompletedOn,
 			notificationPreference: enrollment.notificationPreference,

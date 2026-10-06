@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatAgo, formatDate, formatDateTime } from './format';
+import { formatAgo, formatDate, formatDateTime, formatCardDate } from './format';
 
 // Midday UTC, so the calendar date is the same in any timezone the suite runs in.
 const date = new Date('2026-10-02T12:00:00Z');
@@ -41,5 +41,13 @@ describe('formatAgo', () => {
 	// A clock a few seconds ahead of the server must not read as the future.
 	it('treats a moment slightly ahead of now as just now', () => {
 		expect(formatAgo(at(-1), date)).toBe('just now');
+	});
+});
+
+describe('formatCardDate', () => {
+	// A card's date has no time or zone, so it must come out as the same day.
+	it('shows a card date as that day, like every other date', () => {
+		expect(formatCardDate('2026-10-05')).toBe('10/5/2026');
+		expect(formatCardDate('2026-01-01', 'long')).toBe('January 1, 2026');
 	});
 });

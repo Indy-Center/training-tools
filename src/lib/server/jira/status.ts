@@ -21,6 +21,7 @@ export const STATUS_FIELDS = [
 	'status',
 	TEACHER_FIELD,
 	RE_INSTRUCTOR_FIELD,
+	JIRA_FIELDS.availability,
 	JIRA_FIELDS.vatusaAssigned,
 	JIRA_FIELDS.vatusaCompleted,
 	'updated'
@@ -59,6 +60,8 @@ export type JiraStatusIssue = {
 		status?: { name?: string | null } | null;
 		[TEACHER_FIELD]?: { value?: string | null } | null;
 		[RE_INSTRUCTOR_FIELD]?: { value?: string | null } | null;
+		/** A textarea: Atlassian's document format from the REST API, plain text in a webhook. */
+		[JIRA_FIELDS.availability]?: unknown;
 		/** Date only, "YYYY-MM-DD". */
 		[JIRA_FIELDS.vatusaAssigned]?: string | null;
 		[JIRA_FIELDS.vatusaCompleted]?: string | null;
@@ -100,9 +103,41 @@ export type StatusUpdate = {
 	status: EnrollmentStatus;
 	teacher: string | null;
 	reInstructor: string | null;
+	/** What the card says, or null when it says nothing — which never erases ours. */
+	availability: string | null;
 	vatusaAssignedOn: string | null;
 	vatusaCompletedOn: string | null;
 };
+
+type AdfNode = { type?: string; text?: string; content?: AdfNode[] };
+
+/**
+ * A Jira textarea as plain text, or null when it is empty.
+ *
+ * REST v3 returns Atlassian's document format; a webhook body carries the same
+ * field as a plain string. Paragraphs and line breaks become new lines, which
+ * is all an availability note has.
+ */
+export function textareaText(value: unknown): string | null {
+	if (typeof value === 'string') return value.trim() || null;
+	if (!value || typeof value !== 'object') return null;
+
+	const walk = (node: AdfNode): string => {
+		if (node.type === 'text') return node.text ?? '';
+		if (node.type === 'hardBreak') return '\n';
+		const inner = (node.content ?? []).map(walk).join('');
+		// Block nodes end a line; inline ones run on.
+		return ['paragraph', 'heading', 'listItem', 'blockquote'].includes(node.type ?? '')
+			? `${inner}\n`
+			: inner;
+	};
+
+	return (
+		walk(value as AdfNode)
+			.replace(/\n{3,}/g, '\n\n')
+			.trim() || null
+	);
+}
 
 /** A Jira date field, or null for anything that is not a plain `YYYY-MM-DD`. */
 function dateOnly(value: string | null | undefined): string | null {
@@ -126,6 +161,7 @@ export function resolveStatusUpdate(issue: JiraStatusIssue): StatusResolution {
 			status,
 			teacher: issue.fields?.[TEACHER_FIELD]?.value?.trim() || null,
 			reInstructor: issue.fields?.[RE_INSTRUCTOR_FIELD]?.value?.trim() || null,
+			availability: textareaText(issue.fields?.[JIRA_FIELDS.availability]),
 			vatusaAssignedOn: dateOnly(issue.fields?.[JIRA_FIELDS.vatusaAssigned]),
 			vatusaCompletedOn: dateOnly(issue.fields?.[JIRA_FIELDS.vatusaCompleted])
 		}

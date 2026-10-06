@@ -1,10 +1,12 @@
 /**
  * VATUSA's written rating courses, as they bear on our waitlist.
  *
- * Before a controller trains for a rating they sit a written course and exam on
- * VATUSA's academy. Each of our courses that ends in a rating exam has one. The
- * waitlist page records when it was assigned and passed, and a teacher is only
- * assigned once it is.
+ * Before a controller trains for S2, S3 or C1 they sit a written course and
+ * exam on VATUSA's academy, which we assign. The waitlist page records when it
+ * was assigned and passed, and a teacher is only assigned once it is.
+ *
+ * The basic exam is different: it is passed before someone joins a facility at
+ * all, so an S-GC student already has it and there is nothing for us to assign.
  *
  * Pure. The calls to VATUSA are in `$lib/server/vatusa.ts`.
  *
@@ -15,11 +17,12 @@
 export type AcademyExam = 'BASIC' | 'S2' | 'S3' | 'C1';
 
 /**
- * Which written exam each of our courses needs. A course not listed has none:
- * A-GC and S-LC earn no rating, and Custom Training is whatever staff make it.
+ * Which written exam each of our courses needs before training starts. A
+ * course not listed has none to assign: A-GC and S-LC earn no rating, Custom
+ * Training is whatever staff make it, and S-GC's basic exam is already passed
+ * by the time anyone is on our roster.
  */
 const COURSE_EXAMS: Readonly<Record<string, AcademyExam>> = {
-	'S-GC': 'BASIC',
 	'A-LC': 'S2',
 	'T-RC': 'S3',
 	'E-RC': 'C1'

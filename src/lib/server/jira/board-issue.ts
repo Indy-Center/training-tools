@@ -55,6 +55,7 @@ export type BoardEnrollment = {
 	status: EnrollmentStatus;
 	teacher: string | null;
 	reInstructor: string | null;
+	availability: string | null;
 	vatusaAssignedOn: string | null;
 	vatusaCompletedOn: string | null;
 	notificationPreference: NotificationPreference | null;
@@ -123,6 +124,7 @@ export function parseBoardIssue(issue: JiraBoardIssue): BoardIssueParse {
 			status: resolution.update.status,
 			teacher: resolution.update.teacher,
 			reInstructor: resolution.update.reInstructor,
+			availability: resolution.update.availability,
 			vatusaAssignedOn: resolution.update.vatusaAssignedOn,
 			vatusaCompletedOn: resolution.update.vatusaCompletedOn,
 			notificationPreference:

@@ -10,9 +10,13 @@ import {
 import {
 	assignTeacher,
 	assignVatusaCourse,
+	changeTeacher,
 	completeVatusaCourse,
-	getWaitlistSheet
+	getWaitlistSheet,
+	removeStudent,
+	withdrawStudent
 } from '$lib/server/enrollments/waitlist';
+import { SHEET_STATUSES } from '$lib/waitlist';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 
@@ -62,7 +66,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	};
 };
 
-/** Who is acting, and on which request still on the waitlist. */
+/** Who is acting, and on which request — one the sheet still lists. */
 async function acting(event: Pick<RequestEvent, 'locals' | 'request'>) {
 	const session = requireRole(event.locals, canManageStudents);
 	const form = await event.request.formData();
@@ -72,11 +76,14 @@ async function acting(event: Pick<RequestEvent, 'locals' | 'request'>) {
 	return {
 		by: displayName(session.user),
 		form,
-		enrollment: enrollment?.status === 'waitlist' ? enrollment : null
+		enrollment:
+			enrollment && (SHEET_STATUSES as readonly string[]).includes(enrollment.status)
+				? enrollment
+				: null
 	};
 }
 
-const GONE = 'That request is no longer on the waitlist. Reload the page.';
+const GONE = 'That request is no longer open. Reload the page.';
 
 export const actions: Actions = {
 	/**
@@ -129,5 +136,49 @@ export const actions: Actions = {
 		if (!result.ok) return fail(502, { sheetError: result.message });
 
 		return { sheetDone: `Teacher assigned for ${enrollment.submittedName}.` };
+	},
+
+	/** Move someone who is already in training to a different teacher. */
+	changeTeacher: async (event) => {
+		const { by, form, enrollment } = await acting(event);
+		if (!enrollment) return fail(404, { sheetError: GONE });
+
+		const teacher = form.get('teacher');
+		if (typeof teacher !== 'string' || !teacher) {
+			return fail(400, { sheetError: 'Choose a teacher.' });
+		}
+
+		const result = await changeTeacher(
+			event.locals.db,
+			event.platform?.env,
+			enrollment,
+			teacher,
+			by
+		);
+		if (!result.ok) return fail(502, { sheetError: result.message });
+
+		return { sheetDone: `Teacher changed for ${enrollment.submittedName}.` };
+	},
+
+	/** Staff end the request: the card moves to Removed. */
+	removeStudent: async (event) => {
+		const { by, enrollment } = await acting(event);
+		if (!enrollment) return fail(404, { sheetError: GONE });
+
+		const result = await removeStudent(event.locals.db, event.platform?.env, enrollment, by);
+		if (!result.ok) return fail(502, { sheetError: result.message });
+
+		return { sheetDone: `${enrollment.submittedName} removed.` };
+	},
+
+	/** The student is giving it up, recorded by staff: the card moves to Withdrawn. */
+	withdrawStudent: async (event) => {
+		const { by, enrollment } = await acting(event);
+		if (!enrollment) return fail(404, { sheetError: GONE });
+
+		const result = await withdrawStudent(event.locals.db, event.platform?.env, enrollment, by);
+		if (!result.ok) return fail(502, { sheetError: result.message });
+
+		return { sheetDone: `${enrollment.submittedName} withdrawn.` };
 	}
 };

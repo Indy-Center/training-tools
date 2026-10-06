@@ -39,3 +39,9 @@ export const STATUS_COLORS: Record<string, StatusColor> = {
 	removed: 'gray',
 	withdrawn: 'gray'
 } satisfies Record<EnrollmentStatus, StatusColor>;
+
+/** How a contact preference reads, or a dash when none was given. */
+export function notificationLabel(preference: string | null | undefined): string {
+	if (!preference) return '—';
+	return NOTIFICATION_LABELS[preference as NotificationPreference] ?? preference;
+}

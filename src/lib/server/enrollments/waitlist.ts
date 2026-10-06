@@ -1,12 +1,12 @@
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { FACILITY_ID } from '$lib/config';
-import { findCourse } from '$lib/courses';
+import { COURSES, findCourse } from '$lib/courses';
 import { CLOSED_ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 import { resolveJiraConfig } from '$lib/server/jira/client';
-import { transitionIssueToStatus } from '$lib/server/jira/enrollment';
+import { transitionIssueToStatus, WITHDRAWN_STATUS } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { findSelectOption, toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import { TEACHER_FIELD } from '$lib/server/jira/status';
@@ -24,10 +24,15 @@ import {
 	fetchAcademyTranscript,
 	VatusaError
 } from '$lib/server/vatusa';
-import { slotSummary } from '$lib/teachers';
+import { isAssignedTo, slotSummary } from '$lib/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { academyExamFor, firstPass, pickAcademyAssigner, teacherGate } from '$lib/vatusa-academy';
-import type { TeacherChoice, WaitlistRow } from '$lib/waitlist';
+import {
+	SHEET_STATUSES,
+	type SheetStatus,
+	type TeacherChoice,
+	type WaitlistRow
+} from '$lib/waitlist';
 import { note, onCard, type FlowResult } from './completion';
 import { syncEnrollmentIssue } from './status-sync';
 
@@ -45,13 +50,21 @@ import { syncEnrollmentIssue } from './status-sync';
 /** TRK's status for someone with a teacher. Matched by name, like every transition. */
 const IN_TRAINING_STATUS = 'In Training';
 
-/** Everyone on the waitlist, by course and then by how long they have waited. */
+/**
+ * Every request staff are still working, by course, then by how far along it
+ * is, then by how long they have waited.
+ */
 export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Promise<WaitlistRow[]> {
 	const [waiting, people, teachers, levels, assigned] = await Promise.all([
 		db
 			.select()
 			.from(enrollmentsTable)
-			.where(and(eq(enrollmentsTable.status, 'waitlist'), isNull(enrollmentsTable.withdrawnAt)))
+			.where(
+				and(
+					inArray(enrollmentsTable.status, [...SHEET_STATUSES]),
+					isNull(enrollmentsTable.withdrawnAt)
+				)
+			)
 			.orderBy(asc(enrollmentsTable.createdAt)),
 		getPeople(db),
 		listTeachers(db),
@@ -79,16 +92,39 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 			}))
 			.sort((a, b) => (b.available ?? -1) - (a.available ?? -1) || a.label.localeCompare(b.label));
 
+	/** A board value (initials, or a CID) as the person it stands for. */
+	const assigneeName = (value: string | null): string | null => {
+		if (!value) return null;
+		const match = teachers.find((teacher) => isAssignedTo(value, teacher));
+		return match ? teacherLabel(match, people.get(match.cid)) : value;
+	};
+
 	const seen = new Map<string, number>();
+	const order = (status: string) => (SHEET_STATUSES as readonly string[]).indexOf(status);
+	// The catalogue is already in the order the courses are taken, so its index
+	// is the sequence. Anything not in it goes last.
+	const sequence = (course: string) => {
+		const index = COURSES.findIndex((candidate) => candidate.code === course);
+		return index === -1 ? COURSES.length : index;
+	};
 
 	return waiting
 		.map((enrollment): WaitlistRow => {
-			const position = (seen.get(enrollment.course) ?? 0) + 1;
-			seen.set(enrollment.course, position);
+			const waitingNow = enrollment.status === 'waitlist';
+			let position: number | null = null;
+			if (waitingNow) {
+				position = (seen.get(enrollment.course) ?? 0) + 1;
+				seen.set(enrollment.course, position);
+			}
 			const person = people.get(enrollment.cid);
 
 			return {
 				id: enrollment.id,
+				status: enrollment.status as SheetStatus,
+				teacher: assigneeName(enrollment.teacher),
+				teacherCid:
+					teachers.find((teacher) => isAssignedTo(enrollment.teacher, teacher))?.cid ?? null,
+				examiner: assigneeName(enrollment.reInstructor),
 				cid: enrollment.cid,
 				name: person?.name ?? enrollment.submittedName,
 				ratingShort: person?.ratingShort ?? enrollment.submittedRating,
@@ -108,7 +144,12 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 				teachers: choicesFor(enrollment.course, enrollment.cid)
 			};
 		})
-		.sort((a, b) => a.course.localeCompare(b.course) || a.position - b.position);
+		.sort(
+			(a, b) =>
+				sequence(a.course) - sequence(b.course) ||
+				order(a.status) - order(b.status) ||
+				a.waitlistedAt.getTime() - b.waitlistedAt.getTime()
+		);
 }
 
 /**
@@ -316,6 +357,103 @@ export async function assignTeacher(
 		});
 		await transitionIssueToStatus(config, issueKey, IN_TRAINING_STATUS);
 		await note(config, issueKey, `${label} assigned as teacher by ${by}.`);
+	});
+}
+
+/**
+ * Give a student who already has a teacher a different one. Only `Teacher` on
+ * the card changes: the card stays where it is, and `Teacher Assigned` keeps
+ * the day their training began.
+ *
+ * The same rules as a first assignment: the new teacher must be active and
+ * qualified for the course, and nobody is their own teacher.
+ */
+export async function changeTeacher(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment,
+	teacherCid: string,
+	by: string
+): Promise<FlowResult> {
+	if (enrollment.status === 'waitlist') {
+		return { ok: false, message: 'They have no teacher yet. Assign one instead.' };
+	}
+
+	const [teachers, levels, people] = await Promise.all([
+		listTeachers(db),
+		getAllCurrentQualifications(db),
+		getPeople(db)
+	]);
+	const teacher = teachers.find((candidate) => candidate.cid === teacherCid);
+
+	if (!teacher || teacher.removedAt !== null || teacher.status !== 'active') {
+		return { ok: false, message: 'That teacher is not taking students right now.' };
+	}
+	if (teacher.cid === enrollment.cid) {
+		return { ok: false, message: 'Nobody is their own teacher.' };
+	}
+	if (!mayTeach(enrollment.course, levels.get(teacher.cid))) {
+		return { ok: false, message: 'That teacher is not qualified to teach this course.' };
+	}
+	if (isAssignedTo(enrollment.teacher, teacher)) {
+		return { ok: false, message: 'That is already their teacher.' };
+	}
+
+	const label = teacherLabel(teacher, people.get(teacher.cid));
+	const was = enrollment.teacher ?? 'nobody';
+
+	return onCard(db, env, enrollment, 'change teacher', async (config, issueKey) => {
+		const option = await findSelectOption(config, issueKey, TEACHER_FIELD, [
+			teacher.initials,
+			teacher.cid
+		]);
+		if (!option) {
+			return {
+				ok: false,
+				message: `TRK's Teacher list has no option for ${teacher.initials ?? teacher.cid}. Add it on the board, then try again.`
+			};
+		}
+
+		await updateIssueFields(config, issueKey, { [TEACHER_FIELD]: { id: option.id } });
+		await note(config, issueKey, `Teacher changed from ${was} to ${label} by ${by}.`);
+	});
+}
+
+/** TRK's status for someone staff took off the list. Matched by name. */
+const REMOVED_STATUS = 'Removed';
+
+/**
+ * Staff take someone off the list: the card moves to Removed. For a request
+ * staff are ending — no response, no longer eligible — as opposed to one the
+ * student is giving up, which is `withdrawStudent()`.
+ */
+export async function removeStudent(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment,
+	by: string
+): Promise<FlowResult> {
+	return onCard(db, env, enrollment, 'remove student', async (config, issueKey) => {
+		await transitionIssueToStatus(config, issueKey, REMOVED_STATUS);
+		await note(config, issueKey, `Removed by ${by}.`);
+	});
+}
+
+/**
+ * Staff record that the student has withdrawn: the card moves to Withdrawn,
+ * the same place it goes when the student withdraws themselves, with a comment
+ * saying who recorded it. Kept apart from Removed so a report can still tell
+ * "they left" from "we removed them".
+ */
+export async function withdrawStudent(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment,
+	by: string
+): Promise<FlowResult> {
+	return onCard(db, env, enrollment, 'withdraw student', async (config, issueKey) => {
+		await transitionIssueToStatus(config, issueKey, WITHDRAWN_STATUS);
+		await note(config, issueKey, `Withdrawn at the student's request, recorded by ${by}.`);
 	});
 }
 

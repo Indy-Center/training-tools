@@ -1,6 +1,6 @@
 <script lang="ts">
 	import CourseCounts from './CourseCounts.svelte';
-	import StaffSheet from './StaffSheet.svelte';
+	import ManagePanel from './ManagePanel.svelte';
 	import YourPlace from './YourPlace.svelte';
 
 	let { data, form } = $props();
@@ -16,10 +16,12 @@
 
 <div class="mb-8">
 	<h1 class="text-3xl font-bold text-white">Waitlist</h1>
-	<p class="mt-2 text-gray-400">
-		How many controllers are waiting for each course, how many are in training now, and roughly how
-		long each course takes once you start.
-	</p>
+	{#if !data.sheet}
+		<p class="mt-2 text-gray-400">
+			How many controllers are waiting for each course, how many are in training now, and roughly
+			how long each course takes once you start.
+		</p>
+	{/if}
 </div>
 
 <div class="space-y-6">
@@ -31,9 +33,13 @@
 	<!-- Present only for training:students:manage; the load sends nobody else the rows. -->
 	{#if data.sheet}
 		<div>
-			<StaffSheet rows={data.sheet.rows} vatusaKeySet={data.sheet.vatusaKeySet} {form} />
+			<ManagePanel rows={data.sheet.rows} vatusaKeySet={data.sheet.vatusaKeySet} {form} />
 		</div>
 	{/if}
 
-	<CourseCounts courses={data.courses} myCourse={data.mine?.course ?? null} />
+	<!-- The counts are for members deciding whether to enroll; the sheet already
+	     says more, so staff are not shown both. -->
+	{#if !data.sheet}
+		<CourseCounts courses={data.courses} myCourse={data.mine?.course ?? null} />
+	{/if}
 </div>

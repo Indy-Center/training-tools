@@ -209,7 +209,15 @@ src/
 │   ├── enrollment-status.ts   status and contact-method labels, shared by every page
 │   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
-│   ├── components/            Panel, CopyPanel, Button, Alert, ChoiceCard, Badge and status badges, PageHero, header/
+│   ├── components/            shared components, by what they are for:
+│   │   ├── ui/                Panel, Button, Alert, Badge, ChoiceCard, FilterChip, PageHero — no knowledge of training
+│   │   ├── forms/             ActionForm (a button that posts to a named action), ActionResult
+│   │   ├── content/           CopyPanel, for the markdown site copy
+│   │   ├── enrollment/        a request's status badge and its TRK card link
+│   │   ├── teachers/          a teacher's status badge, and the teacher dropdown
+│   │   ├── controller/        Timeline, one controller's history
+│   │   ├── admin/             DiscordRoomsPanel
+│   │   └── header/            the site header, navigation and logo
 │   ├── format.ts              date formatting, pinned to one locale
 │   ├── job-health.ts          pure "is this job healthy" rules for /admin
 │   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health)
@@ -470,38 +478,53 @@ the wording will change and an acceptance date alone cannot say what was agreed.
 
 ### The waitlist, for staff
 
-`/waitlist` is one page for two audiences. Every signed-in member sees the
-counts per course, and their own place first if they are waiting. Someone with
-`training:students:manage` (which `training:admin` covers) also sees the staff
-sheet: everyone waiting, across every course, in one table. Staff can be on the
-waitlist themselves; they get both.
+`/waitlist` is one page for two audiences. Every signed-in member sees their
+own place, if they are waiting, and the counts per course. Someone with
+`training:students:manage` (which `training:admin` covers) sees their own place
+and then the staff sheet in place of the counts. Staff can be on the waitlist
+themselves.
 
 **The sheet's rows are loaded only for that role, not hidden from everyone
 else.** The page is open to every member and the rows name people, so the load
 never reads them without the role; `page.server.test.ts` pins that.
 
-Two things happen to someone on it, in order:
+**The sheet lists every request staff are still working**, grouped by course in
+the order the courses are taken: on the waitlist, in training, at the rating
+exam, and needs CATP. Audit has its own page and closed requests are left out.
+Chips along the top switch a status off, and a dropdown narrows to one course.
 
-1. **The VATUSA written course**, for the four courses that end in a rating exam
-   (S-GC → BASIC, A-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`).
-   **Assign** dates `VATUSA Course Assigned` on the card and, for S2, S3 and C1,
-   assigns the course on VATUSA itself through its API, in the name of the
-   facility's TA — or the ATM when there is no TA. VATUSA emails the student.
-   VATUSA has no course to assign for BASIC, so there only the card is dated and
-   staff assign it by hand.
-2. **A teacher.** The dropdown lists active teachers qualified to teach that
-   course, most open slots first. Choosing one sets `Teacher` and
-   `Teacher Assigned` on the card and moves it to In Training. It is refused
-   until the written course is passed; A-GC, S-LC and Custom Training have none
-   and can be given a teacher straight away.
+What staff do from a row:
+
+- **The VATUSA written course**, for the three courses that need one assigned
+  (A-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`). **Assign** dates
+  `VATUSA Course Assigned` on the card and assigns the course on VATUSA itself
+  through its API, in the name of the facility's TA — or the ATM when there is no
+  TA. VATUSA emails the student. S-GC has none: the basic exam is passed before
+  anyone joins a facility.
+- **Assign a teacher**, for someone on the waitlist. The dropdown lists active
+  teachers qualified to teach that course, most open slots first. Choosing one
+  sets `Teacher` and `Teacher Assigned` on the card and moves it to In
+  Training. It is refused until the written course is passed, where there is one.
+- **Change the teacher**, for someone who already has one. Only `Teacher`
+  changes; the card stays where it is.
+- **Withdraw** (the student is giving it up) or **Remove** (staff are ending
+  it). The card moves to Withdrawn or Removed, kept apart so a report can tell
+  the two; either closes the request.
 
 **Passing is picked up automatically.** The cron reads the VATUSA transcript of
 everyone whose course is assigned and not yet passed, and dates
 `VATUSA Course Completed` with the day they first scored 80% or more. **Mark
 passed** on the page is the fallback.
 
-Both dates are read back from the card like `Teacher`, so a date typed on the
-board shows here too.
+Both dates, and **availability**, are read back from the card like `Teacher`.
+Most cards were filed by hand and never came through the form, so the card is
+the only place their availability is; an empty card never erases what a student
+typed here.
+
+The page is built from small pieces: `ManagePanel`, `SheetFilters`,
+`StudentRow` and the two cells beside it in `src/routes/waitlist/`, on shared
+components in `$lib/components/`. The grouping, filtering and counting are plain
+functions in `$lib/waitlist.ts`.
 
 `VATUSA_API_KEY` is ZID's facility key. Without it nothing is assigned on VATUSA
 and no transcript is read; the buttons still date the card. The deploy sets it

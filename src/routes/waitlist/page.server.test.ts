@@ -12,7 +12,10 @@ vi.mock('$lib/server/enrollments/waitlist', () => ({
 	getWaitlistSheet,
 	assignTeacher: vi.fn(),
 	assignVatusaCourse: vi.fn(),
-	completeVatusaCourse: vi.fn()
+	changeTeacher: vi.fn(),
+	completeVatusaCourse: vi.fn(),
+	removeStudent: vi.fn(),
+	withdrawStudent: vi.fn()
 }));
 
 vi.mock('$lib/server/enrollments', () => ({

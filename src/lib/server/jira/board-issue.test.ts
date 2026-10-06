@@ -34,6 +34,7 @@ describe('parseBoardIssue', () => {
 				status: 'waitlist',
 				teacher: null,
 				reInstructor: null,
+				availability: null,
 				vatusaAssignedOn: null,
 				vatusaCompletedOn: null,
 				notificationPreference: 'discord',

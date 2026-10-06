@@ -6,17 +6,23 @@ import { academyExamFor, firstPass, pickAcademyAssigner, teacherGate } from './v
 const at = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
 
 describe('academyExamFor', () => {
-	it('gives each rating-exam course its written exam', () => {
-		expect(academyExamFor('S-GC')).toBe('BASIC');
+	it('gives the S2, S3 and C1 courses their written exam', () => {
 		expect(academyExamFor('A-LC')).toBe('S2');
 		expect(academyExamFor('T-RC')).toBe('S3');
 		expect(academyExamFor('E-RC')).toBe('C1');
 	});
 
-	// The written exam goes with the rating, so the two lists must not drift.
-	it('has one for exactly the courses that end in a rating exam', () => {
+	// The basic exam is passed before anyone joins a facility, so S-GC has
+	// nothing for us to assign even though it ends in a rating exam.
+	it('has none for S-GC, or for a course with no rating exam', () => {
+		for (const course of ['S-GC', 'A-GC', 'S-LC', 'CUSTOM']) {
+			expect(academyExamFor(course)).toBeNull();
+		}
+	});
+
+	it('never asks for one on a course that has no rating exam', () => {
 		for (const course of COURSES) {
-			expect(academyExamFor(course.code) !== null).toBe(hasEvaluation(course.code));
+			if (academyExamFor(course.code)) expect(hasEvaluation(course.code)).toBe(true);
 		}
 	});
 });
@@ -73,11 +79,11 @@ describe('teacherGate', () => {
 
 	// Passed somewhere else before we ever assigned it: still passed.
 	it('opens on a completion with no assignment', () => {
-		expect(teacherGate(request('S-GC', null, '2026-10-05'))).toEqual({ open: true });
+		expect(teacherGate(request('A-LC', null, '2026-10-05'))).toEqual({ open: true });
 	});
 
-	it('never holds a course with no written exam', () => {
-		for (const course of ['A-GC', 'S-LC', 'CUSTOM']) {
+	it('never holds a course with no written exam to assign', () => {
+		for (const course of ['S-GC', 'A-GC', 'S-LC', 'CUSTOM']) {
 			expect(teacherGate(request(course, null, null))).toEqual({ open: true });
 		}
 	});
