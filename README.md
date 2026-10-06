@@ -340,10 +340,10 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                             |
-| ----------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a request stuck before TRK, a background job failing and recovering |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                           |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                  |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a certification held because its card is incomplete, a request stuck before TRK, a background job failing and recovering |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                |
 
 Only the people a notice names are pinged; nothing typed into a field can mention
 anyone. **Students and teachers are not messaged by the app yet** — TRK's own
@@ -436,9 +436,18 @@ comment naming who did it, because every write is made by one API account.
 **The certification is applied when a request is found at Certification Update,
 however it got there** — a step taken here, or a card somebody dragged across the
 board. The cron's last job, the webhook, and each step above all run the same
-pass; `enrollments.certification_applied_at` is what makes it happen once. So a
-mis-dragged card grants a real certification, which is why TRK's transitions need
-rules requiring the dates first (DEV-176).
+pass; `enrollments.certification_applied_at` is what makes it happen once.
+
+**But only if the card shows the course was finished.** Before granting anything
+the app reads the card: every course needs `Training Completed`, and the four
+that end in a rating exam also need `RE Instructor` and `RE Completed`. A card
+without them — dragged past its exam, or across before the training was done —
+is **held**: nothing is granted, the training admins are told once, and
+`/admin/audit` lists it with what it lacks. It is checked again on every pass,
+so filling in the card releases it, and moving the card back clears the hold.
+What is missing is kept in `enrollments.certification_hold`. TRK's own
+transition rules (DEV-176) are the first defence; this is the one that does not
+depend on the workflow staying as it is.
 
 What a course earns is the credential of the same code, and a certification only
 ever moves someone **up**: a card for a course below what they already hold

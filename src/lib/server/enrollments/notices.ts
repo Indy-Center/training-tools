@@ -122,6 +122,27 @@ export function awaitingAuditNotice(request: NoticeRequest & { holds: string | n
 }
 
 /**
+ * A card is at Certification Update without the fields that show the course was
+ * finished, so nothing has been granted. Somebody has to look at the card.
+ */
+export function certificationHeldNotice(request: NoticeRequest, missing: string[]): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `Certification not applied: ${request.name}`,
+		summary:
+			'The card is at Certification Update but is missing what shows the course was finished, so nothing has been granted. Fill it in on the card, or move the card back if it is there by mistake.',
+		link: request.issueUrl ?? `${SITE_URL}/admin/audit`,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Course', value: course(request.course) },
+			{ label: 'Missing on the card', value: missing.join(', ') },
+			...card(request)
+		]
+	};
+}
+
+/**
  * A request has failed to reach the TRK board too many times, and the cron has
  * stopped trying. Nobody on the training staff can see it until it is fixed.
  */

@@ -65,6 +65,62 @@ export function credentialChangeFor(course: string, held: readonly string[]): Cr
 	return { action: 'set-certification', code: credential.code };
 }
 
+/** Something a card must carry before its course's certification is applied. */
+export type CompletionEvidence = 'training-completed' | 're-instructor' | 're-completed';
+
+/** Each by the name of its field on the TRK card, which is where it gets fixed. */
+export const COMPLETION_EVIDENCE_LABELS: Record<CompletionEvidence, string> = {
+	'training-completed': 'Training Completed',
+	're-instructor': 'RE Instructor',
+	're-completed': 'RE Completed'
+};
+
+/** The fields on a TRK card that show a course was finished. */
+export type CardEvidence = {
+	trainingCompleted: string | null;
+	reInstructor: string | null;
+	reCompleted: string | null;
+};
+
+/**
+ * What a card at Certification Update still lacks, for its course.
+ *
+ * Every course needs `Training Completed`. The four that end in a rating exam
+ * also need an examiner and `RE Completed`. A card that reached Certification
+ * Update without them was dragged there — past the exam, or before the training
+ * was done — and certifying from it would grant something nobody earned. Every
+ * step taken through this app writes its field before it moves the card, so a
+ * card moved here never lacks one.
+ */
+export function missingEvidence(course: string, card: CardEvidence): CompletionEvidence[] {
+	const missing: CompletionEvidence[] = [];
+
+	if (!card.trainingCompleted) missing.push('training-completed');
+	if (afterTraining(course) === 'rating-exam') {
+		if (!card.reInstructor) missing.push('re-instructor');
+		if (!card.reCompleted) missing.push('re-completed');
+	}
+
+	return missing;
+}
+
+/** As stored on a request (`certification_hold`): the keys, comma-separated. */
+export function formatHold(missing: readonly CompletionEvidence[]): string | null {
+	return missing.length > 0 ? missing.join(',') : null;
+}
+
+/** A stored hold, as the field names an admin has to fill in. */
+export function holdLabels(hold: string | null): string[] {
+	if (!hold) return [];
+	return hold
+		.split(',')
+		.flatMap((key) =>
+			key in COMPLETION_EVIDENCE_LABELS
+				? [COMPLETION_EVIDENCE_LABELS[key as CompletionEvidence]]
+				: []
+		);
+}
+
 type Request = {
 	/** The student. */
 	cid: string;
