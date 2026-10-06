@@ -1,66 +1,31 @@
+import type { LarryBinding } from '@indy-center/indy-larry-worker';
+
 /**
- * Larry's role and channel methods, as this app calls them.
- *
- * **Temporary.** These mirror `@indy-center/indy-larry-worker` 1.1.0, which is
- * not on npm yet (Indy-Center/indy-larry, branch `training-rooms`). Once it is
- * published: bump the dependency, import these types from the package, and
- * delete this file's type declarations. The published `LarryBinding` then has
- * the methods and the cast in `larryGuild()` goes too.
+ * Larry's role and channel methods, as this app calls them. The types come
+ * from `@indy-center/indy-larry-worker` (1.1.0 added them).
  */
+export type {
+	ChannelSyncResult,
+	ChannelsResult,
+	DeleteResult,
+	Deletion,
+	ManagedChannel,
+	RoleSync,
+	RoleSyncResult,
+	RolesResult
+} from '@indy-center/indy-larry-worker';
 
-export type RoleSync = {
-	key: string;
-	id?: string | null;
-	name: string;
-	rename?: boolean;
-	members: string[];
-	exclusive: boolean;
-};
+/** The part of Larry that manages roles and channels. */
+export type LarryGuild = Pick<
+	LarryBinding,
+	'syncRoles' | 'syncChannels' | 'deleteRoles' | 'deleteChannels'
+>;
 
-export type RoleSyncResult = {
-	key: string;
-	roleId: string | null;
-	role: 'found' | 'created' | 'would-create';
-	renamedFrom?: string;
-	added: string[];
-	removed: string[];
-	notInServer: string[];
-	error?: string;
-};
-
-export type RolesResult = { dryRun: boolean; canSeeMembers: boolean; roles: RoleSyncResult[] };
-
-export type ManagedChannel = {
-	key: string;
-	category: string;
-	id?: string | null;
-	name: string;
-	rename?: boolean;
-	visibleTo: string[];
-};
-
-export type ChannelSyncResult = {
-	key: string;
-	channelId: string | null;
-	channelName: string;
-	channel: 'found' | 'created' | 'would-create';
-	renamedFrom?: string;
-	error?: string;
-};
-
-export type ChannelsResult = { dryRun: boolean; channels: ChannelSyncResult[] };
-
-export type Deletion = { id: string; outcome: 'deleted' | 'would-delete' | 'gone'; error?: string };
-export type DeleteResult = { dryRun: boolean; deleted: Deletion[] };
-
-export type LarryGuild = {
-	deleteRoles(request: { ids: string[]; dryRun?: boolean }): Promise<DeleteResult>;
-	deleteChannels(request: { ids: string[]; dryRun?: boolean }): Promise<DeleteResult>;
-	syncRoles(request: { roles: RoleSync[]; dryRun?: boolean }): Promise<RolesResult>;
-	syncChannels(request: { channels: ManagedChannel[]; dryRun?: boolean }): Promise<ChannelsResult>;
-};
-
-/** The `LARRY` binding, as something that manages roles and channels. Undefined when it is not bound. */
+/**
+ * The `LARRY` binding, typed. Undefined when it is not bound. `wrangler types`
+ * only knows it as a bare Fetcher, hence the cast — the same one
+ * `$lib/server/notify` makes.
+ */
 export function larryGuild(env: Partial<Env> | undefined): LarryGuild | undefined {
-	return (env as { LARRY?: LarryGuild } | undefined)?.LARRY;
+	return (env as { LARRY?: LarryBinding } | undefined)?.LARRY;
 }
