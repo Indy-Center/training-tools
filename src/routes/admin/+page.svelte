@@ -4,6 +4,7 @@
 	import Alert from '$lib/components/Alert.svelte';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import DiscordRoomsPanel from '$lib/components/DiscordRoomsPanel.svelte';
 	import Panel from '$lib/components/Panel.svelte';
 	import { findCourse } from '$lib/courses';
 	import { formatAgo, formatDate, formatDateTime } from '$lib/format';
@@ -307,4 +308,8 @@
 			{/each}
 		</ul>
 	</Panel>
+
+	{#if data.discord}
+		<DiscordRoomsPanel discord={data.discord} />
+	{/if}
 </div>

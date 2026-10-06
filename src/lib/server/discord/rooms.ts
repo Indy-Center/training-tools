@@ -10,9 +10,11 @@ import {
 	type DiscordSyncMode,
 	type RemovalReport,
 	type RoomReport,
+	type RoomsPanel,
 	type RoomsReport,
 	type RoomTeacher
 } from '$lib/discord-rooms';
+import { getPeople } from '$lib/server/roster';
 import { normalizeInitials } from '$lib/teachers';
 import { assignmentsFor, getAssignedEnrollments, listTeachers } from '$lib/server/teachers';
 import { lookUpTeachers, writeInitials } from './identity';
@@ -32,12 +34,12 @@ import { larryGuild } from './larry';
  * new channel is made visible to a role that has to exist first.
  *
  * `DISCORD_SYNC` switches it: `off`, `dry-run` (ask Larry what it would do and
- * store that for `/teachers`, changing nothing), or `live`.
+ * store that for `/admin`, changing nothing), or `live`.
  *
  * See decisions/0025-teacher-rooms-in-discord.md
  */
 
-/** `sync_state` key: the last run's report, for `/teachers`. */
+/** `sync_state` key: the last run's report, for `/admin`. */
 const REPORT_KEY = 'discord-teacher-rooms';
 
 const SNOWFLAKE = /^\d{17,20}$/;
@@ -363,7 +365,54 @@ export async function getDiscordNames(db: Database): Promise<Map<string, string>
 	);
 }
 
-/** The last run's report, for `/teachers`. Null before the first run. */
+/**
+ * The last run's report as `/admin` shows it: CIDs and Discord IDs turned into
+ * names. Null before the first run.
+ */
+export async function getRoomsPanel(db: Database): Promise<RoomsPanel | null> {
+	const [report, people, discordNames] = await Promise.all([
+		getRoomsReport(db),
+		getPeople(db),
+		getDiscordNames(db)
+	]);
+	if (!report) return null;
+
+	const nameOf = (cid: string) => people.get(cid)?.name ?? cid;
+
+	return {
+		mode: report.mode,
+		at: new Date(report.at),
+		canSeeMembers: report.canSeeMembers,
+		skipped: report.skipped.map((skip) => ({ name: nameOf(skip.cid), reason: skip.reason })),
+		// Teachers who left: their role and channel deleted, or about to be.
+		deleted: (report.removed ?? []).map((removal) => ({
+			cid: removal.cid,
+			teacher: nameOf(removal.cid),
+			role: removal.role,
+			channel: removal.channel,
+			errors: removal.errors
+		})),
+		rooms: report.rooms.map((room) => ({
+			cid: room.cid,
+			teacher: nameOf(room.cid),
+			roleName: room.roleName,
+			role: room.role,
+			roleRenamedFrom: room.roleRenamedFrom ?? null,
+			channelName: room.channelName,
+			channel: room.channel,
+			channelRenamedFrom: room.channelRenamedFrom ?? null,
+			added: room.added.map(nameOf),
+			// By name where the roster knows the Discord ID; otherwise the ID
+			// itself, since whoever is losing the role may be nobody we know.
+			removed: room.removed.map((id) => discordNames.get(id) ?? `Discord user ${id}`),
+			notInServer: room.notInServer.map(nameOf),
+			noDiscord: room.noDiscord.map(nameOf),
+			errors: room.errors
+		}))
+	};
+}
+
+/** The last run's stored report. Null before the first run. */
 export async function getRoomsReport(db: Database): Promise<RoomsReport | null> {
 	const row = await db.query.syncStateTable.findFirst({
 		where: eq(syncStateTable.key, REPORT_KEY)

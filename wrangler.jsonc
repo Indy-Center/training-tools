@@ -44,8 +44,8 @@
 		"JIRA_BASE_URL": "https://zidartcc.atlassian.net",
 		"JIRA_PROJECT_KEY": "TRK",
 		// Teacher roles and channels in Discord, through Larry. "off", "dry-run"
-		// (report on /teachers, change nothing) or "live". Anything else is off.
-		// Live since 2026-10-06, after a dry run was read on /teachers. Live takes a
+		// (report on /admin, change nothing) or "live". Anything else is off.
+		// Live since 2026-10-06, after a dry run was read. Live takes a
 		// teacher's role from anyone who should not hold it. Set "dry-run" to stop
 		// changes and keep the report, or "off" to stop both.
 		"DISCORD_SYNC": "live",

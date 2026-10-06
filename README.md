@@ -347,7 +347,7 @@ and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules and
   identity knows, which means anyone who has signed in to an identity app.
 
 `DISCORD_SYNC` in `wrangler.jsonc` switches it: `off`, `dry-run` or `live`.
-**Dry run changes nothing** and shows on `/teachers` exactly what live would
+**Dry run changes nothing** and shows at the bottom of `/admin` exactly what live would
 do — which roles and channels would be adopted or created, and who would gain
 or lose a role. Read it before going live. `DISCORD_TRAINING_ADMIN_ROLE_ID`
 must be set for any channel to be made.
@@ -548,6 +548,9 @@ behind the scenes is seen before a student has to report it.
   fires when staff change an issue, so a quiet board is not a fault.
 - **Configuration.** Whether the Jira credentials, the webhook secret and the
   Larry binding are set — never their values.
+- **Discord roles and channels.** At the bottom: what the last Discord sync did
+  to each teacher's role and channel, or in a dry run would do. Absent until the
+  sync has run once.
 
 Recording a job's outcome is bookkeeping: if the write fails it is logged, and
 neither fails the job nor stops the next one. Training admins are told in

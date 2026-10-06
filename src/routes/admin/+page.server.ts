@@ -7,6 +7,7 @@ import {
 	MAX_JIRA_SYNC_ATTEMPTS,
 	retryFiling
 } from '$lib/server/enrollments';
+import { getRoomsPanel } from '$lib/server/discord/rooms';
 import { resolveJiraConfig } from '$lib/server/jira/client';
 import { getJobHealth, JIRA_WEBHOOK_JOB } from '$lib/server/job-health';
 import { scheduledJobs } from '$lib/server/scheduled';
@@ -37,10 +38,11 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	// generated platform type only knows what `wrangler types` saw in .dev.vars.
 	const env: Partial<Env> | undefined = platform?.env;
 
-	const [unfiled, health, auditQueue] = await Promise.all([
+	const [unfiled, health, auditQueue, discord] = await Promise.all([
 		getUnfiledEnrollments(locals.db),
 		getJobHealth(locals.db),
-		getAuditQueue(locals.db)
+		getAuditQueue(locals.db),
+		getRoomsPanel(locals.db)
 	]);
 
 	const now = new Date();
@@ -77,6 +79,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		// The page words every "ago" against this, so the server and the browser
 		// agree on them.
 		now,
+		// What the last Discord sync did to teacher roles and channels, or in a dry
+		// run would do. Null until it has run.
+		discord,
 		// Finished courses waiting on the TA. The work is done on `/admin/audit`;
 		// this is how many, so the page can point there.
 		awaitingAudit: auditQueue.length,
