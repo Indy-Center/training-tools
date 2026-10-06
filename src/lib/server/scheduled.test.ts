@@ -23,6 +23,7 @@ describe('scheduledJobs', () => {
 			'enrollment status sweep',
 			'examiner cleanup',
 			'certification updates',
+			'discord teacher rooms',
 			'announcements'
 		]);
 	});

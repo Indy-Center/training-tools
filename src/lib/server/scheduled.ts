@@ -1,6 +1,7 @@
 import type { Database } from '$lib/server/db';
 import { syncRoster } from '$lib/server/roster';
 import { grantArrivalCertifications } from '$lib/server/certifications';
+import { syncTeacherRooms } from '$lib/server/discord/rooms';
 import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
 	announceArrivals,
@@ -143,6 +144,19 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await applyPendingCertificationUpdates(db, env);
 				return result.pending > 0 ? result : null;
+			}
+		},
+		{
+			// After the sweep, which is what says who is with which teacher now, and
+			// before the announcements: a student told about their teacher should
+			// already be able to see the channel.
+			name: 'discord teacher rooms',
+			description: "Keeps each teacher's Discord role and channel in step with their students.",
+			run: async () => {
+				const result = await syncTeacherRooms(db, env);
+				if (!result) return null;
+				const changed = result.created + result.added + result.removed + result.initialsWritten;
+				return changed > 0 || result.errors > 0 ? result : null;
 			}
 		},
 		{

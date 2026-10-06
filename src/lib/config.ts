@@ -66,5 +66,11 @@ export const NOTIFY_CHANNELS = {
 	instructors: 'instructor-actions'
 } as const;
 
+/**
+ * The category teacher channels live under: a **name** from Larry's
+ * `CHANNEL_CATEGORIES` setting, like the channel names above.
+ */
+export const DISCORD_TEACHER_CATEGORY = 'training';
+
 /** Where this app lives, for links in messages sent from outside a request (the cron). */
 export const SITE_URL = 'https://training.flyindycenter.com';

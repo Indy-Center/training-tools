@@ -42,7 +42,15 @@
 		//   wrangler secret put JIRA_API_TOKEN
 		//   wrangler secret put JIRA_WEBHOOK_SECRET   (signs the TRK webhook)
 		"JIRA_BASE_URL": "https://zidartcc.atlassian.net",
-		"JIRA_PROJECT_KEY": "TRK"
+		"JIRA_PROJECT_KEY": "TRK",
+		// Teacher roles and channels in Discord, through Larry. "off", "dry-run"
+		// (report on /teachers, change nothing) or "live". Anything else is off.
+		// Leave it off until Larry 1.1 is deployed; look at a dry run before "live",
+		// because live takes a teacher's role from anyone who should not hold it.
+		"DISCORD_SYNC": "off",
+		// The Discord role that can see every teacher channel Larry creates
+		// ("Training Admin"). No channels are made until this is set.
+		"DISCORD_TRAINING_ADMIN_ROLE_ID": ""
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
 	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157

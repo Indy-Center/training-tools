@@ -14,6 +14,8 @@ function teacher(cid: string, roles: TeacherRole[], overrides: Partial<Teacher> 
 		roles,
 		status: 'active',
 		initials: null,
+		discordRoleId: null,
+		discordChannelId: null,
 		availability: null,
 		studentSlots: null,
 		joinedAt: new Date('2026-01-01T00:00:00Z'),
