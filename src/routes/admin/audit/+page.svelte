@@ -97,7 +97,13 @@
 							{/if}
 						</div>
 
-						{#if !request.appliedAt}
+						{#if request.missing.length > 0}
+							<p class="mt-2 text-xs text-orange-300">
+								On hold: the card is missing {request.missing.join(', ')}, so no certification has
+								been applied. Fill it in on the card, or move the card back if it is here by
+								mistake. It is checked again every 15 minutes.
+							</p>
+						{:else if !request.appliedAt}
 							<p class="mt-2 text-xs text-orange-300">
 								The certification for this course has not been applied yet. It is retried every 15
 								minutes, and the audit can be completed once it has.

@@ -37,7 +37,7 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
 /**
  * Who may do what here, checked in the load **and** in every action — a form
  * action runs before any load, and `hooks.server.ts` only proves a session.
- * See .ai/decisions/0004-gate-in-handle-not-layout.md
+ * See decisions/0004-gate-in-handle-not-layout.md
  *
  * - Training admins (`training:teachers:manage`): everything.
  * - The teacher themselves: see their own page, and edit their availability

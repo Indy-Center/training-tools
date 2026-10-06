@@ -16,7 +16,7 @@ import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
  * first would send a rostered observer down the "become a controller" path they
  * have already completed.
  *
- * See .ai/decisions/0019-default-view-by-enrollment-state.md
+ * See decisions/0019-default-view-by-enrollment-state.md
  */
 export type TrainingFlow =
 	// An open request, by where it sits on the TRK board.

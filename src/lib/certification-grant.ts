@@ -7,7 +7,7 @@
  * from VATSIM and writing the rows — lives in
  * `$lib/server/certifications/arrival.ts`.
  *
- * See .ai/decisions/0010-certifications-model.md and DEV-115.
+ * See decisions/0010-certifications-model.md and DEV-115.
  */
 import {
 	ACTIVITY_WINDOW_MONTHS,

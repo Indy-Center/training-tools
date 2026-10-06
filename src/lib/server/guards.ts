@@ -8,7 +8,7 @@ type Session = NonNullable<App.Locals['session']>;
  * `hooks.server.ts` only proves a session exists, and only on gated routes.
  * Anything finer is checked by the route itself — in the load **and** in every
  * action, because a form action runs before any load. These are that check, so
- * no route has to spell it out. See .ai/decisions/0004-gate-in-handle-not-layout.md
+ * no route has to spell it out. See decisions/0004-gate-in-handle-not-layout.md
  */
 
 /**

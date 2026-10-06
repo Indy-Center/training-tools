@@ -25,7 +25,7 @@ export type NotificationPreference = (typeof NOTIFICATION_PREFERENCES)[number];
  * An earlier revision of this app defaulted to a `submitted` state, because the
  * workflow then had a `New Enrolments` triage step in front of `Waitlist`. That
  * step no longer exists. See
- * .ai/decisions/0009-trk-workflow-lost-its-triage-step.md
+ * decisions/0009-trk-workflow-lost-its-triage-step.md
  *
  * `withdrawn` is ours alone. Jira's `Removed` is the staff-side equivalent, but
  * the two are not the same event — one is the student stepping back, the other
@@ -36,14 +36,14 @@ export type NotificationPreference = (typeof NOTIFICATION_PREFERENCES)[number];
  * `withdrawn` on a student's withdrawal; everything else is read back from the
  * TRK issue by the cron sweep and the Jira webhook — see
  * `$lib/server/enrollments/status-sync.ts` and
- * .ai/decisions/0014-enrollment-status-from-jira.md
+ * decisions/0014-enrollment-status-from-jira.md
  */
 export const ENROLLMENT_STATUSES = [
 	'waitlist', // Jira: Waitlist (initial)
 	'in-training', // Jira: In Training
 	'rating-exam', // Jira: Rating Exam
 	'needs-catp', // Jira: Needs CATP — the rating exam was not passed; with the TA
-	'certification-update', // Jira: Certification Update
+	'certification-update', // Jira: Audit (Certification Update until 2026-10-06)
 	'completed', // Jira: Completed
 	'removed', // Jira: Removed — staff took them off the waitlist
 	'withdrawn' // ours only — the student stepped back
@@ -69,8 +69,8 @@ export const CLOSED_ENROLLMENT_STATUSES = ['completed', 'removed', 'withdrawn'] 
  *
  * Like `roster_members`, this keys on `cid` and takes **no foreign key onto
  * it** — a VATUSA roster removal must never cascade away someone's training
- * history. See .ai/decisions/0006-training-tools-owns-the-roster.md and
- * .ai/decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
+ * history. See decisions/0006-training-tools-owns-the-roster.md and
+ * decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
  */
 export const enrollmentsTable = sqliteTable(
 	'enrollments',
@@ -161,9 +161,18 @@ export const enrollmentsTable = sqliteTable(
 		 */
 		certificationAppliedAt: integer('certification_applied_at', { mode: 'timestamp' }),
 		/**
+		 * Why the certification has **not** been applied: the fields the TRK card
+		 * was missing when last checked, comma-separated (`formatHold()` in
+		 * `$lib/course-completion.ts`). Null when nothing is holding it.
+		 *
+		 * Also what makes the training admins hear about a hold once rather than
+		 * every fifteen minutes: they are told when this changes.
+		 */
+		certificationHold: text('certification_hold'),
+		/**
 		 * When `status`, `teacher` and `reInstructor` were last read back from Jira, by the cron
 		 * sweep or the webhook. Null until the first read. See
-		 * .ai/decisions/0014-enrollment-status-from-jira.md
+		 * decisions/0014-enrollment-status-from-jira.md
 		 */
 		jiraStatusSyncedAt: integer('jira_status_synced_at', { mode: 'timestamp' }),
 		/**
