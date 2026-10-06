@@ -1,5 +1,6 @@
 import { SITE_URL } from '$lib/config';
 import { findCourse } from '$lib/courses';
+import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
 import type { Notice } from '$lib/server/notify';
 
 /**
@@ -140,6 +141,43 @@ export function stuckRequestNotice(
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
 			{ label: 'Last error', value: error }
+		]
+	};
+}
+
+/**
+ * Someone has enrolled through the form. Sent as they submit, whether or not
+ * the card has reached the TRK board yet: a card that has not is filed by the
+ * cron, and the training admins hear separately if that keeps failing.
+ *
+ * Not sent for a card staff file by hand on the board — they already know.
+ */
+export function newEnrollmentNotice(
+	request: NoticeRequest & {
+		rating: string | null;
+		availability: string | null;
+		notificationPreference: string | null;
+	}
+): Notice {
+	const contact = request.notificationPreference
+		? (NOTIFICATION_LABELS[request.notificationPreference as keyof typeof NOTIFICATION_LABELS] ??
+			request.notificationPreference)
+		: null;
+
+	return {
+		audience: 'training-admins',
+		title: `New enrollment: ${request.name}`,
+		summary: `${request.name} has enrolled in ${course(request.course)} and is on the waitlist.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Course', value: course(request.course) },
+			...(request.rating ? [{ label: 'Rating', value: request.rating }] : []),
+			...(contact ? [{ label: 'Contact by', value: contact }] : []),
+			...(request.availability ? [{ label: 'Availability', value: request.availability }] : []),
+			...(request.issueKey
+				? card(request)
+				: [{ label: 'TRK card', value: 'Not on the board yet. It is filed automatically.' }])
 		]
 	};
 }
