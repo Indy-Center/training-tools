@@ -116,6 +116,7 @@ Every 15 minutes (`*/15 * * * *`), in this order:
 | enrollment status sweep | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)   |
 | examiner cleanup        | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)   |
 | certification updates   | Applies what a finished course earns (`applyPendingCertificationUpdates`)      |
+| announcements           | Tells evaluators and training admins what has arrived (`announceArrivals`)     |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -126,14 +127,15 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters seven times, and each is commented in `scheduled.ts`: certification
+Order matters eight times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs after it so an issue filed moments ago is read back in the same run;
 and the examiner cleanup and certification pass run after it, so a card the sweep
 has just seen go back into training, or arrive at Certification Update, is dealt
-with in the same run.
+with in the same run; and the announcements run last, so a card certified a
+moment ago is announced in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
 owns the session cookie and its whole lifecycle; this app links out to
@@ -151,11 +153,12 @@ least once. Discord ids come from the VATUSA roster on each sync.
 
 ## Bindings
 
-| Binding    | Type                   | What it's for                                                |
-| ---------- | ---------------------- | ------------------------------------------------------------ |
-| `IDENTITY` | Service (→ `identity`) | Validates the `fic_session` cookie via `getSessionContext()` |
-| `DB`       | D1 (`training-db`)     | Roster mirror, and the training data this app owns           |
-| `ASSETS`   | Static assets          | SvelteKit client build                                       |
+| Binding    | Type                     | What it's for                                                |
+| ---------- | ------------------------ | ------------------------------------------------------------ |
+| `IDENTITY` | Service (→ `identity`)   | Validates the `fic_session` cookie via `getSessionContext()` |
+| `LARRY`    | Service (→ `indy-larry`) | Queues Discord notices through Larry; see Notifications      |
+| `DB`       | D1 (`training-db`)       | Roster mirror, and the training data this app owns           |
+| `ASSETS`   | Static assets            | SvelteKit client build                                       |
 
 | Var                   | Value                                                              |
 | --------------------- | ------------------------------------------------------------------ |
@@ -163,12 +166,11 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_BASE_URL`       | `https://zidartcc.atlassian.net`                                   |
 | `JIRA_PROJECT_KEY`    | `TRK` — the Student Tracking waitlist                              |
 
-| Secret                            | What it is                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------ |
-| `JIRA_USER_EMAIL`                 | Atlassian account the API token belongs to                                           |
-| `JIRA_API_TOKEN`                  | Classic API token, from id.atlassian.com → Security                                  |
-| `JIRA_WEBHOOK_SECRET`             | Secret on the TRK webhook in Jira; verifies each delivery                            |
-| `DISCORD_WEBHOOK_TRAINING_ADMINS` | Discord webhook URL for the training admins' channel (temporary — see Notifications) |
+| Secret                | What it is                                                |
+| --------------------- | --------------------------------------------------------- |
+| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                |
+| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security       |
+| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to
@@ -216,7 +218,7 @@ src/
 │   │   ├── roster/            roster lookup, search, and the reconciling sync
 │   │   ├── certifications/    grant/revoke, and the arrival pass
 │   │   ├── teachers/          teacher roster sync, profiles, qualifications, dropdown check
-│   │   ├── notify/            TEMPORARY Discord-webhook notices (→ the bot's queue later)
+│   │   ├── notify/            Discord notices, queued through Larry
 │   │   ├── timeline.ts        one controller's history, merged from every source
 │   │   ├── activity.ts        activity_log writes
 │   │   ├── enrollments/       submit, withdraw, waitlist position and stats, and the Jira passes
@@ -327,16 +329,37 @@ and teacher events are in `activity_log`; the rest is read from each table's own
 history. `$lib/server/timeline.ts` is the only reader, because all of this is
 meant to move to a **central log on identity** — that is the file to repoint.
 
-### Notifications (temporary)
+### Notifications
 
-`$lib/server/notify` posts notices to a Discord webhook per audience
-(`NOTIFY_AUDIENCES` in `src/lib/config.ts`; URLs are Worker secrets). **It is a
-stand-in** until the Discord bot has a message queue: callers only say who to
-tell and what to say, so moving to the bot changes that one module. A notice
-never fails the change it describes. Training admins hear about teacher
-availability/slot changes, automatic status changes, a teacher going on LOA
-with students assigned, and TRK dropdown drift. See
-[`.ai/decisions/0018-temporary-webhook-notifications.md`](.ai/decisions/0018-temporary-webhook-notifications.md).
+`$lib/server/notify` queues notices on **Larry**, the Indy Center Discord bot,
+over the `LARRY` service binding to its send Worker (`indy-larry`). Larry
+delivers them, retrying rate limits and Discord outages. Callers say who to
+tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
+`src/lib/config.ts` maps each audience to a channel **name** from Larry's
+`SEND_CHANNELS` setting, which lives in the Indy-Center/indy-larry repo. A notice
+never fails the change it describes: no binding, an unknown channel or Larry
+being down is logged and nothing else.
+
+| Audience          | Channel                 | Told about                                                                                                                                                                             |
+| ----------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | teacher availability/slot changes, LOA with students, TRK dropdown drift, finished courses to audit, failed exams, a request stuck before TRK, a background job failing and recovering |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                           |
+
+Only the people a notice names are pinged; nothing typed into a field can mention
+anyone. **Students and teachers are not messaged by the app yet** — TRK's own
+notification script still does that (DEV-176).
+
+**Arrivals are announced once.** `enrollments.announced_status` records the last
+status a request was announced at; `announceArrivals()` handles any request
+whose status has moved on, however it got there, then the cron, the webhook and
+each end-of-course step run it. A retake that leaves Rating Exam and comes back is
+announced again. The audit notice waits until the certification is applied.
+
+A failed job is announced when it **starts** failing and when it **recovers**,
+not on every run. See
+[`.ai/decisions/0022-notifications-through-larry.md`](.ai/decisions/0022-notifications-through-larry.md).
+
+The types for the binding come from `@indy-center/indy-larry-worker`.
 
 ### Enrollments
 
@@ -452,11 +475,12 @@ behind the scenes is seen before a student has to report it.
 - **Jira webhook.** The last verified delivery. It is never "Not running": it
   fires when staff change an issue, so a quiet board is not a fault.
 - **Configuration.** Whether the Jira credentials, the webhook secret and the
-  Discord webhook are set — never their values.
+  Larry binding are set — never their values.
 
 Recording a job's outcome is bookkeeping: if the write fails it is logged, and
-neither fails the job nor stops the next one. Nobody is notified yet when a
-request gets stuck or a job fails; the page has to be looked at.
+neither fails the job nor stops the next one. Training admins are told in
+Discord when a request gets stuck, and when a job starts failing or recovers —
+see Notifications.
 
 ### Site copy
 
@@ -537,6 +561,8 @@ Also watch the port: if 5173 is taken, Vite silently moves to 5174 and you may
 be testing a stale server.
 
 The signed-out landing page (`/`) renders without identity running at all.
+
+**Larry** works the same way: run its send Worker alongside (`cd ../indy-larry/worker && npx wrangler dev`, with a test token and test channels in its `.dev.vars`) and the `LARRY` binding resolves. Without it, notices are logged and skipped.
 
 ## Database
 

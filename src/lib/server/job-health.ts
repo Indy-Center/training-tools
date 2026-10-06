@@ -1,6 +1,8 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { jobHealthTable, type JobHealth } from '$lib/db/schema/job-health';
+import { SITE_URL } from '$lib/config';
+import { notify, type Notice } from '$lib/server/notify';
 
 /** The Jira webhook's row. Not a cron job, but it reports the same way. */
 export const JIRA_WEBHOOK_JOB = 'jira webhook';
@@ -62,6 +64,56 @@ export async function recordJobRun(db: Database, run: JobRun): Promise<void> {
 			target: jobHealthTable.name,
 			set: { ...set, failuresInARow: sql`${jobHealthTable.failuresInARow} + 1` }
 		});
+}
+
+/**
+ * What a run means for the training admins, given how many runs in a row had
+ * failed before it. Pure.
+ *
+ * Told when a job **starts** failing and when it **recovers** — not on every
+ * failed run, which for a broken job would be a message every fifteen minutes.
+ */
+export function jobAlert(run: JobRun, failuresBefore: number): Notice | null {
+	if (!run.ok && failuresBefore === 0) {
+		return {
+			audience: 'training-admins',
+			tone: 'warning',
+			title: `Background job failing: ${run.name}`,
+			summary:
+				'Its last run failed. It is tried again on every run; you will hear again when it recovers, not before.',
+			link: `${SITE_URL}/admin`,
+			fields: [{ label: 'Error', value: errorMessage(run.error) }]
+		};
+	}
+
+	if (run.ok && failuresBefore > 0) {
+		return {
+			audience: 'training-admins',
+			title: `Background job recovered: ${run.name}`,
+			summary: `Working again after ${failuresBefore} failed ${failuresBefore === 1 ? 'run' : 'runs'}.`,
+			link: `${SITE_URL}/admin`
+		};
+	}
+
+	return null;
+}
+
+/**
+ * Record a run, and tell the training admins if it started a failure or ended
+ * one. Like recording itself, the alert never fails the job.
+ */
+export async function recordAndAlert(
+	db: Database,
+	env: Partial<Env> | undefined,
+	run: JobRun
+): Promise<void> {
+	const before = await db.query.jobHealthTable.findFirst({
+		where: eq(jobHealthTable.name, run.name)
+	});
+	await recordJobRun(db, run);
+
+	const notice = jobAlert(run, before?.failuresInARow ?? 0);
+	if (notice) await notify(env, notice);
 }
 
 /** Every recorded job, by name. The table is a handful of rows. */

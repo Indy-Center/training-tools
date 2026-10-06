@@ -145,6 +145,12 @@ export const enrollmentsTable = sqliteTable(
 		 */
 		reInstructor: text('re_instructor'),
 		/**
+		 * The last status this request was announced at, so each arrival is
+		 * announced once — see `$lib/server/enrollments/announce.ts`. Differs from
+		 * `status` exactly when there is an arrival still to handle.
+		 */
+		announcedStatus: text('announced_status'),
+		/**
 		 * When the certification this course earns was applied to the student.
 		 *
 		 * Set once, when the request first reaches `certification-update` — however

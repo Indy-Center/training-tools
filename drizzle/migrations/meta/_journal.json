@@ -92,6 +92,13 @@
       "when": 1790977686153,
       "tag": "0013_hot_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790994764972,
+      "tag": "0014_luxuriant_lethal_legion",
+      "breakpoints": true
     }
   ]
 }

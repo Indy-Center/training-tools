@@ -3,6 +3,7 @@ import { syncRoster } from '$lib/server/roster';
 import { grantArrivalCertifications } from '$lib/server/certifications';
 import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
+	announceArrivals,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	importBoardIssues,
@@ -38,7 +39,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in seven places, each noted below.
+ * Order matters in eight places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -142,6 +143,17 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await applyPendingCertificationUpdates(db, env);
 				return result.pending > 0 ? result : null;
+			}
+		},
+		{
+			// Last, after everything that moves a request on: a card certified a moment
+			// ago is announced to the TA in the same run.
+			name: 'announcements',
+			description:
+				'Tells evaluators about exams to claim, and the TA about audits and failed exams.',
+			run: async () => {
+				const result = await announceArrivals(db, env);
+				return result.announced > 0 ? result : null;
 			}
 		}
 	];

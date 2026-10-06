@@ -28,9 +28,3 @@ JIRA_API_TOKEN=
 # WebHooks). Only needed to exercise /api/jira/webhook locally; statuses still
 # sync every 15 minutes without it. In production this is a Worker secret.
 JIRA_WEBHOOK_SECRET=
-
-# Discord webhook for the training admins' channel (teacher availability, slots,
-# LOA and TRK dropdown notices). TEMPORARY until the Discord bot has a message
-# queue — see src/lib/server/notify. Leave unset locally and notices are logged
-# and skipped. In production this is a Worker secret.
-DISCORD_WEBHOOK_TRAINING_ADMINS=
