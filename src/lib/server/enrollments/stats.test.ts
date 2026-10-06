@@ -3,9 +3,9 @@ import { COURSE_CODES } from '$lib/courses';
 import { summariseWaitlist } from './stats';
 
 describe('summariseWaitlist', () => {
-	it('lists every course in catalogue order, with zeros where nobody is', () => {
+	it('lists every course a student can enroll in, with zeros where nobody is', () => {
 		const summary = summariseWaitlist([]);
-		expect(summary.map((c) => c.code)).toEqual(COURSE_CODES);
+		expect(summary.map((c) => c.code)).toEqual(COURSE_CODES.filter((code) => code !== 'CUSTOM'));
 		for (const course of summary) {
 			expect(course.waiting).toBe(0);
 			expect(course.inTraining).toBe(0);
@@ -25,6 +25,14 @@ describe('summariseWaitlist', () => {
 	it('leaves certification update out of in training', () => {
 		const [sgc] = summariseWaitlist([{ course: 'S-GC', status: 'certification-update', count: 4 }]);
 		expect(sgc.inTraining).toBe(0);
+	});
+
+	// Nobody can enroll in Custom Training, so an empty row would only confuse.
+	it('lists Custom Training only while someone is in it', () => {
+		expect(summariseWaitlist([]).some((c) => c.code === 'CUSTOM')).toBe(false);
+
+		const summary = summariseWaitlist([{ course: 'CUSTOM', status: 'in-training', count: 1 }]);
+		expect(summary.at(-1)).toMatchObject({ code: 'CUSTOM', inTraining: 1, estimatedWeeks: null });
 	});
 
 	it('keeps each course to its own counts', () => {

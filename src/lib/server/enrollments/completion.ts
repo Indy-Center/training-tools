@@ -1,7 +1,12 @@
 import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
-import { afterTraining, credentialChangeFor, type CredentialChange } from '$lib/course-completion';
+import {
+	afterTrainingOptions,
+	credentialChangeFor,
+	type AfterTraining,
+	type CredentialChange
+} from '$lib/course-completion';
 import { findCourse } from '$lib/courses';
 import { getHeldCredentials, grantCredential, setCertification } from '$lib/server/certifications';
 import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
@@ -116,19 +121,24 @@ async function note(config: JiraConfig, issueKey: string, text: string): Promise
  * The teacher marks the training complete.
  *
  * Stamps `Training Completed`, then moves the card: to Rating Exam when the
- * course ends in one, otherwise straight to Certification Update.
+ * course ends in one, otherwise straight to Audit. Where a course allows either
+ * (`afterTrainingOptions()`), `to` is the teacher's choice and is required.
  */
 export async function completeTraining(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	by: string,
+	to?: AfterTraining,
 	now = new Date()
 ): Promise<FlowResult> {
-	const next =
-		afterTraining(enrollment.course) === 'rating-exam'
-			? RATING_EXAM_STATUS
-			: CERTIFICATION_UPDATE_STATUS;
+	const options = afterTrainingOptions(enrollment.course);
+	const chosen = to ?? (options.length === 1 ? options[0] : undefined);
+	if (!chosen || !options.includes(chosen)) {
+		return { ok: false, message: 'Choose whether this training ends in a rating exam.' };
+	}
+
+	const next = chosen === 'rating-exam' ? RATING_EXAM_STATUS : CERTIFICATION_UPDATE_STATUS;
 
 	return onCard(db, env, enrollment, 'complete training', async (config, issueKey) => {
 		await updateIssueFields(config, issueKey, {

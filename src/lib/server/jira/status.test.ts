@@ -15,10 +15,15 @@ describe('mapJiraStatus', () => {
 		expect(mapJiraStatus('In Training')).toBe('in-training');
 		expect(mapJiraStatus('Rating Exam')).toBe('rating-exam');
 		expect(mapJiraStatus('Needs CATP')).toBe('needs-catp');
-		expect(mapJiraStatus('Certification Update')).toBe('certification-update');
+		expect(mapJiraStatus('Audit')).toBe('certification-update');
 		expect(mapJiraStatus('Completed')).toBe('completed');
 		expect(mapJiraStatus('Removed')).toBe('removed');
 		expect(mapJiraStatus('Withdrawn')).toBe('withdrawn');
+	});
+
+	// The board called it Certification Update until 2026-10-06.
+	it('still reads the status Audit used to be called', () => {
+		expect(mapJiraStatus('Certification Update')).toBe('certification-update');
 	});
 
 	// Guards the two lists drifting apart when a status is added on one side.

@@ -17,7 +17,8 @@ import { jiraRequest, type JiraConfig } from './client';
 export const RATING_EXAM_STATUS = 'Rating Exam';
 /** A failed rating exam waits here for the TA, who sends it back into training. */
 export const NEEDS_CATP_STATUS = 'Needs CATP';
-export const CERTIFICATION_UPDATE_STATUS = 'Certification Update';
+/** Ours is still `certification-update`: the board renamed its status on 2026-10-06. */
+export const CERTIFICATION_UPDATE_STATUS = 'Audit';
 export const COMPLETED_STATUS = 'Completed';
 
 /**

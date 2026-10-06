@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
 	afterTraining,
+	afterTrainingOptions,
+	evaluatesCourse,
 	canCompleteExam,
 	canCompleteTraining,
 	canClaimExam,
 	credentialChangeFor
 } from './course-completion';
-import { COURSES } from './courses';
+import { COURSES, isEnrollableCourseCode } from './courses';
 import type { QualificationLevel } from './teachers';
 
 describe('afterTraining', () => {
@@ -83,12 +85,21 @@ describe('credentialChangeFor', () => {
 	});
 
 	it('names a credential for every course on the form', () => {
-		for (const course of COURSES) {
+		for (const course of COURSES.filter((c) => isEnrollableCourseCode(c.code))) {
 			expect(credentialChangeFor(course.code, [])).not.toEqual({
 				action: 'none',
 				reason: 'no-credential'
 			});
 		}
+	});
+
+	// Custom Training earns nothing: finishing it changes no certification.
+	it('changes nothing for Custom Training, which has no exam either', () => {
+		expect(credentialChangeFor('CUSTOM', ['S-GC'])).toEqual({
+			action: 'none',
+			reason: 'no-credential'
+		});
+		expect(afterTraining('CUSTOM')).toBe('certification-update');
 	});
 });
 
@@ -184,5 +195,51 @@ describe('canCompleteExam', () => {
 	it('is not for their own request, or outside the exam stage', () => {
 		expect(canCompleteExam({ ...scheduled, cid: '100' }, teacher)).toBe(false);
 		expect(canCompleteExam({ ...scheduled, status: 'in-training' }, teacher)).toBe(false);
+	});
+});
+
+describe('afterTrainingOptions', () => {
+	it('gives the six standard courses exactly one way on', () => {
+		for (const course of ['S-GC', 'A-LC', 'T-RC', 'E-RC']) {
+			expect(afterTrainingOptions(course)).toEqual(['rating-exam']);
+		}
+		for (const course of ['A-GC', 'S-LC']) {
+			expect(afterTrainingOptions(course)).toEqual(['certification-update']);
+		}
+	});
+
+	// Only the teacher knows whether what they taught needs examining.
+	it('leaves Custom Training to the teacher', () => {
+		expect(afterTrainingOptions('CUSTOM')).toEqual(['rating-exam', 'certification-update']);
+	});
+});
+
+describe('evaluatesCourse', () => {
+	const levels = (entries: [string, QualificationLevel][]) => new Map(entries);
+
+	it('needs an evaluator on that course, for a standard course', () => {
+		expect(evaluatesCourse('T-RC', levels([['T-RC', 'evaluator']]))).toBe(true);
+		expect(evaluatesCourse('T-RC', levels([['S-GC', 'evaluator']]))).toBe(false);
+		expect(evaluatesCourse('T-RC', levels([['T-RC', 'teacher']]))).toBe(false);
+	});
+
+	// Custom Training has no qualification of its own.
+	it('lets anyone who evaluates any course examine Custom Training', () => {
+		expect(evaluatesCourse('CUSTOM', levels([['S-GC', 'evaluator']]))).toBe(true);
+		expect(evaluatesCourse('CUSTOM', levels([['S-GC', 'teacher']]))).toBe(false);
+		expect(evaluatesCourse('CUSTOM', levels([]))).toBe(false);
+	});
+
+	it('still keeps a Custom Training exam from the student’s own teacher', () => {
+		const custom = {
+			cid: '200',
+			course: 'CUSTOM',
+			status: 'rating-exam',
+			teacher: 'JR',
+			reInstructor: null
+		};
+		const evaluator = levels([['S-GC', 'evaluator']]);
+		expect(canClaimExam(custom, teacher, evaluator)).toBe(false);
+		expect(canClaimExam({ ...custom, teacher: 'SW' }, teacher, evaluator)).toBe(true);
 	});
 });

@@ -117,7 +117,7 @@ export const TRAINING_COPY = {
 		body: ratingExam
 	},
 	'needs-catp': {
-		title: 'Your rating exam',
+		title: 'Further training',
 		body: needsCatp
 	},
 	'certification-update': {
