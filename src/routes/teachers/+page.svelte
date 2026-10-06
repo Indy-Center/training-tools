@@ -126,9 +126,9 @@
 								{/if}
 								{#if room.removed.length > 0}
 									<li class="text-orange-300">
-										{will('Role taken from', 'Would lose the role')} (Discord IDs): {room.removed.join(
+										{will(`@${room.roleName} taken from`, `Would lose @${room.roleName}`)}: {room.removed.join(
 											', '
-										)}.
+										)}. They are not this teacher or one of their current students.
 									</li>
 								{/if}
 								{#if room.notInServer.length > 0}

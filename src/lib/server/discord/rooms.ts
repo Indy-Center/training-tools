@@ -340,6 +340,29 @@ async function removeRooms(
 	return reports;
 }
 
+/**
+ * Who each Discord user ID on the roster belongs to, by name. For the report:
+ * Larry says who loses a role by Discord ID, since it may be nobody we know.
+ */
+export async function getDiscordNames(db: Database): Promise<Map<string, string>> {
+	// The whole (small) table, not `IN (...)`: D1's 100-parameter limit.
+	const rows = await db
+		.select({
+			firstName: rosterMembersTable.firstName,
+			lastName: rosterMembersTable.lastName,
+			discordId: rosterMembersTable.discordId
+		})
+		.from(rosterMembersTable);
+
+	return new Map(
+		rows.flatMap((row) =>
+			row.discordId?.trim()
+				? [[row.discordId.trim(), `${row.firstName} ${row.lastName}`.trim()] as const]
+				: []
+		)
+	);
+}
+
 /** The last run's report, for `/teachers`. Null before the first run. */
 export async function getRoomsReport(db: Database): Promise<RoomsReport | null> {
 	const row = await db.query.syncStateTable.findFirst({
