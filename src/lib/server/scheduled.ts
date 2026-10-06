@@ -65,7 +65,7 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			name: 'arrival certifications',
 			description: 'Grants new arrivals the certification their rating entitles them to.',
 			run: async () => {
-				const result = await grantArrivalCertifications(db);
+				const result = await grantArrivalCertifications(db, env);
 				return result.pending > 0 ? result : null;
 			}
 		},
@@ -75,7 +75,7 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			name: 'teacher roster sync',
 			description: 'Keeps the teacher roster and qualification rules in step with ZID INS and MTR.',
 			run: async () => {
-				const result = await syncTeacherRoster(db);
+				const result = await syncTeacherRoster(db, env);
 				const { teachers, ...changes } = result;
 				return Object.values(changes).some((count) => count > 0) ? result : null;
 			}

@@ -24,6 +24,10 @@ import {
 	type TeacherRole
 } from '$lib/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
+import { notify } from '$lib/server/notify';
+import { getPeople } from '$lib/server/roster';
+import { assignmentsFor, getAssignedEnrollments, teacherLabel } from './index';
+import { leftRosterNotice, qualificationChangesNotice } from './notices';
 import { endQualification, startQualification } from './qualifications';
 
 /** One active roster member, as the teacher sync needs them. */
@@ -44,6 +48,14 @@ export type QualificationChange = {
 	code: string;
 	/** The current row to end, if there is one. */
 	endId: string | null;
+	/**
+	 * Why: an instructor's level set for them, a level the rules no longer
+	 * allow, or everything ended after six months away. The last two are what
+	 * training admins are told about.
+	 */
+	kind: 'automatic' | 'downgraded' | 'expired';
+	/** The level being ended, or null when there was none. */
+	fromLevel: QualificationLevel | null;
 	reason: string;
 	/** The level to start, or null to leave them on No Qual. */
 	startLevel: QualificationLevel | null;
@@ -196,6 +208,8 @@ export function planTeacherRoster(input: {
 					cid: member.cid,
 					code: credential.code,
 					endId: row?.id ?? null,
+					kind: 'automatic',
+					fromLevel: row?.level ?? null,
 					reason: `Instructor: ${does} automatically`,
 					startLevel: automatic,
 					note: `Instructor (ZID:INS): ${does} automatically`
@@ -219,6 +233,8 @@ export function planTeacherRoster(input: {
 				cid: member.cid,
 				code: credential.code,
 				endId: row.id,
+				kind: 'downgraded',
+				fromLevel: row.level,
 				reason: why,
 				startLevel: lowered,
 				note: why
@@ -239,6 +255,8 @@ export function planTeacherRoster(input: {
 				cid: teacher.cid,
 				code: row.code,
 				endId: row.id,
+				kind: 'expired',
+				fromLevel: row.level,
 				reason: `Off the teacher roster for more than ${QUALIFICATION_RETENTION_MONTHS} months`,
 				startLevel: null,
 				note: null
@@ -263,7 +281,7 @@ export function planTeacherRoster(input: {
  * clock on their qualifications. A stale teacher roster beats an empty one,
  * the same call the roster sync makes.
  */
-export async function syncTeacherRoster(db: Database, now = new Date()) {
+export async function syncTeacherRoster(db: Database, env?: Partial<Env>, now = new Date()) {
 	const [rosterRows, teachers, current] = await Promise.all([
 		db
 			.select({
@@ -339,5 +357,61 @@ export async function syncTeacherRoster(db: Database, now = new Date()) {
 
 	await runGroups(db, groups);
 
+	// After the writes, and never part of them: a notice that cannot be sent
+	// must not undo or fail the sync.
+	await announceRosterChanges(db, env, plan, teachers).catch((err) =>
+		console.error('[training-tools] teacher roster notices failed', err)
+	);
+
 	return plan.summary;
+}
+
+/**
+ * Tell training admins what this run changed that they need to act on: a
+ * teacher who left with students still assigned, and qualifications lowered or
+ * ended by the rules. Joins, returns and role changes are timeline-only.
+ */
+async function announceRosterChanges(
+	db: Database,
+	env: Partial<Env> | undefined,
+	plan: TeacherRosterPlan,
+	teachers: readonly Teacher[]
+): Promise<void> {
+	const leavers = plan.teachers.filter((write) => write.removedAt !== null);
+	const lowered = plan.qualifications.filter(
+		(change) => change.kind !== 'automatic' && change.fromLevel !== null
+	);
+	if (leavers.length === 0 && lowered.length === 0) return;
+
+	const byCid = new Map(teachers.map((teacher) => [teacher.cid, teacher]));
+	const people = await getPeople(db);
+	const label = (cid: string) =>
+		teacherLabel({ cid, initials: byCid.get(cid)?.initials ?? null }, people.get(cid));
+
+	if (leavers.length > 0) {
+		const enrollments = await getAssignedEnrollments(db);
+		for (const leaver of leavers) {
+			const teacher = { cid: leaver.cid, initials: byCid.get(leaver.cid)?.initials ?? null };
+			const notice = leftRosterNotice({
+				teacher: label(leaver.cid),
+				assigned: assignmentsFor(teacher, enrollments).students.map((student) => ({
+					name: people.get(student.cid)?.name ?? student.submittedName,
+					course: student.course,
+					status: student.status
+				}))
+			});
+			if (notice) await notify(env, notice);
+		}
+	}
+
+	const notice = qualificationChangesNotice(
+		lowered.map((change) => ({
+			teacher: label(change.cid),
+			code: change.code,
+			from: change.fromLevel!,
+			to: change.startLevel,
+			reason: change.reason
+		}))
+	);
+	if (notice) await notify(env, notice);
 }

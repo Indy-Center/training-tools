@@ -76,7 +76,7 @@ export async function recordJobRun(db: Database, run: JobRun): Promise<void> {
 export function jobAlert(run: JobRun, failuresBefore: number): Notice | null {
 	if (!run.ok && failuresBefore === 0) {
 		return {
-			audience: 'training-admins',
+			audience: 'tech-team',
 			tone: 'warning',
 			title: `Background job failing: ${run.name}`,
 			summary:
@@ -88,7 +88,7 @@ export function jobAlert(run: JobRun, failuresBefore: number): Notice | null {
 
 	if (run.ok && failuresBefore > 0) {
 		return {
-			audience: 'training-admins',
+			audience: 'tech-team',
 			title: `Background job recovered: ${run.name}`,
 			summary: `Working again after ${failuresBefore} failed ${failuresBefore === 1 ? 'run' : 'runs'}.`,
 			link: `${SITE_URL}/admin`

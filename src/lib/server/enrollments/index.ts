@@ -15,7 +15,7 @@ import {
 	WITHDRAWN_STATUS
 } from '$lib/server/jira/enrollment';
 import { notify } from '$lib/server/notify';
-import { stuckRequestNotice } from './notices';
+import { stuckRequestNotice, withdrawnNotice } from './notices';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
 export { importBoardIssues, type ImportResult } from './import';
@@ -377,6 +377,12 @@ export async function withdrawEnrollment(
 ): Promise<boolean> {
 	const now = new Date();
 
+	// What they are withdrawing from, for the notice: the update below overwrites it.
+	const before = await db.query.enrollmentsTable.findFirst({
+		columns: { status: true },
+		where: and(eq(enrollmentsTable.id, id), eq(enrollmentsTable.cid, cid))
+	});
+
 	const [withdrawn] = await db
 		.update(enrollmentsTable)
 		.set({ withdrawnAt: now, status: 'withdrawn', updatedAt: now })
@@ -411,6 +417,21 @@ export async function withdrawEnrollment(
 			console.error('[training-tools] jira withdrawal transition failed', id, err);
 		}
 	}
+
+	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
+	await notify(
+		env,
+		withdrawnNotice({
+			name: withdrawn.submittedName,
+			cid: withdrawn.cid,
+			course: withdrawn.course,
+			teacher: withdrawn.teacher,
+			examiner: withdrawn.reInstructor,
+			issueKey: withdrawn.jiraIssueKey,
+			issueUrl: base && withdrawn.jiraIssueKey ? `${base}/browse/${withdrawn.jiraIssueKey}` : null,
+			was: before?.status ?? 'waitlist'
+		})
+	);
 
 	return true;
 }

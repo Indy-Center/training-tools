@@ -4,7 +4,10 @@ import { certificationsTable } from '$lib/db/schema/certifications';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { needsVatsimLookup, resolveArrivalGrant } from '$lib/certification-grant';
 import { fetchAtcHoursByRating, fetchLastAtcSessionEnd } from '$lib/server/vatsim';
+import { notify } from '$lib/server/notify';
+import { getPeople } from '$lib/server/roster';
 import { grantCredential } from './index';
+import { reviewNeededNotice } from './notices';
 
 export type ArrivalGrantResult = {
 	/** Members with no certification decision recorded yet. */
@@ -51,7 +54,10 @@ const CHUNK_SIZE = 25;
  *
  * See decisions/0010-certifications-model.md and DEV-115.
  */
-export async function grantArrivalCertifications(db: Database): Promise<ArrivalGrantResult> {
+export async function grantArrivalCertifications(
+	db: Database,
+	env?: Partial<Env>
+): Promise<ArrivalGrantResult> {
 	const candidates = await db
 		.select({
 			cid: rosterMembersTable.cid,
@@ -159,6 +165,26 @@ export async function grantArrivalCertifications(db: Database): Promise<ArrivalG
 			note: grant.note,
 			needsReview: grant.needsReview
 		});
+	}
+
+	// Flagged grants are only useful if someone hears about them. After the
+	// grants are written, and never a reason for the job to fail.
+	const flagged = grants.filter((grant) => grant.needsReview);
+	if (flagged.length > 0) {
+		try {
+			const people = await getPeople(db);
+			const notice = reviewNeededNotice(
+				flagged.map((grant) => ({
+					name: people.get(grant.cid)?.name ?? `CID ${grant.cid}`,
+					cid: grant.cid,
+					code: grant.code,
+					note: grant.note
+				}))
+			);
+			if (notice) await notify(env, notice);
+		} catch (err) {
+			console.error('[training-tools] arrival review notice failed', err);
+		}
 	}
 
 	for (let i = 0; i < checked.length; i += CHUNK_SIZE) {

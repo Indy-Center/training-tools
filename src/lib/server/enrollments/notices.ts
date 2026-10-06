@@ -1,6 +1,6 @@
 import { SITE_URL } from '$lib/config';
 import { findCourse } from '$lib/courses';
-import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
+import { NOTIFICATION_LABELS, STATUS_LABELS } from '$lib/enrollment-status';
 import type { Notice } from '$lib/server/notify';
 
 /**
@@ -62,6 +62,30 @@ function card(request: NoticeRequest): NonNullable<Notice['fields']> {
 }
 
 /**
+ * A student withdrew their own request. The card is commented on and moved, but
+ * nobody is watching the board for that — and if they were in training, their
+ * teacher has a slot back. `was` is the status they withdrew from.
+ */
+export function withdrawnNotice(request: NoticeRequest & { was: string }): Notice {
+	const midCourse = request.was !== 'waitlist';
+
+	return {
+		audience: 'training-admins',
+		tone: midCourse ? 'warning' : 'info',
+		title: `Withdrawn: ${request.name}`,
+		summary: `${request.name} withdrew from ${course(request.course)}.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Was', value: STATUS_LABELS[request.was] ?? request.was },
+			...(request.teacher ? [{ label: 'Teacher', value: request.teacher }] : []),
+			...(request.examiner ? [{ label: 'Examiner', value: request.examiner }] : []),
+			...card(request)
+		]
+	};
+}
+
+/**
  * A student is at Rating Exam with nobody to examine them yet. Goes to the
  * instructors' channel and pings the evaluators who could take it.
  */
@@ -71,8 +95,8 @@ export function examReadyNotice(
 ): Notice {
 	return {
 		audience: 'instructors',
-		title: `Rating exam to claim: ${course(request.course)}`,
-		summary: `${request.name} has finished training and needs an examiner. Claim it on Teach.`,
+		title: `Rating exam recommended ${course(request.course)}`,
+		summary: `${request.name} has finished training and needs a rating exam.`,
 		link: `${SITE_URL}/teach`,
 		mention: evaluators,
 		fields: [
@@ -87,15 +111,20 @@ export function examReadyNotice(
 /**
  * A card is at Needs CATP: the student needs corrective training before going
  * on. Reached from a rating exam that was not passed, or from In Training when
- * a teacher asks for one, so the wording does not assume an exam.
+ * a teacher asks for one, so it only says an exam was failed when told so.
  */
-export function needsCatpNotice(request: NoticeRequest): Notice {
+export function needsCatpNotice(
+	request: NoticeRequest,
+	// Only a card that came from Rating Exam failed one.
+	afterExam = true
+): Notice {
 	return {
 		audience: 'training-admins',
 		tone: 'warning',
-		title: `Needs CATP: ${request.name}`,
-		summary:
-			'The card is at Needs CATP. Decide on the corrective training, then return it to training on the board.',
+		title: afterExam ? `Rating exam failed: ${request.name}` : `Needs CATP: ${request.name}`,
+		summary: afterExam
+			? `${request.name} failed their rating exam.`
+			: `${request.name} needs a corrective action training plan.`,
 		link: request.issueUrl ?? undefined,
 		fields: [
 			{ label: 'Student', value: student(request) },
@@ -112,12 +141,9 @@ export function awaitingAuditNotice(request: NoticeRequest & { holds: string | n
 	return {
 		audience: 'training-admins',
 		title: `Ready for audit: ${request.name}`,
-		summary:
-			'Training is complete and the certification has been applied. Review it and mark the audit complete.',
+		summary: `${request.name} completed ${request.course}.`,
 		link: `${SITE_URL}/admin/audit`,
 		fields: [
-			{ label: 'Student', value: student(request) },
-			{ label: 'Course', value: course(request.course) },
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
 			...(request.examiner ? [{ label: 'Examined by', value: request.examiner }] : []),
 			{ label: 'Now holds', value: request.holds ?? 'no certification' },
@@ -157,9 +183,9 @@ export function stuckRequestNotice(
 	attempts: number
 ): Notice {
 	return {
-		audience: 'training-admins',
+		audience: 'tech-team',
 		tone: 'warning',
-		title: `Training request not on the TRK board: ${request.name}`,
+		title: `Training enrollment not on the board: ${request.name}`,
 		summary: `Filing it failed ${attempts} times, so it is no longer retried. Fix the cause, then retry it from the Admin page.`,
 		link: `${SITE_URL}/admin`,
 		fields: [
