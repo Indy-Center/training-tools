@@ -49,6 +49,14 @@ export const teachersTable = sqliteTable(
 		 */
 		initials: text('initials'),
 
+		/**
+		 * Their Discord role and channel, as Larry last found or made them. Kept so
+		 * a rename in Discord is followed rather than answered with a second one.
+		 * Null until the sync has run for real. See `$lib/discord-rooms.ts`.
+		 */
+		discordRoleId: text('discord_role_id'),
+		discordChannelId: text('discord_channel_id'),
+
 		/** Free text, like a student's: when in the week they can teach. */
 		availability: text('availability'),
 		/** How many students they will take at once. Null until they say. */

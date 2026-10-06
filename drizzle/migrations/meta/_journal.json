@@ -106,6 +106,13 @@
       "when": 1791306573044,
       "tag": "0015_ancient_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1791316385493,
+      "tag": "0016_tough_brood",
+      "breakpoints": true
     }
   ]
 }

@@ -114,6 +114,7 @@ Every 15 minutes (`*/15 * * * *`), in this order:
 | enrollment status sweep | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)   |
 | examiner cleanup        | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)   |
 | certification updates   | Applies what a finished course earns (`applyPendingCertificationUpdates`)      |
+| discord teacher rooms   | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)      |
 | announcements           | Tells evaluators and training admins what has arrived (`announceArrivals`)     |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
@@ -158,11 +159,13 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `DB`       | D1 (`training-db`)       | Roster mirror, and the training data this app owns           |
 | `ASSETS`   | Static assets            | SvelteKit client build                                       |
 
-| Var                   | Value                                                              |
-| --------------------- | ------------------------------------------------------------------ |
-| `PUBLIC_IDENTITY_URL` | `https://auth.flyindycenter.com` (override locally in `.dev.vars`) |
-| `JIRA_BASE_URL`       | `https://zidartcc.atlassian.net`                                   |
-| `JIRA_PROJECT_KEY`    | `TRK` — the Student Tracking waitlist                              |
+| Var                              | Value                                                              |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `PUBLIC_IDENTITY_URL`            | `https://auth.flyindycenter.com` (override locally in `.dev.vars`) |
+| `JIRA_BASE_URL`                  | `https://zidartcc.atlassian.net`                                   |
+| `JIRA_PROJECT_KEY`               | `TRK` — the Student Tracking waitlist                              |
+| `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
+| `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
 
 | Secret                | What it is                                                |
 | --------------------- | --------------------------------------------------------- |
@@ -312,6 +315,49 @@ teacher, `RE Instructor` every active teacher who evaluates anything.
 
 Initials are entered by training admins for now. Once community-website is on
 identity (DEV-5), take them from identity's `operatingInitials` instead.
+
+### Discord roles and channels
+
+Each teacher has a Discord **role named for their initials**, held by them and
+their current students, and a **channel named for them** under Training Center
+that only that role and Training Admin see. The app works out who belongs where
+and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules and
+`$lib/server/discord/rooms.ts` the cron job.
+
+- **Who holds a teacher's role:** the teacher, and their students at In Training,
+  Rating Exam or Needs CATP. It comes off on the next run after they finish,
+  withdraw, are removed or are reassigned. **Anyone else holding it loses it**,
+  however they got it.
+- **No initials, no role or channel.** A teacher on LOA keeps theirs.
+- **A teacher who leaves the teacher roster loses both 48 hours later**
+  (`DISCORD_ROOM_GRACE_HOURS`). The role and the channel are **deleted**, with
+  the channel's messages, and anyone still assigned to them loses access. Inside
+  those 48 hours nothing changes, so a role removed on VATUSA by mistake and put back
+  costs nothing. A teacher who returns later starts again with a new channel.
+- **Channel name:** their preferred name from identity when they have one,
+  otherwise their roster name; kept in step if either changes. Two teachers who
+  would collide are both named by first name and CID.
+- **Existing roles and channels are adopted by name**, then remembered by ID
+  (`teachers.discord_role_id`, `discord_channel_id`). An adopted channel keeps
+  the permissions it has; only one Larry creates is set to "role + Training
+  Admin".
+- **Someone with no Discord ID, or not in the server,** is picked up on a later
+  run once that changes. Nothing listens for joins.
+- **Initials are written to identity** (`operatingInitials`) for any teacher
+  identity knows, which means anyone who has signed in to an identity app.
+
+`DISCORD_SYNC` in `wrangler.jsonc` switches it: `off`, `dry-run` or `live`.
+**Dry run changes nothing** and shows on `/teachers` exactly what live would
+do — which roles and channels would be adopted or created, and who would gain
+or lose a role. Read it before going live. `DISCORD_TRAINING_ADMIN_ROLE_ID`
+must be set for any channel to be made.
+
+Live, a role or channel that cannot be synced fails the job, so the tech team
+hears through the job alert; the others are still done.
+
+Two things here are stand-ins: the types in `$lib/server/discord/larry.ts`
+mirror Larry 1.1.0 until it is on npm, and `$lib/server/discord/identity.ts`
+calls two identity methods that exist but are not in its published interface.
 
 ### Timelines and the activity log
 

@@ -66,5 +66,19 @@ export const NOTIFY_CHANNELS = {
 	instructors: 'instructor-actions'
 } as const;
 
+/**
+ * The category teacher channels live under: a **name** from Larry's
+ * `CHANNEL_CATEGORIES` setting, like the channel names above.
+ */
+export const DISCORD_TEACHER_CATEGORY = 'training';
+
+/**
+ * How long a teacher's Discord role and channel outlive them leaving the
+ * teacher roster. Deleting a channel takes its messages with it and cannot be
+ * undone, and a teacher can drop off the VATUSA roster by mistake; this is the
+ * window in which coming back loses nothing.
+ */
+export const DISCORD_ROOM_GRACE_HOURS = 48;
+
 /** Where this app lives, for links in messages sent from outside a request (the cron). */
 export const SITE_URL = 'https://training.flyindycenter.com';
