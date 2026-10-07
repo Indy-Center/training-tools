@@ -3,12 +3,17 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
-	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import { findCourse } from '$lib/courses';
 	import { TRAINING_TEXT } from '$lib/content/training';
-	import { formatDate } from '$lib/format';
+	import { requestTimeline } from '$lib/request-timeline';
+	import IconCheckCircle from '~icons/mdi/check-circle';
+	import IconCircleOutline from '~icons/mdi/circle-outline';
 	import IconClipboard from '~icons/mdi/clipboard-text';
+	import IconRecordCircle from '~icons/mdi/record-circle';
+
+	/** A teacher or examiner as the board holds them, with their name when they are one of ours. */
+	type Assignee = { value: string; name: string | null } | null;
 
 	type Props = {
 		request: {
@@ -17,24 +22,79 @@
 			status: string;
 			createdAt: Date;
 			availability: string | null;
+			teacher: Assignee;
+			instructor: Assignee;
+			vatusaAssignedOn: string | null;
+			vatusaCompletedOn: string | null;
+			certificationAppliedAt: Date | null;
 		};
 		/** From a failed `?/withdraw`. */
 		error?: string;
 	};
 
 	let { request, error }: Props = $props();
+
+	function assigneeLabel(assignee: Assignee): string | null {
+		if (!assignee) return null;
+		return assignee.name ? `${assignee.name} (${assignee.value})` : assignee.value;
+	}
+
+	const steps = $derived(
+		requestTimeline({
+			course: request.course,
+			status: request.status,
+			createdAt: request.createdAt,
+			teacher: assigneeLabel(request.teacher),
+			examiner: assigneeLabel(request.instructor),
+			vatusaAssignedOn: request.vatusaAssignedOn,
+			vatusaCompletedOn: request.vatusaCompletedOn,
+			certificationAppliedAt: request.certificationAppliedAt
+		})
+	);
+
+	const STEP_ICONS = {
+		done: { icon: IconCheckCircle, color: 'text-green-400' },
+		current: { icon: IconRecordCircle, color: 'text-sky-400' },
+		upcoming: { icon: IconCircleOutline, color: 'text-gray-600' }
+	} as const;
 </script>
 
 <!-- The same panel under every open request, whatever its status: what they
-     asked for, and the way out. -->
+     asked for, how far along it is, and the way out. -->
 <Panel title="Your training request" icon={IconClipboard}>
 	<div class="space-y-5 px-4 py-5 text-sm text-gray-300">
-		<div class="flex flex-wrap items-center gap-2">
-			<Badge size="sm" color="sky" label={findCourse(request.course)?.label ?? request.course} />
-			<EnrollmentStatusBadge status={request.status} />
-		</div>
+		<Badge size="sm" color="sky" label={findCourse(request.course)?.label ?? request.course} />
 
-		<p>Requested {formatDate(request.createdAt, 'long')}.</p>
+		<ol>
+			{#each steps as step, index (step.key)}
+				{@const Icon = STEP_ICONS[step.state].icon}
+				<li class="relative flex gap-3 pb-5 last:pb-0">
+					{#if index < steps.length - 1}
+						<span class="absolute top-6 bottom-0.5 left-2.5 w-px bg-slate-700" aria-hidden="true"
+						></span>
+					{/if}
+					<Icon class="h-5 w-5 shrink-0 {STEP_ICONS[step.state].color}" aria-hidden="true" />
+					<div class="min-w-0 flex-1">
+						<div class="flex flex-wrap items-baseline justify-between gap-x-3">
+							<span class={step.state === 'upcoming' ? 'text-gray-500' : 'font-medium text-white'}>
+								{step.label}
+								{#if step.state === 'done'}
+									<span class="sr-only">(done)</span>
+								{:else if step.state === 'current'}
+									<span class="sr-only">(current step)</span>
+								{/if}
+							</span>
+							{#if step.date}
+								<span class="text-xs text-gray-400">{step.date}</span>
+							{/if}
+						</div>
+						{#if step.detail}
+							<p class="mt-0.5 text-xs text-gray-400">{step.detail}</p>
+						{/if}
+					</div>
+				</li>
+			{/each}
+		</ol>
 
 		{#if request.availability}
 			<div>

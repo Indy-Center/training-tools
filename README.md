@@ -209,6 +209,7 @@ src/
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
 │   ├── training-flow.ts       pure request+roster+rating → view logic
+│   ├── request-timeline.ts    pure open request → timeline steps, with the dates we hold
 │   ├── enrollment-status.ts   status and contact-method labels, shared by every page
 │   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
