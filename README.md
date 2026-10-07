@@ -409,8 +409,7 @@ The rating exam post is the one notice this app goes on looking after. It
 carries a **Status** line ("Waiting for an examiner", then "Claimed by …") and
 an **Open Teach** button, is changed in place as the exam is claimed, and is
 deleted once the exam is over (`updateExamPosts` in `enrollments/announce.ts`).
-That needs Larry 1.2.0; `notify/larry-next.ts` mirrors its types until the
-package is published.
+That needs Larry 1.2.0 or later.
 
 **A status renamed on the board stops the app reading every card in it.** The
 board import checks each card's status on every run and tells the tech team

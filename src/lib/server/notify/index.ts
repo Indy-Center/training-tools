@@ -13,8 +13,7 @@
  */
 import { NOTIFY_CHANNELS } from '$lib/config';
 import { buildDirectMessage, buildMessage } from './message';
-import type { LarryBinding, Message } from '@indy-center/indy-larry-worker';
-import type { LarryNext, LinkButton } from './larry-next';
+import type { LarryBinding, LinkButton, Message } from '@indy-center/indy-larry-worker';
 
 export type NotifyAudience = keyof typeof NOTIFY_CHANNELS;
 
@@ -184,7 +183,7 @@ export async function notifyEdit(
 	messageId: string,
 	notice: Notice
 ): Promise<NotifyOutcome> {
-	const binding = larry(env) as LarryNext | undefined;
+	const binding = larry(env);
 	if (!binding) return 'skipped';
 
 	try {
@@ -204,7 +203,7 @@ export async function notifyDelete(
 	audience: NotifyAudience,
 	messageId: string
 ): Promise<NotifyOutcome> {
-	const binding = larry(env) as LarryNext | undefined;
+	const binding = larry(env);
 	if (!binding) return 'skipped';
 
 	try {
