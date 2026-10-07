@@ -30,6 +30,7 @@ import {
 import { RE_INSTRUCTOR_FIELD } from '$lib/server/jira/status';
 import { syncEnrollmentIssue } from './status-sync';
 import { announceArrivals } from './announce';
+import { announcePairings } from './pairings';
 import { notify } from '$lib/server/notify';
 import { certificationHeldNotice } from './notices';
 
@@ -110,6 +111,7 @@ export async function onCard(
 		await syncEnrollmentIssue(db, env, issueKey);
 		await applyPendingCertificationUpdates(db, env);
 		await announceArrivals(db, env);
+		await announcePairings(db, env);
 	} catch (err) {
 		console.error(`[training-tools] ${step}: could not read ${issueKey} back`, err);
 	}

@@ -37,6 +37,12 @@ describe('buildPairingMessage', () => {
 		const { content } = buildPairingMessage(pairing, AFTERNOON);
 
 		expect(content).toContain('continue training for S-GC!');
+		expect(content).toContain(
+			'[Indy Center Training Policy](<https://wiki.flyindycenter.com/en/policies/training>)'
+		);
+		expect(content).toContain(
+			'[Facility Teacher Guide](<https://wiki.flyindycenter.com/en/training/facility-teacher-guide>)'
+		);
 		expect(content).toContain('**Student:** Nick Bottoms');
 		expect(content).toContain('**Teacher:** Jim Reburn');
 		expect(content).toContain('**Course:** Simple Ground Control (S-GC)');

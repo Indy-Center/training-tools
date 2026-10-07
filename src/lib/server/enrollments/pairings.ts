@@ -2,7 +2,9 @@ import { and, asc, eq, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
+import { discordSyncMode } from '$lib/discord-rooms';
 import { isAssignedTo } from '$lib/teachers';
+import { larryGuild } from '$lib/server/discord/larry';
 import { notifyChannel } from '$lib/server/notify';
 import { listTeachers } from '$lib/server/teachers';
 import { buildPairingMessage } from './pairing-message';
@@ -16,9 +18,15 @@ import { buildPairingMessage } from './pairing-message';
  * told about — a first assignment, or a change of teacher — however it was made.
  * Each is announced once.
  *
- * Run by the cron after the teacher rooms are synced, so the student already
- * holds the role that lets them see the channel. A teacher with no channel yet
- * is left for a later pass rather than skipped.
+ * Run as soon as a card changes — after a step taken here, and after a Jira
+ * webhook delivery — and by the cron, which is what guarantees it. So that it
+ * need not wait for the rooms sync, the student is given the teacher's role
+ * here first: without it they could not see the channel, and a mention there
+ * would not reach them. The sync would have given them the same role.
+ *
+ * A teacher with no channel yet is left for a later pass rather than skipped.
+ * Nothing is posted unless `DISCORD_SYNC` is `live`, like every other change
+ * this app makes in Discord.
  *
  * See decisions/0025-teacher-rooms-in-discord.md
  */
@@ -52,6 +60,9 @@ export async function announcePairings(
 	env: Partial<Env> | undefined,
 	now = new Date()
 ): Promise<PairingPassResult> {
+	const mode = discordSyncMode((env as { DISCORD_SYNC?: string } | undefined)?.DISCORD_SYNC);
+	if (mode !== 'live') return { pending: 0, announced: 0 };
+
 	const pending = await db
 		.select()
 		.from(enrollmentsTable)
@@ -105,12 +116,33 @@ export async function announcePairings(
 		const previous = enrollment.announcedTeacher;
 		if (!(await mark(db, enrollment, previous, enrollment.teacher))) continue;
 
+		const student = person(enrollment.cid, enrollment.submittedName);
+
+		// Let them into the channel before they are mentioned in it. Now, not
+		// queued: the message must not overtake it. Someone who is not in the
+		// server cannot be given a role, and is still named in the message.
+		if (teacher.discordRoleId && student.discordId) {
+			try {
+				await larryGuild(env)?.setMemberRole({
+					userId: student.discordId,
+					roleId: teacher.discordRoleId,
+					has: true
+				});
+			} catch (err) {
+				console.warn(
+					'[training-tools] pairing: could not give the teacher role',
+					enrollment.cid,
+					err instanceof Error ? err.message : err
+				);
+			}
+		}
+
 		const outcome = await notifyChannel(
 			env,
 			teacher.discordChannelId,
 			buildPairingMessage(
 				{
-					student: person(enrollment.cid, enrollment.submittedName),
+					student,
 					teacher: person(teacher.cid, teacher.initials ?? teacher.cid),
 					course: enrollment.course,
 					notificationPreference: enrollment.notificationPreference,

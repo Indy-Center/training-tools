@@ -11,6 +11,7 @@ import type { Message } from '@indy-center/indy-larry-worker';
  */
 
 const TRAINING_POLICY_URL = 'https://wiki.flyindycenter.com/en/policies/training';
+const TEACHER_GUIDE_URL = 'https://wiki.flyindycenter.com/en/training/facility-teacher-guide';
 
 /** Discord's limit on a message's text. */
 const CONTENT_LIMIT = 2000;
@@ -53,7 +54,7 @@ export function buildPairingMessage(pairing: Pairing, now: Date): Message {
 	const opening = [
 		`${greeting(now)} ${address(pairing.student)} and ${address(pairing.teacher)},`,
 		'',
-		`You’ve been paired together to continue training for ${course?.code ?? pairing.course}! Please coordinate training availability, questions and discussions. Training is normally accomplished on the Indy Center TeamSpeak server. Training expectations can be found in the [Indy Center Training Policy](<${TRAINING_POLICY_URL}>) and specific lesson information can be found in the Facility Teacher Guide. Please don’t hesitate to reach out to the training staff or your assigned teacher if you have any questions!`,
+		`You’ve been paired together to continue training for ${course?.code ?? pairing.course}! Please coordinate training availability, questions and discussions. Training is normally accomplished on the Indy Center TeamSpeak server. Training expectations can be found in the [Indy Center Training Policy](<${TRAINING_POLICY_URL}>) and specific lesson information can be found in the [Facility Teacher Guide](<${TEACHER_GUIDE_URL}>). Please don’t hesitate to reach out to the training staff or your assigned teacher if you have any questions!`,
 		'',
 		`**Student:** ${pairing.student.name}`,
 		`**Teacher:** ${pairing.teacher.name}`,

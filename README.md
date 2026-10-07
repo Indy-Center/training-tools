@@ -521,8 +521,8 @@ What staff do from a row:
   Training. It is refused until the written course is passed, where there is one.
 - **Change the teacher**, for someone who already has one. Only `Teacher`
   changes; the card stays where it is.
-- **Either way the pair is told.** Once the teacher's Discord channel exists the
-  student and teacher are pinged there with who they are paired with, the
+- **Either way the pair is told, straight away.** Once the teacher's Discord
+  channel exists the student is given its role and both are pinged there with who they are paired with, the
   course, how the student prefers to be reached (never an email address) and
   when they can train (`announcePairings`, `pairing-message.ts`).
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
