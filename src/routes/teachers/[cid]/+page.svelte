@@ -24,14 +24,21 @@
 
 	let { data, form } = $props();
 
-	let saving = $state(false);
+	/**
+	 * Which of the page's forms is being saved, if any. Each panel is its own
+	 * form and saves only its own fields, so only its button says so; the others
+	 * are held until it is done, so two saves cannot cross.
+	 */
+	let saving = $state<'profile' | 'qualifications' | 'admin' | null>(null);
 
-	function submitting() {
-		saving = true;
-		return async ({ update }: { update: (options?: { reset?: boolean }) => Promise<void> }) => {
-			// Keep what was typed on the form after saving; it is the saved value.
-			await update({ reset: false });
-			saving = false;
+	function submitting(which: NonNullable<typeof saving>) {
+		return () => {
+			saving = which;
+			return async ({ update }: { update: (options?: { reset?: boolean }) => Promise<void> }) => {
+				// Keep what was typed on the form after saving; it is the saved value.
+				await update({ reset: false });
+				saving = null;
+			};
 		};
 	}
 
@@ -107,7 +114,12 @@
 			{/if}
 
 			{#if canEditProfile}
-				<form method="POST" action="?/updateProfile" use:enhance={submitting} class="space-y-4">
+				<form
+					method="POST"
+					action="?/updateProfile"
+					use:enhance={submitting('profile')}
+					class="space-y-4"
+				>
 					<div>
 						<label for="studentSlots" class="block text-sm text-gray-400">
 							Students you can take at once
@@ -166,8 +178,8 @@
 						{/if}
 					</div>
 
-					<Button type="submit" disabled={saving}>
-						{saving ? 'Saving…' : 'Save'}
+					<Button type="submit" disabled={saving !== null}>
+						{saving === 'profile' ? 'Saving…' : 'Save'}
 					</Button>
 				</form>
 			{:else}
@@ -201,7 +213,7 @@
 				</Alert>
 			{/if}
 
-			<form method="POST" action="?/setQualifications" use:enhance={submitting}>
+			<form method="POST" action="?/setQualifications" use:enhance={submitting('qualifications')}>
 				<fieldset disabled={!canAdmin}>
 					<ul class="divide-y divide-slate-700/60">
 						{#each data.qualifications as qualification (qualification.code)}
@@ -242,8 +254,8 @@
 					</ul>
 
 					{#if canAdmin}
-						<Button type="submit" disabled={saving} class="mt-4">
-							{saving ? 'Saving…' : 'Save qualifications'}
+						<Button type="submit" disabled={saving !== null} class="mt-4">
+							{saving === 'qualifications' ? 'Saving…' : 'Save qualifications'}
 						</Button>
 					{/if}
 				</fieldset>
@@ -265,7 +277,12 @@
 					<p class="mb-4 text-sm text-red-400">{form.adminError}</p>
 				{/if}
 
-				<form method="POST" action="?/updateAdmin" use:enhance={submitting} class="space-y-4">
+				<form
+					method="POST"
+					action="?/updateAdmin"
+					use:enhance={submitting('admin')}
+					class="space-y-4"
+				>
 					<fieldset disabled={!canAdmin} class="space-y-4">
 						<div>
 							<span class="block text-sm text-gray-400">Status</span>
@@ -298,8 +315,8 @@
 							     community-website is on identity (DEV-5). -->
 						</div>
 
-						<Button type="submit" disabled={saving}>
-							{saving ? 'Saving…' : 'Save'}
+						<Button type="submit" disabled={saving !== null}>
+							{saving === 'admin' ? 'Saving…' : 'Save'}
 						</Button>
 					</fieldset>
 				</form>
