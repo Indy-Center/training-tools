@@ -43,7 +43,7 @@
 	<title>Indy Center | Training</title>
 	<meta
 		name="description"
-		content="Controller training at Indy Center — enroll, track your progress, and see where you are on the waitlist."
+		content="Controller training at Indy Center — enroll and track your progress."
 	/>
 </svelte:head>
 
@@ -76,13 +76,9 @@
 		{#if data.rosterMember}
 			<div class="mt-3 flex items-center justify-center gap-2">
 				<Badge size="sm" color="sky" label={data.rosterMember.ratingShort} />
-				<Badge
-					size="sm"
-					color={data.rosterMember.membership === 'home' ? 'green' : 'purple'}
-					label={data.rosterMember.membership === 'home'
-						? `${data.rosterMember.facility} home controller`
-						: `Visiting ${data.rosterMember.facility}`}
-				/>
+				{#if data.rosterMember.membership === 'visit'}
+					<Badge size="sm" color="purple" label="Visiting from {data.rosterMember.facility}" />
+				{/if}
 			</div>
 		{/if}
 	</PageHero>
