@@ -10,7 +10,6 @@
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboardCheck from '~icons/mdi/clipboard-check-outline';
-	import IconOpen from '~icons/mdi/open-in-new';
 
 	let { data, form } = $props();
 
@@ -61,17 +60,6 @@
 							</a>
 							<span class="font-mono text-xs text-gray-500">{request.cid}</span>
 							<Badge size="sm" color="sky" label={request.course} />
-							{#if request.issueUrl}
-								<a
-									href={request.issueUrl}
-									target="_blank"
-									rel="noopener noreferrer"
-									class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
-								>
-									{request.issueKey}
-									<IconOpen class="h-3 w-3" />
-								</a>
-							{/if}
 						</div>
 
 						<p class="mt-1 text-xs text-gray-400">

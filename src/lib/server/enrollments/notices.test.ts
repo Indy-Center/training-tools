@@ -58,14 +58,14 @@ describe('examReadyNotice', () => {
 		expect(notice.link).toMatch(/\/teach$/);
 	});
 
-	it('links the TRK card', () => {
-		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+	// Evaluators have no access to the board.
+	it('does not link the TRK card', () => {
+		expect(field(notice, 'TRK card')).toBeUndefined();
 	});
 
-	it('leaves out availability the student did not give, and a card that does not exist', () => {
-		const bare = examReadyNotice({ ...request, availability: null, issueKey: null }, []);
+	it('leaves out availability the student did not give', () => {
+		const bare = examReadyNotice({ ...request, availability: null }, []);
 		expect(field(bare, 'Availability')).toBeUndefined();
-		expect(field(bare, 'TRK card')).toBeUndefined();
 	});
 });
 

@@ -104,8 +104,8 @@ export function examReadyNotice(
 		fields: [
 			{ label: 'Student', value: student(request) },
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
-			...(request.availability ? [{ label: 'Availability', value: request.availability }] : []),
-			...card(request)
+			...(request.availability ? [{ label: 'Availability', value: request.availability }] : [])
+			// No TRK card: the people this goes to have no access to the board.
 		]
 	};
 }

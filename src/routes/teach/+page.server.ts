@@ -40,7 +40,7 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
  * A teacher can also be a student. Their own enrollment is never listed here
  * (see `assignmentsFor`), and nothing on this page touches their student view.
  */
-export const load: PageServerLoad = async ({ locals, platform }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const session = requireSession(locals);
 	const teacher = await getActiveTeacher(locals.db, session.user.cid);
 
@@ -61,7 +61,6 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		qualifications.map((row) => [row.code, row.level])
 	);
 	const byId = new Map(enrollments.map((enrollment) => [enrollment.id, enrollment]));
-	const jiraBaseUrl = platform?.env.JIRA_BASE_URL;
 
 	// The exams this teacher could claim or has claimed. Never their own
 	// students': another evaluator examines those, and they are still under
@@ -89,7 +88,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		}),
 		// Still listed at the exam stage: the teacher goes on filing reports for
 		// practice sessions until the exam is done.
-		students: studentRows(assignments.students, people, jiraBaseUrl).map((row) => {
+		students: studentRows(assignments.students, people).map((row) => {
 			const enrollment = byId.get(row.enrollmentId)!;
 			return {
 				...row,
@@ -98,7 +97,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 				next: afterTrainingOptions(enrollment.course)
 			};
 		}),
-		exams: studentRows(exams, people, jiraBaseUrl).map((row) => {
+		exams: studentRows(exams, people).map((row) => {
 			const enrollment = byId.get(row.enrollmentId)!;
 			return {
 				...row,
