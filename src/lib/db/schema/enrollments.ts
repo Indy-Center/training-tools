@@ -165,6 +165,14 @@ export const enrollmentsTable = sqliteTable(
 		 */
 		announcedStatus: text('announced_status'),
 		/**
+		 * The "rating exam" post in the instructors' channel for this request, and
+		 * the status it last showed, so the post can be kept up to date and removed
+		 * when the exam is over. Both null when there is no post to look after. See
+		 * `$lib/server/enrollments/announce.ts`.
+		 */
+		examMessageId: text('exam_message_id'),
+		examMessageStatus: text('exam_message_status'),
+		/**
 		 * The `teacher` value the student and teacher were last told they were
 		 * paired under, so each pairing is announced once and a change of teacher
 		 * is announced again — see `$lib/server/enrollments/pairings.ts`.

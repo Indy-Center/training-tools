@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildDirectMessage, buildMessage } from './message';
-import { notify, type Notice } from './index';
+import { notify, notifyDelete, notifyEdit, notifyTracked, type Notice } from './index';
 
 const NOW = new Date('2026-09-30T12:00:00Z');
 const STUDENT = '123456789012345678';
@@ -111,5 +111,81 @@ describe('buildDirectMessage', () => {
 			title: 'Your course has been assigned',
 			description: '@everyone you have 30 days.'
 		});
+	});
+});
+
+describe('buttons', () => {
+	it('carries link buttons, and leaves them out entirely when there are none', () => {
+		const button = { label: 'Open Teach', url: 'https://training.flyindycenter.com/teach' };
+		expect(buildMessage({ ...notice, buttons: [button] }, NOW).buttons).toEqual([button]);
+		expect('buttons' in buildMessage(notice, NOW)).toBe(false);
+		expect('buttons' in buildMessage({ ...notice, buttons: [] }, NOW)).toBe(false);
+	});
+});
+
+describe('notifyTracked', () => {
+	const env = (larry: object) => ({ LARRY: larry }) as unknown as Partial<Env>;
+
+	it('posts now and says which message it became', async () => {
+		const send = vi.fn().mockResolvedValue({ channelId: '1', messageId: '555' });
+		const enqueue = vi.fn();
+
+		expect(await notifyTracked(env({ send, enqueue }), notice)).toEqual({
+			outcome: 'sent',
+			messageId: '555'
+		});
+		expect(enqueue).not.toHaveBeenCalled();
+	});
+
+	// It still has to arrive; it just cannot be changed afterwards.
+	it('queues it instead when it cannot be posted now, with no message to track', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const send = vi.fn().mockRejectedValue(new Error('rate limited'));
+		const enqueue = vi.fn().mockResolvedValue(undefined);
+
+		expect(await notifyTracked(env({ send, enqueue }), notice)).toEqual({
+			outcome: 'sent',
+			messageId: null
+		});
+		expect(enqueue).toHaveBeenCalledOnce();
+	});
+
+	it('skips quietly when there is no Larry binding', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		expect(await notifyTracked({}, notice)).toEqual({ outcome: 'skipped', messageId: null });
+	});
+});
+
+describe('notifyEdit and notifyDelete', () => {
+	const env = (larry: object) => ({ LARRY: larry }) as unknown as Partial<Env>;
+
+	it('changes the message without its mentions, so the first post’s pings stay', async () => {
+		const enqueueEdit = vi.fn().mockResolvedValue(undefined);
+		const outcome = await notifyEdit(env({ enqueueEdit }), '555', {
+			...notice,
+			audience: 'instructors',
+			mention: [EXAMINER]
+		});
+
+		expect(outcome).toBe('sent');
+		const request = enqueueEdit.mock.calls[0][0];
+		expect(request).toMatchObject({ channel: 'instructor-actions', messageId: '555' });
+		expect(request.content).toBeUndefined();
+		expect(request.embeds[0].title).toBe(notice.title);
+	});
+
+	it('removes the message from the audience’s channel', async () => {
+		const enqueueDelete = vi.fn().mockResolvedValue(undefined);
+
+		expect(await notifyDelete(env({ enqueueDelete }), 'instructors', '555')).toBe('sent');
+		expect(enqueueDelete).toHaveBeenCalledWith({ channel: 'instructor-actions', messageId: '555' });
+	});
+
+	// A Larry that is still on 1.1.0 has neither method.
+	it('reports a failure rather than throwing when Larry cannot do it', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		expect(await notifyEdit(env({}), '555', notice)).toBe('failed');
+		expect(await notifyDelete(env({}), 'instructors', '555')).toBe('failed');
 	});
 });

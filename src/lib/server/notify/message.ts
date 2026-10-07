@@ -1,6 +1,7 @@
 import { NOTIFY_CHANNELS } from '$lib/config';
 import type { DirectNotice, Notice } from './index';
-import type { ChannelSend, DirectSend, Message } from '@indy-center/indy-larry-worker';
+import type { DirectSend, Message } from '@indy-center/indy-larry-worker';
+import type { ChannelSendWithButtons } from './larry-next';
 
 /**
  * A notice as a message for Larry to post.
@@ -21,7 +22,7 @@ function clip(text: string, max: number): string {
 	return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
-export function buildMessage(notice: Notice, now: Date): ChannelSend {
+export function buildMessage(notice: Notice, now: Date): ChannelSendWithButtons {
 	const mentions = [...new Set((notice.mention ?? []).filter((id) => DISCORD_ID.test(id)))];
 
 	return {
@@ -32,7 +33,10 @@ export function buildMessage(notice: Notice, now: Date): ChannelSend {
 		// text people typed — availability is free text — so "@everyone" or a
 		// pasted mention in it must stay words.
 		allowedMentions: { parse: [], users: mentions },
-		embeds: [embed(notice, now)]
+		embeds: [embed(notice, now)],
+		// Left out, not empty, when there are none: on an edit that keeps the
+		// buttons the message already has.
+		...(notice.buttons?.length ? { buttons: notice.buttons } : {})
 	};
 }
 

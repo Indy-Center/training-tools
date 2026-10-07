@@ -5,6 +5,7 @@ import {
 	awaitingAuditNotice,
 	certificationHeldNotice,
 	examReadyNotice,
+	examStatus,
 	needsCatpNotice,
 	newEnrollmentNotice,
 	stuckRequestNotice,
@@ -58,6 +59,18 @@ describe('examReadyNotice', () => {
 		expect(notice.link).toMatch(/\/teach$/);
 	});
 
+	it('starts out waiting for an examiner, with a button to the teach page', () => {
+		expect(field(notice, 'Status')).toBe('Waiting for an examiner');
+		expect(notice.buttons).toEqual([
+			{ label: 'Open Teach', url: 'https://training.flyindycenter.com/teach' }
+		]);
+	});
+
+	it('shows the status it is given', () => {
+		const claimed = examReadyNotice({ ...request, availability: null }, [], 'Claimed by Hal Ito');
+		expect(field(claimed, 'Status')).toBe('Claimed by Hal Ito');
+	});
+
 	// Evaluators have no access to the board.
 	it('does not link the TRK card', () => {
 		expect(field(notice, 'TRK card')).toBeUndefined();
@@ -66,6 +79,29 @@ describe('examReadyNotice', () => {
 	it('leaves out availability the student did not give', () => {
 		const bare = examReadyNotice({ ...request, availability: null }, []);
 		expect(field(bare, 'Availability')).toBeUndefined();
+	});
+});
+
+describe('examStatus', () => {
+	const exam = { status: 'rating-exam', withdrawn: false, examiner: null as string | null };
+
+	it('waits for an examiner, then names whoever claimed it', () => {
+		expect(examStatus(exam)).toBe('Waiting for an examiner');
+		expect(examStatus({ ...exam, examiner: ' Hal Ito ' })).toBe('Claimed by Hal Ito');
+	});
+
+	// Null is what removes the post.
+	it('is over once the request leaves the exam, however it left', () => {
+		for (const status of [
+			'certification-update',
+			'completed',
+			'needs-catp',
+			'in-training',
+			'removed'
+		]) {
+			expect(examStatus({ ...exam, status, examiner: 'Hal Ito' })).toBeNull();
+		}
+		expect(examStatus({ ...exam, withdrawn: true })).toBeNull();
 	});
 });
 

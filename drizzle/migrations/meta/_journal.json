@@ -141,6 +141,13 @@
       "when": 1791394508348,
       "tag": "0020_brave_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1791398258201,
+      "tag": "0021_sparkling_clea",
+      "breakpoints": true
     }
   ]
 }

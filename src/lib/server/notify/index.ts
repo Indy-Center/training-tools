@@ -14,6 +14,7 @@
 import { NOTIFY_CHANNELS } from '$lib/config';
 import { buildDirectMessage, buildMessage } from './message';
 import type { LarryBinding, Message } from '@indy-center/indy-larry-worker';
+import type { LarryNext, LinkButton } from './larry-next';
 
 export type NotifyAudience = keyof typeof NOTIFY_CHANNELS;
 
@@ -34,6 +35,8 @@ export type Notice = {
 	mention?: string[];
 	/** `warning` for something that needs acting on. */
 	tone?: 'info' | 'warning';
+	/** Links under the message, each opening a web address. */
+	buttons?: LinkButton[];
 };
 
 /** What a private message says: a notice with nobody else to tell or ping. */
@@ -138,6 +141,77 @@ export async function notifyChannel(
 		return 'sent';
 	} catch (err) {
 		console.error(`[training-tools] notify: a post to ${channelId} was refused`, err);
+		return 'failed';
+	}
+}
+
+/**
+ * Send a notice now and say which message it became, so it can be changed or
+ * removed later. Never throws.
+ *
+ * Posted straight away rather than queued, because only a post that has
+ * happened has an ID. If that fails the notice is queued like any other, so it
+ * still arrives — with `messageId` null, and so never changed afterwards.
+ */
+export async function notifyTracked(
+	env: Partial<Env> | undefined,
+	notice: Notice
+): Promise<{ outcome: NotifyOutcome; messageId: string | null }> {
+	const binding = larry(env);
+	if (!binding) {
+		console.warn(`[training-tools] notify: no LARRY binding; skipped "${notice.title}"`);
+		return { outcome: 'skipped', messageId: null };
+	}
+
+	try {
+		const sent = await binding.send(buildMessage(notice, new Date()));
+		return { outcome: 'sent', messageId: sent.messageId };
+	} catch (err) {
+		console.warn(
+			`[training-tools] notify: "${notice.title}" could not be posted now; queueing`,
+			err
+		);
+		return { outcome: await notify(env, notice), messageId: null };
+	}
+}
+
+/**
+ * Change a notice that `notifyTracked` posted, to say what it says now. Queued;
+ * never throws. An edit pings nobody, whatever the notice names.
+ */
+export async function notifyEdit(
+	env: Partial<Env> | undefined,
+	messageId: string,
+	notice: Notice
+): Promise<NotifyOutcome> {
+	const binding = larry(env) as LarryNext | undefined;
+	if (!binding) return 'skipped';
+
+	try {
+		// Without the mentions: the text of the first post, pings and all, stays.
+		const message = buildMessage({ ...notice, mention: [] }, new Date());
+		await binding.enqueueEdit({ ...message, messageId });
+		return 'sent';
+	} catch (err) {
+		console.error(`[training-tools] notify: "${notice.title}" could not be changed`, err);
+		return 'failed';
+	}
+}
+
+/** Remove a notice that `notifyTracked` posted, once it has nothing left to say. Queued; never throws. */
+export async function notifyDelete(
+	env: Partial<Env> | undefined,
+	audience: NotifyAudience,
+	messageId: string
+): Promise<NotifyOutcome> {
+	const binding = larry(env) as LarryNext | undefined;
+	if (!binding) return 'skipped';
+
+	try {
+		await binding.enqueueDelete({ channel: NOTIFY_CHANNELS[audience], messageId });
+		return 'sent';
+	} catch (err) {
+		console.error(`[training-tools] notify: message ${messageId} could not be removed`, err);
 		return 'failed';
 	}
 }
