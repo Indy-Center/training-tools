@@ -77,7 +77,36 @@
 	</p>
 </div>
 
-<div class="grid gap-6 lg:grid-cols-2">
+<!-- Who they are teaching first, then what they offer beside what they may teach. -->
+<Panel title="Students" icon={IconAccountMultiple}>
+	{#if data.students.length === 0}
+		<p class="px-4 py-5 text-sm text-gray-400">Nobody is assigned right now.</p>
+	{:else}
+		<ul class="divide-y divide-slate-700/60">
+			{#each data.students as student (student.enrollmentId)}
+				<li class="flex flex-wrap items-center gap-2 px-4 py-3">
+					<span class="text-sm text-white">{student.name}</span>
+					<span class="font-mono text-xs text-gray-500">{student.cid}</span>
+					<Badge size="sm" color="sky" label={student.course} />
+					<EnrollmentStatusBadge status={student.status} />
+					{#if student.issueUrl}
+						<a
+							href={student.issueUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
+						>
+							{student.issueKey}
+							<IconOpen class="h-3 w-3" />
+						</a>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
+</Panel>
+
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
 	<Panel title="Availability and slots" icon={IconCalendarClock}>
 		<div class="px-4 py-5">
 			{#if form?.profileSaved}
@@ -167,62 +196,6 @@
 		</div>
 	</Panel>
 
-	{#if data.manager}
-		<Panel title="Status and initials" icon={IconCog}>
-			<div class="px-4 py-5">
-				{#if form?.adminSaved}
-					<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
-						<IconCheck class="h-4 w-4" /> Saved.
-					</p>
-				{/if}
-				{#if form?.adminError}
-					<p class="mb-4 text-sm text-red-400">{form.adminError}</p>
-				{/if}
-
-				<form method="POST" action="?/updateAdmin" use:enhance={submitting} class="space-y-4">
-					<fieldset disabled={!canAdmin} class="space-y-4">
-						<div>
-							<span class="block text-sm text-gray-400">Status</span>
-							<div class="mt-2 flex gap-3">
-								{#each ['active', 'loa'] as const as status (status)}
-									<ChoiceCard
-										type="radio"
-										name="status"
-										value={status}
-										checked={data.teacher.status === status}
-										compact
-									>
-										<span class="text-sm text-white">{TEACHER_STATUS_LABELS[status]}</span>
-									</ChoiceCard>
-								{/each}
-							</div>
-						</div>
-
-						<div>
-							<label for="initials" class="block text-sm text-gray-400">Operating initials</label>
-							<input
-								id="initials"
-								name="initials"
-								maxlength="2"
-								value={data.teacher.initials ?? ''}
-								placeholder="e.g. SC"
-								class="mt-2 w-24 font-mono uppercase {inputClasses}"
-							/>
-							<!-- TODO(identity): read these from identity's operatingInitials once
-							     community-website is on identity (DEV-5). -->
-						</div>
-
-						<Button type="submit" disabled={saving}>
-							{saving ? 'Saving…' : 'Save'}
-						</Button>
-					</fieldset>
-				</form>
-			</div>
-		</Panel>
-	{/if}
-</div>
-
-<div class="mt-6 grid gap-6 lg:grid-cols-2">
 	<Panel title="Qualifications" icon={IconSeal}>
 		<div class="px-4 py-5">
 			{#if form?.qualificationsSaved}
@@ -289,35 +262,63 @@
 			</form>
 		</div>
 	</Panel>
-
-	<Panel title="Students" icon={IconAccountMultiple}>
-		{#if data.students.length === 0}
-			<p class="px-4 py-5 text-sm text-gray-400">Nobody is assigned right now.</p>
-		{:else}
-			<ul class="divide-y divide-slate-700/60">
-				{#each data.students as student (student.enrollmentId)}
-					<li class="flex flex-wrap items-center gap-2 px-4 py-3">
-						<span class="text-sm text-white">{student.name}</span>
-						<span class="font-mono text-xs text-gray-500">{student.cid}</span>
-						<Badge size="sm" color="sky" label={student.course} />
-						<EnrollmentStatusBadge status={student.status} />
-						{#if student.issueUrl}
-							<a
-								href={student.issueUrl}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
-							>
-								{student.issueKey}
-								<IconOpen class="h-3 w-3" />
-							</a>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</Panel>
 </div>
+
+{#if data.manager}
+	<div class="mt-6 grid gap-6 lg:grid-cols-2">
+		<Panel title="Status and initials" icon={IconCog}>
+			<div class="px-4 py-5">
+				{#if form?.adminSaved}
+					<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
+						<IconCheck class="h-4 w-4" /> Saved.
+					</p>
+				{/if}
+				{#if form?.adminError}
+					<p class="mb-4 text-sm text-red-400">{form.adminError}</p>
+				{/if}
+
+				<form method="POST" action="?/updateAdmin" use:enhance={submitting} class="space-y-4">
+					<fieldset disabled={!canAdmin} class="space-y-4">
+						<div>
+							<span class="block text-sm text-gray-400">Status</span>
+							<div class="mt-2 flex gap-3">
+								{#each ['active', 'loa'] as const as status (status)}
+									<ChoiceCard
+										type="radio"
+										name="status"
+										value={status}
+										checked={data.teacher.status === status}
+										compact
+									>
+										<span class="text-sm text-white">{TEACHER_STATUS_LABELS[status]}</span>
+									</ChoiceCard>
+								{/each}
+							</div>
+						</div>
+
+						<div>
+							<label for="initials" class="block text-sm text-gray-400">Operating initials</label>
+							<input
+								id="initials"
+								name="initials"
+								maxlength="2"
+								value={data.teacher.initials ?? ''}
+								placeholder="e.g. SC"
+								class="mt-2 w-24 font-mono uppercase {inputClasses}"
+							/>
+							<!-- TODO(identity): read these from identity's operatingInitials once
+							     community-website is on identity (DEV-5). -->
+						</div>
+
+						<Button type="submit" disabled={saving}>
+							{saving ? 'Saving…' : 'Save'}
+						</Button>
+					</fieldset>
+				</form>
+			</div>
+		</Panel>
+	</div>
+{/if}
 
 <div class="mt-6">
 	<Timeline entries={data.timeline} names={data.names} />
