@@ -4,12 +4,13 @@ import {
 	canReport,
 	checkReport,
 	ctrsMode,
+	finishChoices,
 	isExaminerFor,
 	otsChoices,
 	readReport
 } from '$lib/ctrs';
 import { findCourse } from '$lib/courses';
-import { getEnrollment } from '$lib/server/enrollments';
+import { completeTraining, getEnrollment } from '$lib/server/enrollments';
 import { requireSession } from '$lib/server/guards';
 import { getPeople } from '$lib/server/roster';
 import { getActiveTeacher } from '$lib/server/teachers';
@@ -21,9 +22,13 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
  * A training session report, filed in VATUSA's CTRS by the teacher (or
  * examiner) on the student's card. Opened from a button on `/teach`.
  *
- * The record is VATUSA's to keep: nothing is stored here yet, and nothing on
- * the TRK card changes. Reporting a rating exam as passed does **not** move
- * the card — that is still the button on `/teach`.
+ * The record is VATUSA's to keep: nothing is stored here yet.
+ *
+ * A report can also end the training: the teacher ticks "recommend for a
+ * rating exam" or "mark the course complete", whichever the course has, and
+ * once VATUSA has the report the card is moved exactly as "Mark training
+ * complete" on `/teach` moves it. Reporting a rating exam as passed does
+ * **not** move the card — that is still the button on `/teach`.
  *
  * `CTRS_SUBMIT` in wrangler.jsonc switches it: `live` files the record;
  * anything else asks VATUSA to check it and save nothing.
@@ -50,11 +55,19 @@ async function reporting(event: Pick<RequestEvent, 'locals' | 'params'>) {
 		error(404, 'That student is not yours to report on, or their request has closed.');
 	}
 
-	return { session, teacher, enrollment, examiner: isExaminerFor(enrollment, teacher) };
+	return {
+		session,
+		teacher,
+		enrollment,
+		allowed: {
+			examiner: isExaminerFor(enrollment, teacher),
+			finish: finishChoices(enrollment, teacher)
+		}
+	};
 }
 
 export const load: PageServerLoad = async (event) => {
-	const { session, teacher, enrollment, examiner } = await reporting(event);
+	const { session, teacher, enrollment, allowed } = await reporting(event);
 	const people = await getPeople(event.locals.db);
 	const { apiKey, mode } = settings(event.platform?.env);
 
@@ -67,7 +80,8 @@ export const load: PageServerLoad = async (event) => {
 			status: enrollment.status
 		},
 		instructor: { cid: teacher.cid, name: displayName(session.user) },
-		otsChoices: otsChoices(examiner),
+		otsChoices: otsChoices(allowed.examiner),
+		finishChoices: allowed.finish,
 		blank: blankReport(enrollment.course, new Date()),
 		keySet: apiKey !== null,
 		mode
@@ -77,10 +91,10 @@ export const load: PageServerLoad = async (event) => {
 export const actions: Actions = {
 	/** Named, like every action in this app: see `$lib/testing/named-actions`. */
 	submit: async (event) => {
-		const { teacher, enrollment, examiner } = await reporting(event);
+		const { session, teacher, enrollment, allowed } = await reporting(event);
 		const values = readReport(await event.request.formData());
 
-		const checked = checkReport(values, examiner);
+		const checked = checkReport(values, allowed);
 		if (!checked.ok) return fail(400, { values, errors: checked.errors });
 
 		const { apiKey, mode } = settings(event.platform?.env);
@@ -91,6 +105,7 @@ export const actions: Actions = {
 			});
 		}
 
+		let recordId: number | null;
 		try {
 			const { id } = await submitTrainingRecord(
 				apiKey,
@@ -105,11 +120,27 @@ export const actions: Actions = {
 				// Kept on screen: nothing was saved, so they may want to file it again for real.
 				return { values, tested: true };
 			}
-			redirect(303, `/teach?reported=${id ?? ''}`);
+			recordId = id;
 		} catch (cause) {
 			if (!(cause instanceof VatusaError)) throw cause;
 			console.error('CTRS report refused', { status: cause.status, message: cause.message });
 			return fail(502, { values, errors: [`VATUSA refused the report: ${cause.message}`] });
 		}
+
+		// The report is with VATUSA now, so nothing below sends them back to the
+		// form: filing it twice would be worse than a card left for the button.
+		let card = '';
+		if (checked.finish) {
+			const result = await completeTraining(
+				event.locals.db,
+				event.platform?.env,
+				enrollment,
+				displayName(session.user),
+				checked.finish
+			);
+			if (!result.ok) console.error('CTRS report filed, card not moved', result.message);
+			card = result.ok ? '&card=moved' : '&card=stuck';
+		}
+		redirect(303, `/teach?reported=${recordId ?? ''}${card}`);
 	}
 };

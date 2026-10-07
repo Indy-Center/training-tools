@@ -25,6 +25,8 @@
 
 	/** Set by the report form when it sends someone back here: VATUSA's record number. */
 	const reported = $derived(page.url.searchParams.get('reported'));
+	/** Whether that report was also meant to move the card, and did. */
+	const card = $derived(page.url.searchParams.get('card'));
 </script>
 
 <svelte:head>
@@ -58,8 +60,16 @@
 {#if reported !== null && !form}
 	<p class="mb-6 flex items-center gap-2 text-sm text-green-400">
 		<IconCheck class="h-4 w-4" />
-		Training report filed with VATUSA{reported ? ` (record ${reported})` : ''}.
+		Training report filed with VATUSA{reported ? ` (record ${reported})` : ''}{card === 'moved'
+			? ', and the card moved on'
+			: ''}.
 	</p>
+	{#if card === 'stuck'}
+		<Alert tone="warning" class="mb-6">
+			The report is filed, but the student's card could not be moved. Use the button beside them
+			below; do not file the report again.
+		</Alert>
+	{/if}
 {/if}
 
 {#if form?.flowError}

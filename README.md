@@ -547,16 +547,23 @@ report is filed in VATUSA's training records in their name
 - **Who may file one** is `canReport` in `$lib/ctrs.ts`: the teacher or the
   examiner on an open card, never on their own enrollment. Checked in the load
   and again in the action.
+- **A report can end the training.** The teacher whose training it is gets a
+  tick box worded for the course (`finishChoices`): **Recommend for a rating
+  exam** where the course ends in one, **Mark the course complete** where it
+  does not, and both for Custom Training. Ticked, the report is filed first —
+  flagged on VATUSA as a recommendation (`ots_status` 3) in the first case —
+  and then the card is moved exactly as **Mark training complete** on `/teach`
+  moves it. If the card cannot be moved the report still stands, and `/teach`
+  says to use the button instead.
 - **A rating exam result** (passed / not passed) is offered only to the
   examiner on the card, at the exam stage. Filing one **does not move the
   card** — that is still the button on `/teach`.
 - **The form is checked against VATUSA's rules first** (`checkReport`), so the
   teacher hears everything wrong at once.
-- **Nothing is stored here**: the record is VATUSA's, and the TRK card is not
-  touched.
+- **Nothing is stored here**: the record is VATUSA's.
 
 `CTRS_SUBMIT` is `test` for now: VATUSA checks the report and answers as it
-would, but saves nothing, and the page says so. Set it to `live` once a test
+would, but saves nothing and moves no card, and the page says so. Set it to `live` once a test
 has been seen to pass. Like the academy calls, this was written from VATUSA's
 public source and **had not been run with a real key** when it was written.
 

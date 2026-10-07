@@ -8,6 +8,7 @@
  * (VATUSA/api, `TrainingController::postNewRecord` and
  * `Training_records_endpoints.md`) on 2026-10-06. See research/vatusa-roster.md
  */
+import { afterTrainingOptions, canCompleteTraining, type AfterTraining } from './course-completion';
 import { ASSIGNED_STATUSES, isAssignedTo } from './teachers';
 
 /** Where the session happened. The numbers are VATUSA's. */
@@ -17,13 +18,36 @@ export const SESSION_LOCATIONS = [
 	{ value: 0, label: 'Classroom' }
 ] as const;
 
-/** Whether the session was a rating exam ("OTS"). The numbers are VATUSA's. */
+/**
+ * Whether the session was a rating exam ("OTS"). The numbers are VATUSA's.
+ *
+ * A result is the examiner's to choose. "Recommended" (3) is never chosen: it
+ * is what the teacher's "recommend for a rating exam" tick sends — see
+ * `FINISH_LABELS`.
+ */
 export const OTS_STATUSES = [
-	{ value: 0, label: 'Not a rating exam', examinerOnly: false },
-	{ value: 3, label: 'Recommended for a rating exam', examinerOnly: false },
-	{ value: 1, label: 'Rating exam: passed', examinerOnly: true },
-	{ value: 2, label: 'Rating exam: not passed', examinerOnly: true }
+	{ value: 0, label: 'Not a rating exam' },
+	{ value: 1, label: 'Rating exam: passed' },
+	{ value: 2, label: 'Rating exam: not passed' }
 ] as const;
+const OTS_RECOMMENDED = 3;
+
+/**
+ * The tick that ends the training with this report, worded for where the
+ * course goes next. Ticking it does what "Mark training complete" on `/teach`
+ * does; for a rating exam it also flags the report as a recommendation.
+ */
+export const FINISH_LABELS: Record<AfterTraining, { label: string; detail: string }> = {
+	'rating-exam': {
+		label: 'Recommend for a rating exam',
+		detail:
+			'Flags this report as a recommendation on VATUSA, dates the card and moves it to Rating Exam, where an examiner takes it.'
+	},
+	'certification-update': {
+		label: 'Mark the course complete',
+		detail: 'Dates the card, applies the certification and sends it to the TA to audit.'
+	}
+};
 
 /** VATUSA's own pattern for a position: `IND_GND`, `ZID_CTR`, `IND_E_APP`. */
 export const POSITION_PATTERN =
@@ -54,6 +78,8 @@ export type ReportValues = {
 	position: string;
 	location: string;
 	otsStatus: string;
+	/** Where the training goes if this report ends it; empty if it carries on. */
+	finish: string;
 	score: string;
 	movements: string;
 	notes: string;
@@ -86,6 +112,7 @@ export function blankReport(course: string, now: Date): ReportValues {
 		position: suggestedPosition(course),
 		location: '1',
 		otsStatus: '0',
+		finish: '',
 		score: '',
 		movements: '',
 		notes: ''
@@ -94,6 +121,7 @@ export function blankReport(course: string, now: Date): ReportValues {
 
 type Reportable = {
 	cid: string;
+	course: string;
 	status: string;
 	teacher: string | null;
 	reInstructor: string | null;
@@ -119,7 +147,15 @@ export function canReport(enrollment: Reportable, teacher: Reporter): boolean {
 
 /** The rating-exam choices this teacher is offered: a result only from the examiner. */
 export function otsChoices(examiner: boolean) {
-	return OTS_STATUSES.filter((status) => examiner || !status.examinerOnly);
+	return examiner ? [...OTS_STATUSES] : OTS_STATUSES.filter((status) => status.value === 0);
+}
+
+/**
+ * How this teacher may end the training with a report: nothing unless it is
+ * theirs to end, one way for a standard course, either for Custom Training.
+ */
+export function finishChoices(enrollment: Reportable, teacher: Reporter): AfterTraining[] {
+	return canCompleteTraining(enrollment, teacher) ? afterTrainingOptions(enrollment.course) : [];
 }
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -133,6 +169,7 @@ export function readReport(form: { get(name: string): unknown }): ReportValues {
 		position: text(form.get('position')).toUpperCase(),
 		location: text(form.get('location')),
 		otsStatus: text(form.get('otsStatus')),
+		finish: text(form.get('finish')),
 		score: text(form.get('score')),
 		movements: text(form.get('movements')),
 		notes: text(form.get('notes'))
@@ -156,14 +193,19 @@ function clockTime(value: string): string | null {
 	return `${String(hours).padStart(2, '0')}:${match[2]}`;
 }
 
-export type ReportResult = { ok: true; record: TrainingRecord } | { ok: false; errors: string[] };
+export type ReportResult =
+	| { ok: true; record: TrainingRecord; finish: AfterTraining | null }
+	| { ok: false; errors: string[] };
 
 /**
  * Check a report against VATUSA's rules before it is sent, so the teacher
  * hears everything wrong with it at once, in our words rather than one
  * refusal at a time in VATUSA's.
  */
-export function checkReport(values: ReportValues, examiner: boolean): ReportResult {
+export function checkReport(
+	values: ReportValues,
+	allowed: { examiner: boolean; finish: readonly AfterTraining[] }
+): ReportResult {
 	const errors: string[] = [];
 
 	const time = clockTime(values.time);
@@ -181,8 +223,16 @@ export function checkReport(values: ReportValues, examiner: boolean): ReportResu
 	const location = SESSION_LOCATIONS.find((choice) => String(choice.value) === values.location);
 	if (!location) errors.push('Choose where the session took place.');
 
-	const ots = otsChoices(examiner).find((choice) => String(choice.value) === values.otsStatus);
+	// Left out of the form entirely for anyone but the examiner, so empty is "not an exam".
+	const ots = otsChoices(allowed.examiner).find(
+		(choice) => String(choice.value) === (values.otsStatus || '0')
+	);
 	if (!ots) errors.push('Only the examiner on the card can report a rating exam result.');
+
+	const finish = allowed.finish.find((option) => option === values.finish) ?? null;
+	if (values.finish !== '' && !finish) {
+		errors.push('That is not yours to do, or it has already been done. Reload the page.');
+	}
 
 	let score: number | null = null;
 	if (values.score !== '') {
@@ -214,11 +264,12 @@ export function checkReport(values: ReportValues, examiner: boolean): ReportResu
 			position: values.position,
 			duration,
 			location: location.value,
-			otsStatus: ots.value,
+			otsStatus: finish === 'rating-exam' ? OTS_RECOMMENDED : ots.value,
 			score,
 			movements,
 			notes: values.notes
-		}
+		},
+		finish
 	};
 }
 

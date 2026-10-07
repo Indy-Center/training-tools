@@ -5,7 +5,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
-	import { MAX_NOTES_LENGTH, SESSION_LOCATIONS } from '$lib/ctrs';
+	import { FINISH_LABELS, MAX_NOTES_LENGTH, SESSION_LOCATIONS } from '$lib/ctrs';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboard from '~icons/mdi/clipboard-text-clock';
@@ -16,6 +16,12 @@
 	const values = $derived(form?.values ?? data.blank);
 
 	let sending = $state(false);
+
+	/** Which ending is ticked, if any: it moves the card, so sending asks first. */
+	let finish = $state('');
+	$effect(() => {
+		finish = values.finish;
+	});
 
 	const inputClasses =
 		'w-full rounded-lg border border-slate-600/50 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-sky-500 focus:ring-sky-500/50';
@@ -71,7 +77,16 @@
 		method="POST"
 		action="?/submit"
 		class="space-y-5 px-4 py-5"
-		use:enhance={() => {
+		use:enhance={({ cancel }) => {
+			if (
+				finish &&
+				data.mode === 'live' &&
+				!confirm(
+					`File this report and ${finish === 'rating-exam' ? 'recommend' : 'complete the course for'} ${data.student.name}${finish === 'rating-exam' ? ' for a rating exam' : ''}?\n\nThis moves their card and cannot be undone from here.`
+				)
+			) {
+				return cancel();
+			}
 			sending = true;
 			return async ({ update }) => {
 				// Never cleared: a refused report is corrected, not retyped.
@@ -160,16 +175,19 @@
 					{/each}
 				</select>
 			</div>
-			<div>
-				<label for="otsStatus" class={labelClasses}>Rating exam</label>
-				<select id="otsStatus" name="otsStatus" required class="mt-2 {inputClasses}">
-					{#each data.otsChoices as choice (choice.value)}
-						<option value={choice.value} selected={String(choice.value) === values.otsStatus}>
-							{choice.label}
-						</option>
-					{/each}
-				</select>
-			</div>
+			{#if data.otsChoices.length > 1}
+				<!-- Only the examiner has a result to give. -->
+				<div>
+					<label for="otsStatus" class={labelClasses}>Rating exam</label>
+					<select id="otsStatus" name="otsStatus" required class="mt-2 {inputClasses}">
+						{#each data.otsChoices as choice (choice.value)}
+							<option value={choice.value} selected={String(choice.value) === values.otsStatus}>
+								{choice.label}
+							</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
 			<div>
 				<label for="score" class={labelClasses}>Progress</label>
 				<select id="score" name="score" class="mt-2 {inputClasses}">
@@ -208,14 +226,41 @@
 			<p class="mt-1 text-xs text-gray-500">The student can read this on VATUSA.</p>
 		</div>
 
+		{#if data.finishChoices.length > 0}
+			<!-- Ends the training with this report. One box for a standard course;
+			     Custom Training has both endings, and a box each, only one of which holds. -->
+			<fieldset class="space-y-3 rounded-lg border border-slate-700/60 px-4 py-3">
+				<legend class="px-1 text-sm font-medium text-gray-300">This was their last session</legend>
+				{#each data.finishChoices as choice (choice)}
+					<label class="flex items-start gap-3 text-sm text-gray-300">
+						<input
+							type="checkbox"
+							name="finish"
+							value={choice}
+							checked={finish === choice}
+							onchange={(event) => (finish = event.currentTarget.checked ? choice : '')}
+							class="mt-0.5 rounded border-slate-600 bg-slate-900 text-sky-600 focus:ring-sky-500/50"
+						/>
+						<span>
+							<span class="text-white">{FINISH_LABELS[choice].label}</span>
+							<span class="block text-xs text-gray-400">{FINISH_LABELS[choice].detail}</span>
+						</span>
+					</label>
+				{/each}
+				{#if data.mode === 'test'}
+					<p class="text-xs text-orange-300">In test mode the card is not moved either.</p>
+				{/if}
+			</fieldset>
+		{/if}
+
 		<div class="flex flex-wrap items-center gap-3 border-t border-slate-700/60 pt-5">
 			<Button type="submit" disabled={sending || !data.keySet}>
 				{sending ? 'Sending…' : data.mode === 'test' ? 'Check with VATUSA' : 'File report'}
 			</Button>
 			<Button href="/teach" variant="secondary">Cancel</Button>
-			<span class="text-xs text-gray-500">
-				This does not move the student's card. Mark training or an exam complete from Teach.
-			</span>
+			{#if data.finishChoices.length === 0}
+				<span class="text-xs text-gray-500">This does not move the student's card.</span>
+			{/if}
 		</div>
 	</form>
 </Panel>
