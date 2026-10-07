@@ -110,21 +110,22 @@ never reopened by Jira.
 
 Every 15 minutes (`*/15 * * * *`), in this order:
 
-| Job                       | Does                                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------- |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                   |
-| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)           |
-| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)             |
-| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)      |
-| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)        |
-| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                  |
-| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)        |
-| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)        |
-| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)           |
-| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`) |
-| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)           |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)           |
-| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)          |
+| Job                       | Does                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                          |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                  |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                    |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)             |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)               |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                         |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)               |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)               |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                  |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)        |
+| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                  |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                  |
+| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`) |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                 |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -135,7 +136,7 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters nine times, and each is commented in `scheduled.ts`: certification
+Order matters ten times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
@@ -520,6 +521,10 @@ What staff do from a row:
   Training. It is refused until the written course is passed, where there is one.
 - **Change the teacher**, for someone who already has one. Only `Teacher`
   changes; the card stays where it is.
+- **Either way the pair is told.** Once the teacher's Discord channel exists the
+  student and teacher are pinged there with who they are paired with, the
+  course, how the student prefers to be reached (never an email address) and
+  when they can train (`announcePairings`, `pairing-message.ts`).
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
   the two; either closes the request.

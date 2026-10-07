@@ -127,6 +127,13 @@
       "when": 1791392871672,
       "tag": "0018_blue_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791393466772,
+      "tag": "0019_sticky_molly_hayes",
+      "breakpoints": true
     }
   ]
 }

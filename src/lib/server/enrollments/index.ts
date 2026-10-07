@@ -22,6 +22,7 @@ export { importBoardIssues, type ImportResult } from './import';
 export { getWaitlistStats, type CourseWaitlist } from './stats';
 export { announceArrivals, type AnnounceResult } from './announce';
 export { sendVatusaReminders, type ReminderPassResult } from './reminders';
+export { announcePairings, type PairingPassResult } from './pairings';
 export {
 	applyCertificationUpdate,
 	applyPendingCertificationUpdates,

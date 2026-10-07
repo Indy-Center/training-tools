@@ -165,6 +165,12 @@ export const enrollmentsTable = sqliteTable(
 		 */
 		announcedStatus: text('announced_status'),
 		/**
+		 * The `teacher` value the student and teacher were last told they were
+		 * paired under, so each pairing is announced once and a change of teacher
+		 * is announced again — see `$lib/server/enrollments/pairings.ts`.
+		 */
+		announcedTeacher: text('announced_teacher'),
+		/**
 		 * When the certification this course earns was applied to the student.
 		 *
 		 * Set once, when the request first reaches `certification-update` — however
