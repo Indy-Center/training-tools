@@ -321,9 +321,9 @@
 			<ul class="divide-y divide-slate-700/60 text-sm">
 				{#each data.qualifications as qualification (qualification.code)}
 					<li class="flex items-center justify-between gap-3 px-4 py-2">
-						<span class="text-gray-300">
-							{qualification.name}
-							<span class="font-mono text-xs text-gray-500">({qualification.code})</span>
+						<span class="font-mono text-gray-300">
+							{qualification.code}
+							<span class="font-sans text-xs text-gray-500">({qualification.name})</span>
 						</span>
 						<span
 							class="shrink-0 text-right {qualification.level ? 'text-white' : 'text-gray-500'}"
