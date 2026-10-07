@@ -10,6 +10,7 @@ import {
 	clearReturnedExaminers,
 	importBoardIssues,
 	reconcileEnrollments,
+	sendVatusaReminders,
 	sweepEnrollmentStatuses
 } from '$lib/server/enrollments';
 import type { JobRun } from '$lib/server/job-health';
@@ -41,7 +42,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in eight places, each noted below.
+ * Order matters in nine places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -155,6 +156,16 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await completePassedVatusaCourses(db, env);
 				return result.completed > 0 ? result : null;
+			}
+		},
+		{
+			// After the completions, so someone who has just passed is not reminded.
+			name: 'vatusa course reminders',
+			description:
+				'Messages students when their VATUSA course is assigned, as its 30 days run down, and when they are up.',
+			run: async () => {
+				const result = await sendVatusaReminders(db, env);
+				return result.sent > 0 ? result : null;
 			}
 		},
 		{

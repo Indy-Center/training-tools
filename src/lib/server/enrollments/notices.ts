@@ -1,7 +1,9 @@
 import { SITE_URL } from '$lib/config';
 import { findCourse } from '$lib/courses';
 import { NOTIFICATION_LABELS, STATUS_LABELS } from '$lib/enrollment-status';
-import type { Notice } from '$lib/server/notify';
+import { formatCardDate } from '$lib/format';
+import type { DirectNotice, Notice } from '$lib/server/notify';
+import { academyDeadline, ACADEMY_COURSE_DAYS, type AcademyReminder } from '$lib/vatusa-reminders';
 
 /**
  * What the end of a course tells people, and when. Pure, so who is told what is
@@ -229,6 +231,88 @@ export function newEnrollmentNotice(
 			...(request.issueKey
 				? card(request)
 				: [{ label: 'TRK card', value: 'Not on the board yet. It is filed automatically.' }])
+		]
+	};
+}
+
+/** Where a student takes the course. */
+const ACADEMY_URL = 'https://academy.vatusa.net';
+
+/** "October 31, 2026", or a plain phrase when the card's date cannot be read. */
+function deadline(assignedOn: string): string {
+	const date = academyDeadline(assignedOn);
+	return date ? formatCardDate(date, 'long') : `${ACADEMY_COURSE_DAYS} days after it was assigned`;
+}
+
+/**
+ * What a student is told about their VATUSA Academy course, privately: when it
+ * is assigned, as the 30 days run down, and when they are up.
+ */
+export function vatusaReminderMessage(
+	reminder: AcademyReminder,
+	request: { course: string; assignedOn: string }
+): DirectNotice {
+	const forCourse = course(request.course);
+	const by = deadline(request.assignedOn);
+
+	switch (reminder) {
+		case 'assigned':
+			return {
+				title: 'Your VATUSA Academy course has been assigned',
+				summary: `Your VATUSA Academy course for ${forCourse} is ready. You have ${ACADEMY_COURSE_DAYS} days to complete it: by ${by}.`,
+				link: ACADEMY_URL
+			};
+		case '22-days-left':
+		case '16-days-left': {
+			const days = reminder === '22-days-left' ? 22 : 16;
+			return {
+				title: `${days} days left on your VATUSA Academy course`,
+				summary: `Your VATUSA Academy course for ${forCourse} needs to be completed by ${by}.`,
+				link: ACADEMY_URL
+			};
+		}
+		case 'expired':
+			return {
+				tone: 'warning',
+				title: 'Your VATUSA Academy course is overdue',
+				summary: `The ${ACADEMY_COURSE_DAYS} days to complete your VATUSA Academy course for ${forCourse} ended on ${by}. Please contact the training staff.`,
+				link: ACADEMY_URL
+			};
+	}
+}
+
+/** The time is up and the course is not passed: the training admins decide what happens. */
+export function vatusaOverdueNotice(request: NoticeRequest & { assignedOn: string }): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `VATUSA course overdue: ${request.name}`,
+		summary: `${request.name} has not passed the VATUSA Academy course for ${course(request.course)} within ${ACADEMY_COURSE_DAYS} days.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Assigned', value: formatCardDate(request.assignedOn, 'long') },
+			{ label: 'Due', value: deadline(request.assignedOn) },
+			...card(request)
+		]
+	};
+}
+
+/** A reminder that could not go to the student, because we hold no Discord ID for them. */
+export function vatusaUndeliveredNotice(
+	reminder: AcademyReminder,
+	request: NoticeRequest & { assignedOn: string }
+): Notice {
+	const message = vatusaReminderMessage(reminder, request);
+	return {
+		audience: 'training-admins',
+		title: `Could not message ${request.name} about their VATUSA course`,
+		summary: `We hold no Discord ID for ${request.name}, so this was not sent. Please pass it on another way.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Message', value: `${message.title}. ${message.summary}` },
+			...card(request)
 		]
 	};
 }

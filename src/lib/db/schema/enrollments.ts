@@ -153,6 +153,12 @@ export const enrollmentsTable = sqliteTable(
 		vatusaAssignedOn: text('vatusa_assigned_on'),
 		vatusaCompletedOn: text('vatusa_completed_on'),
 		/**
+		 * The last reminder the student was sent about the VATUSA course, so each
+		 * goes once: one of `ACADEMY_REMINDERS` in `$lib/vatusa-reminders.ts`. Null
+		 * until the first. See `$lib/server/enrollments/reminders.ts`.
+		 */
+		vatusaReminder: text('vatusa_reminder'),
+		/**
 		 * The last status this request was announced at, so each arrival is
 		 * announced once — see `$lib/server/enrollments/announce.ts`. Differs from
 		 * `status` exactly when there is an arrival still to handle.

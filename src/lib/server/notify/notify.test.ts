@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildMessage } from './message';
+import { buildDirectMessage, buildMessage } from './message';
 import { notify, type Notice } from './index';
 
 const NOW = new Date('2026-09-30T12:00:00Z');
@@ -93,5 +93,23 @@ describe('notify', () => {
 			LARRY: { enqueue: vi.fn().mockRejectedValue(new Error('Unknown channel')) }
 		};
 		expect(await notify(refusing as unknown as Partial<Env>, notice)).toBe('failed');
+	});
+});
+
+describe('buildDirectMessage', () => {
+	it('goes to one person, as an embed that can ping nobody', () => {
+		const message = buildDirectMessage(
+			STUDENT,
+			{ title: 'Your course has been assigned', summary: '@everyone you have 30 days.' },
+			NOW
+		);
+
+		expect(message.userId).toBe(STUDENT);
+		expect(message.content).toBeUndefined();
+		expect(message.allowedMentions).toEqual({ parse: [] });
+		expect(message.embeds?.[0]).toMatchObject({
+			title: 'Your course has been assigned',
+			description: '@everyone you have 30 days.'
+		});
 	});
 });

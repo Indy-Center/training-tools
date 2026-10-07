@@ -122,6 +122,7 @@ Every 15 minutes (`*/15 * * * *`), in this order:
 | examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)        |
 | certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)           |
 | vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`) |
+| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)           |
 | discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)           |
 | announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)          |
 
@@ -134,7 +135,7 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters eight times, and each is commented in `scheduled.ts`: certification
+Order matters nine times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
@@ -508,6 +509,11 @@ What staff do from a row:
   through its API, in the name of the facility's TA — or the ATM when there is no
   TA. VATUSA emails the student. S-GC has none: the basic exam is passed before
   anyone joins a facility.
+  Once it is assigned the student has 30 days: they are messaged privately on
+  Discord when it is assigned, with 22 and 16 days left, and when the time is up
+  (`$lib/vatusa-reminders.ts`, `sendVatusaReminders`). The training admins are
+  told when the time is up, and get any reminder for a student with no Discord
+  ID to pass on.
 - **Assign a teacher**, for someone on the waitlist. The dropdown lists active
   teachers qualified to teach that course, most open slots first. Choosing one
   sets `Teacher` and `Teacher Assigned` on the card and moves it to In

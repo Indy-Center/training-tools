@@ -8,6 +8,9 @@ import {
 	needsCatpNotice,
 	newEnrollmentNotice,
 	stuckRequestNotice,
+	vatusaOverdueNotice,
+	vatusaReminderMessage,
+	vatusaUndeliveredNotice,
 	withdrawnNotice
 } from './notices';
 
@@ -195,5 +198,59 @@ describe('certificationHeldNotice', () => {
 
 	it('pings nobody', () => {
 		expect(notice.mention).toBeUndefined();
+	});
+});
+
+describe('vatusaReminderMessage', () => {
+	const assigned = { course: 'T-RC', assignedOn: '2026-10-01' };
+
+	it('tells the student they have 30 days, and by when', () => {
+		const message = vatusaReminderMessage('assigned', assigned);
+		expect(message.title).toBe('Your VATUSA Academy course has been assigned');
+		expect(message.summary).toContain('30 days');
+		expect(message.summary).toContain('October 31, 2026');
+		expect(message.link).toBe('https://academy.vatusa.net');
+	});
+
+	it('counts the days left in each reminder', () => {
+		expect(vatusaReminderMessage('22-days-left', assigned).title).toMatch(/^22 days left/);
+		expect(vatusaReminderMessage('16-days-left', assigned).title).toMatch(/^16 days left/);
+		expect(vatusaReminderMessage('16-days-left', assigned).summary).toContain('October 31, 2026');
+	});
+
+	it('says so when the time is up', () => {
+		const message = vatusaReminderMessage('expired', assigned);
+		expect(message.tone).toBe('warning');
+		expect(message.title).toContain('overdue');
+		expect(message.summary).toContain('training staff');
+	});
+
+	it('still reads when the card date cannot', () => {
+		expect(vatusaReminderMessage('assigned', { course: 'T-RC', assignedOn: '' }).summary).toContain(
+			'30 days after it was assigned'
+		);
+	});
+});
+
+describe('vatusaOverdueNotice', () => {
+	it('tells the training admins who is overdue, and since when', () => {
+		const notice = vatusaOverdueNotice({ ...request, assignedOn: '2026-10-01' });
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.tone).toBe('warning');
+		expect(notice.title).toBe('VATUSA course overdue: Jo Rivera');
+		expect(field(notice, 'Assigned')).toBe('October 1, 2026');
+		expect(field(notice, 'Due')).toBe('October 31, 2026');
+	});
+});
+
+describe('vatusaUndeliveredNotice', () => {
+	it('hands the training admins the message that could not be sent', () => {
+		const notice = vatusaUndeliveredNotice('22-days-left', {
+			...request,
+			assignedOn: '2026-10-01'
+		});
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toContain('Jo Rivera');
+		expect(field(notice, 'Message')).toContain('22 days left');
 	});
 });
