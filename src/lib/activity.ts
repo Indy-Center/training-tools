@@ -27,6 +27,7 @@ export const ACTIVITY_EVENTS = [
 	'teacher.status',
 	'teacher.initials',
 	'teacher.availability',
+	'teacher.message',
 	'teacher.slots'
 ] as const;
 export type ActivityEvent = (typeof ACTIVITY_EVENTS)[number];
@@ -54,5 +55,6 @@ export const ACTIVITY_LABELS: Record<ActivityEvent, string> = {
 	'teacher.status': 'Teacher status changed',
 	'teacher.initials': 'Initials changed',
 	'teacher.availability': 'Availability changed',
+	'teacher.message': 'Message to students changed',
 	'teacher.slots': 'Student slots changed'
 };

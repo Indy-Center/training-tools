@@ -11,6 +11,7 @@ const teacher: Teacher = {
 	discordRoleId: null,
 	discordChannelId: null,
 	availability: 'Weeknights',
+	studentMessage: null,
 	studentSlots: 2,
 	joinedAt: new Date('2026-01-01T00:00:00Z'),
 	removedAt: null,
@@ -33,6 +34,12 @@ describe('diffProfile', () => {
 		expect(diffProfile(teacher, {})).toEqual([]);
 		expect(diffProfile(teacher, { availability: null })).toEqual([
 			{ field: 'availability', from: 'Weeknights', to: null }
+		]);
+	});
+
+	it('covers the message to students', () => {
+		expect(diffProfile(teacher, { studentMessage: 'Book at https://example.com' })).toEqual([
+			{ field: 'message', from: null, to: 'Book at https://example.com' }
 		]);
 	});
 

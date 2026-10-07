@@ -20,7 +20,7 @@ import type { Actions, PageServerLoad } from './$types';
  *
  * Training admins only, checked in the load **and** the action.
  */
-export const load: PageServerLoad = async ({ locals, platform }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	requireRole(locals, isTrainingAdmin);
 
 	const [queue, people, credentials] = await Promise.all([
@@ -30,8 +30,6 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		// D1's 100-parameter limit, the same reasoning as everywhere else.
 		getLiveCredentialsByCid(locals.db)
 	]);
-
-	const jiraBaseUrl = platform?.env.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 
 	return {
 		requests: queue.map((enrollment) => {
@@ -51,12 +49,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 				// dated. The audit cannot be completed before then.
 				appliedAt: enrollment.certificationAppliedAt,
 				// The fields the card lacks, when that is why nothing has been applied.
-				missing: holdLabels(enrollment.certificationHold),
-				issueKey: enrollment.jiraIssueKey,
-				issueUrl:
-					jiraBaseUrl && enrollment.jiraIssueKey
-						? `${jiraBaseUrl}/browse/${enrollment.jiraIssueKey}`
-						: null
+				missing: holdLabels(enrollment.certificationHold)
 			};
 		})
 	};

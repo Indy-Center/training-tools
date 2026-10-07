@@ -41,6 +41,11 @@ export type WaitlistRow = {
 	waitlistedAt: Date;
 	availability: string | null;
 	notificationPreference: string | null;
+	/**
+	 * Their address, only for someone who asked to be reached by email and only
+	 * when we hold one. The sheet is loaded for `training:students:manage` alone.
+	 */
+	contactEmail: string | null;
 	/** The written exam this course needs, or null when it needs none. */
 	exam: string | null;
 	vatusaAssignedOn: string | null;

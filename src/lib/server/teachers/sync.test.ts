@@ -17,6 +17,7 @@ function teacher(cid: string, roles: TeacherRole[], overrides: Partial<Teacher> 
 		discordRoleId: null,
 		discordChannelId: null,
 		availability: null,
+		studentMessage: null,
 		studentSlots: null,
 		joinedAt: new Date('2026-01-01T00:00:00Z'),
 		removedAt: null,

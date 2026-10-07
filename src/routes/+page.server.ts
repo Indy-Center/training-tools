@@ -6,6 +6,7 @@ import {
 	withdrawEnrollment
 } from '$lib/server/enrollments';
 import { newEnrollmentNotice } from '$lib/server/enrollments/notices';
+import { recordEarlierVatusaPass } from '$lib/server/enrollments/waitlist';
 import { notifyInBackground } from '$lib/server/notify';
 import { requireSession } from '$lib/server/guards';
 import { findAssignee, getActiveTeacher } from '$lib/server/teachers';
@@ -212,6 +213,15 @@ export const actions: Actions = {
 		// Tell the training admins. Read back first, for the card's key if the
 		// filing went through; sent either way, and never awaited by the student.
 		const saved = (await getEnrollment(locals.db, enrollment.id)) ?? enrollment;
+
+		// Someone who has already passed the VATUSA exam this course needs is
+		// marked as done with it now, rather than shown as waiting on it. Off the
+		// response path: it is a call to VATUSA and one to Jira.
+		platform?.ctx?.waitUntil(
+			recordEarlierVatusaPass(locals.db, platform?.env, saved).catch((err) =>
+				console.error('[training-tools] earlier VATUSA pass check failed', saved.cid, err)
+			)
+		);
 		const jiraBaseUrl = platform?.env.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 		notifyInBackground(
 			platform,

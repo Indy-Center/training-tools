@@ -52,6 +52,11 @@
 
 	<td class="px-3 py-3 text-xs whitespace-nowrap text-gray-400">
 		{notificationLabel(row.notificationPreference)}
+		{#if row.contactEmail}
+			<a href="mailto:{row.contactEmail}" class="block text-sky-400 hover:text-sky-300">
+				{row.contactEmail}
+			</a>
+		{/if}
 	</td>
 
 	<td class="px-3 py-3 text-xs">

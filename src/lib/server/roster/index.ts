@@ -125,3 +125,18 @@ export function namesFor(
 	}
 	return names;
 }
+
+/**
+ * The address we hold for each member, by CID: their VATSIM email, recorded when
+ * they sign in, so someone who never has is absent. Whole table, like
+ * `getPeople`. **Only for showing to someone who needs it to reach a student** —
+ * the waitlist sheet, and that student's own teacher — and only where the
+ * student asked to be reached by email.
+ */
+export async function getRosterEmails(db: Database): Promise<Map<string, string>> {
+	const rows = await db
+		.select({ cid: rosterMembersTable.cid, email: rosterMembersTable.email })
+		.from(rosterMembersTable);
+
+	return new Map(rows.flatMap((row) => (row.email ? [[row.cid, row.email] as const] : [])));
+}

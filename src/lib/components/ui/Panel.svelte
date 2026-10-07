@@ -4,10 +4,19 @@
 		children: any;
 		icon?: any;
 		overflow?: boolean;
+		/** Stretch to the height of the row it sits in, rather than hugging its content. */
+		fill?: boolean;
 		mode?: 'dark' | 'light';
 	};
 
-	let { title, children, icon: Icon, overflow = false, mode = 'dark' }: Props = $props();
+	let {
+		title,
+		children,
+		icon: Icon,
+		overflow = false,
+		fill = false,
+		mode = 'dark'
+	}: Props = $props();
 
 	// $derived, not const: community-website's original captured these props once,
 	// so a Panel whose `mode` or `overflow` changed kept its first styling.
@@ -30,7 +39,7 @@
 	);
 </script>
 
-<div class="h-fit rounded-lg border shadow-sm {modeClasses}">
+<div class="{fill ? 'h-full' : 'h-fit'} rounded-lg border shadow-sm {modeClasses}">
 	<div class="border-b px-4 py-3 {headerModeClasses}">
 		<div class="flex items-center gap-2">
 			{#if Icon}

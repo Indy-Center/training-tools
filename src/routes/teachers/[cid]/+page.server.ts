@@ -106,12 +106,13 @@ export const load: PageServerLoad = async (event) => {
 			status: teacher.status,
 			initials: teacher.initials,
 			availability: teacher.availability,
+			studentMessage: teacher.studentMessage,
 			studentSlots: teacher.studentSlots,
 			onRoster: teacher.removedAt === null,
 			removedAt: teacher.removedAt,
 			joinedAt: teacher.joinedAt
 		},
-		students: studentRows(assignments.students, people, platform?.env.JIRA_BASE_URL),
+		students: studentRows(assignments.students, people),
 		qualifications: QUALIFICATION_CREDENTIALS.map((credential) => ({
 			code: credential.code,
 			name: credential.name,
@@ -148,7 +149,8 @@ export const actions: Actions = {
 		const data = await event.request.formData();
 		const validation = validateTeacherProfile({
 			availability: data.get('availability') ?? '',
-			studentSlots: data.get('studentSlots') ?? ''
+			studentSlots: data.get('studentSlots') ?? '',
+			studentMessage: data.get('studentMessage') ?? ''
 		});
 		if (!validation.ok) return fail(400, { profileErrors: validation.errors });
 

@@ -12,8 +12,8 @@
  * change that prompted the notice has already been saved.
  */
 import { NOTIFY_CHANNELS } from '$lib/config';
-import { buildMessage } from './message';
-import type { LarryBinding } from '@indy-center/indy-larry-worker';
+import { buildDirectMessage, buildMessage } from './message';
+import type { LarryBinding, Message } from '@indy-center/indy-larry-worker';
 
 export type NotifyAudience = keyof typeof NOTIFY_CHANNELS;
 
@@ -35,6 +35,9 @@ export type Notice = {
 	/** `warning` for something that needs acting on. */
 	tone?: 'info' | 'warning';
 };
+
+/** What a private message says: a notice with nobody else to tell or ping. */
+export type DirectNotice = Omit<Notice, 'audience' | 'mention'>;
 
 /** `sent` means Larry has accepted it into its queue. */
 export type NotifyOutcome = 'sent' | 'skipped' | 'failed';
@@ -82,4 +85,59 @@ export async function notify(
 export function notifyInBackground(platform: App.Platform | undefined, notice: Notice): void {
 	const sending = notify(platform?.env as Partial<Env> | undefined, notice);
 	platform?.ctx?.waitUntil(sending);
+}
+
+/**
+ * Message one person privately, by Discord ID. Never throws.
+ *
+ * Queued like a channel notice. Larry drops a message Discord refuses — someone
+ * who has left the server, or does not take DMs from it — so `sent` means
+ * queued, not read.
+ */
+export async function notifyDirect(
+	env: Partial<Env> | undefined,
+	userId: string,
+	notice: DirectNotice
+): Promise<NotifyOutcome> {
+	const binding = larry(env);
+	if (!binding) {
+		console.warn(`[training-tools] notify: no LARRY binding; skipped "${notice.title}"`);
+		return 'skipped';
+	}
+
+	try {
+		await binding.enqueueDirect(buildDirectMessage(userId, notice, new Date()));
+		return 'sent';
+	} catch (err) {
+		console.error(`[training-tools] notify: "${notice.title}" was refused`, err);
+		return 'failed';
+	}
+}
+
+/**
+ * Post a message in one channel, by ID: a teacher's own channel, which Larry
+ * made and this app remembers. Never throws.
+ *
+ * The message is the caller's, whole — unlike a `Notice` it is addressed to the
+ * people in it, so its wording and its mentions are built and tested where it
+ * is written.
+ */
+export async function notifyChannel(
+	env: Partial<Env> | undefined,
+	channelId: string,
+	message: Message
+): Promise<NotifyOutcome> {
+	const binding = larry(env);
+	if (!binding) {
+		console.warn(`[training-tools] notify: no LARRY binding; skipped a post to ${channelId}`);
+		return 'skipped';
+	}
+
+	try {
+		await binding.enqueueToChannel({ ...message, channelId });
+		return 'sent';
+	} catch (err) {
+		console.error(`[training-tools] notify: a post to ${channelId} was refused`, err);
+		return 'failed';
+	}
 }

@@ -1,6 +1,6 @@
 import { NOTIFY_CHANNELS } from '$lib/config';
-import type { Notice } from './index';
-import type { ChannelSend } from '@indy-center/indy-larry-worker';
+import type { DirectNotice, Notice } from './index';
+import type { ChannelSend, DirectSend, Message } from '@indy-center/indy-larry-worker';
 
 /**
  * A notice as a message for Larry to post.
@@ -32,19 +32,26 @@ export function buildMessage(notice: Notice, now: Date): ChannelSend {
 		// text people typed — availability is free text — so "@everyone" or a
 		// pasted mention in it must stay words.
 		allowedMentions: { parse: [], users: mentions },
-		embeds: [
-			{
-				title: clip(notice.title, LIMITS.title),
-				description: clip(notice.summary, LIMITS.description),
-				url: notice.link,
-				color: COLORS[notice.tone ?? 'info'],
-				fields: (notice.fields ?? []).slice(0, LIMITS.fields).map((field) => ({
-					name: clip(field.label, LIMITS.fieldName),
-					value: clip(field.value, LIMITS.fieldValue),
-					inline: false
-				})),
-				timestamp: now.toISOString()
-			}
-		]
+		embeds: [embed(notice, now)]
 	};
+}
+
+function embed(notice: DirectNotice, now: Date): NonNullable<Message['embeds']>[number] {
+	return {
+		title: clip(notice.title, LIMITS.title),
+		description: clip(notice.summary, LIMITS.description),
+		url: notice.link,
+		color: COLORS[notice.tone ?? 'info'],
+		fields: (notice.fields ?? []).slice(0, LIMITS.fields).map((field) => ({
+			name: clip(field.label, LIMITS.fieldName),
+			value: clip(field.value, LIMITS.fieldValue),
+			inline: false
+		})),
+		timestamp: now.toISOString()
+	};
+}
+
+/** A notice as a private message to one person. It can ping nobody. */
+export function buildDirectMessage(userId: string, notice: DirectNotice, now: Date): DirectSend {
+	return { userId, allowedMentions: { parse: [] }, embeds: [embed(notice, now)] };
 }

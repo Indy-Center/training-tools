@@ -133,6 +133,7 @@ export function assignmentsFor(
 
 export type ProfileInput = {
 	availability?: string | null;
+	studentMessage?: string | null;
 	studentSlots?: number | null;
 	status?: TeacherStatus;
 	initials?: string | null;
@@ -144,6 +145,9 @@ export function diffProfile(teacher: Teacher, input: ProfileInput): ProfileChang
 
 	if (input.availability !== undefined && input.availability !== teacher.availability) {
 		changes.push({ field: 'availability', from: teacher.availability, to: input.availability });
+	}
+	if (input.studentMessage !== undefined && input.studentMessage !== teacher.studentMessage) {
+		changes.push({ field: 'message', from: teacher.studentMessage, to: input.studentMessage });
 	}
 	if (input.studentSlots !== undefined && input.studentSlots !== teacher.studentSlots) {
 		changes.push({ field: 'slots', from: teacher.studentSlots, to: input.studentSlots });
@@ -160,6 +164,7 @@ export function diffProfile(teacher: Teacher, input: ProfileInput): ProfileChang
 
 const CHANGE_EVENTS = {
 	availability: 'teacher.availability',
+	message: 'teacher.message',
 	slots: 'teacher.slots',
 	status: 'teacher.status',
 	initials: 'teacher.initials'
@@ -187,6 +192,7 @@ export async function updateTeacherProfile(
 	const set: Partial<Teacher> = { updatedAt: now, updatedBy: actor };
 	for (const change of changes) {
 		if (change.field === 'availability') set.availability = change.to;
+		if (change.field === 'message') set.studentMessage = change.to;
 		if (change.field === 'slots') set.studentSlots = change.to;
 		if (change.field === 'status') set.status = change.to;
 		if (change.field === 'initials') set.initials = change.to;
@@ -303,19 +309,17 @@ export type StudentRow = {
 	course: string;
 	status: string;
 	availability: string | null;
-	/** Link to the TRK issue, when the enrollment has one and Jira is configured. */
-	issueUrl: string | null;
-	issueKey: string | null;
 };
 
-/** Enrollments as the teacher pages list them. */
+/**
+ * Enrollments as the teacher pages list them. Without the TRK card: teachers
+ * have no access to the board. Only the waitlist sheet links to it, for
+ * `training:students:manage`.
+ */
 export function studentRows(
 	enrollments: readonly Enrollment[],
-	people: Map<string, PersonSummary>,
-	jiraBaseUrl: string | undefined
+	people: Map<string, PersonSummary>
 ): StudentRow[] {
-	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
-
 	return enrollments
 		.map((enrollment) => ({
 			enrollmentId: enrollment.id,
@@ -323,9 +327,7 @@ export function studentRows(
 			name: people.get(enrollment.cid)?.name ?? enrollment.submittedName,
 			course: enrollment.course,
 			status: enrollment.status,
-			availability: enrollment.availability,
-			issueKey: enrollment.jiraIssueKey,
-			issueUrl: base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null
+			availability: enrollment.availability
 		}))
 		.sort((a, b) => a.status.localeCompare(b.status) || a.name.localeCompare(b.name));
 }

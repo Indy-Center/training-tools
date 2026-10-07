@@ -9,6 +9,7 @@
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import { vatusaEvaluationUrl } from '$lib/config';
 	import { QUALIFICATION_LEVEL_LABELS } from '$lib/teachers';
+	import { notificationLabel } from '$lib/enrollment-status';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCalendarClock from '~icons/mdi/calendar-clock';
 	import IconSeal from '~icons/mdi/seal';
@@ -161,21 +162,21 @@
 								<span class="font-mono text-xs text-gray-500">{student.cid}</span>
 								<Badge size="sm" color="sky" label={student.course} />
 								<EnrollmentStatusBadge status={student.status} />
-								{#if student.issueUrl}
-									<a
-										href={student.issueUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
-									>
-										{student.issueKey}
-										<IconOpen class="h-3 w-3" />
-									</a>
-								{/if}
 							</div>
 							{#if student.availability}
 								<p class="mt-1 text-xs whitespace-pre-line text-gray-400">
 									{student.availability}
+								</p>
+							{/if}
+							{#if student.notificationPreference}
+								<p class="mt-1 text-xs text-gray-400">
+									Preferred contact: {notificationLabel(student.notificationPreference)}
+									{#if student.contactEmail}
+										·
+										<a href="mailto:{student.contactEmail}" class="text-sky-400 hover:text-sky-300">
+											{student.contactEmail}
+										</a>
+									{/if}
 								</p>
 							{/if}
 							{@render report(student.enrollmentId)}
@@ -200,17 +201,6 @@
 										<span class="text-sm font-medium text-white">{exam.name}</span>
 										<span class="font-mono text-xs text-gray-500">{exam.cid}</span>
 										<Badge size="sm" color="sky" label={exam.course} />
-										{#if exam.issueUrl}
-											<a
-												href={exam.issueUrl}
-												target="_blank"
-												rel="noopener noreferrer"
-												class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
-											>
-												{exam.issueKey}
-												<IconOpen class="h-3 w-3" />
-											</a>
-										{/if}
 									</div>
 									<p class="mt-1 text-xs text-gray-400">
 										Taught by <span class="font-mono">{exam.taughtBy ?? '—'}</span> ·

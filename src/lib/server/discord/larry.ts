@@ -18,7 +18,7 @@ export type {
 /** The part of Larry that manages roles and channels. */
 export type LarryGuild = Pick<
 	LarryBinding,
-	'syncRoles' | 'syncChannels' | 'deleteRoles' | 'deleteChannels'
+	'syncRoles' | 'syncChannels' | 'deleteRoles' | 'deleteChannels' | 'setMemberRole'
 >;
 
 /**

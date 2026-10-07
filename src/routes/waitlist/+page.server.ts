@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { formatDate } from '$lib/format';
 import { canManageStudents } from '$lib/utils/permissions';
 import { requireRole, requireSession } from '$lib/server/guards';
 import {
@@ -98,6 +99,13 @@ export const actions: Actions = {
 
 		const result = await assignVatusaCourse(event.locals.db, event.platform?.env, enrollment, by);
 		if (!result.ok) return fail(502, { sheetError: result.message });
+
+		if (result.alreadyPassed) {
+			return {
+				sheetDone: `${enrollment.submittedName} has already passed this VATUSA exam, on ${formatDate(result.alreadyPassed, 'long')}. Nothing was assigned, and the course is marked as completed.`,
+				sheetNote: null
+			};
+		}
 
 		return {
 			sheetDone: `VATUSA course marked as assigned for ${enrollment.submittedName}.`,

@@ -6,10 +6,12 @@ import { completePassedVatusaCourses } from '$lib/server/enrollments/waitlist';
 import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
 	announceArrivals,
+	announcePairings,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	importBoardIssues,
 	reconcileEnrollments,
+	sendVatusaReminders,
 	sweepEnrollmentStatuses
 } from '$lib/server/enrollments';
 import type { JobRun } from '$lib/server/job-health';
@@ -41,7 +43,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in eight places, each noted below.
+ * Order matters in ten places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -158,6 +160,16 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			}
 		},
 		{
+			// After the completions, so someone who has just passed is not reminded.
+			name: 'vatusa course reminders',
+			description:
+				'Messages students when their VATUSA course is assigned, as its 30 days run down, and when they are up.',
+			run: async () => {
+				const result = await sendVatusaReminders(db, env);
+				return result.sent > 0 ? result : null;
+			}
+		},
+		{
 			// After the sweep, which is what says who is with which teacher now, and
 			// before the announcements: a student told about their teacher should
 			// already be able to see the channel.
@@ -169,6 +181,17 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 				const changed =
 					result.created + result.added + result.removed + result.deleted + result.initialsWritten;
 				return changed > 0 || result.errors > 0 ? result : null;
+			}
+		},
+		{
+			// After the teacher rooms, so the student already holds the role that
+			// lets them see the channel they are about to be mentioned in.
+			name: 'teacher pairings',
+			description:
+				"Tells a student and their teacher they have been paired, in the teacher's channel.",
+			run: async () => {
+				const result = await announcePairings(db, env);
+				return result.announced > 0 ? result : null;
 			}
 		},
 		{

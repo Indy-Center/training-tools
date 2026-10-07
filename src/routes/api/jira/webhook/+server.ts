@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import {
 	announceArrivals,
+	announcePairings,
 	applyIssueStatus,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
@@ -115,8 +116,10 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 					applyPendingCertificationUpdates(locals.db, env),
 					clearReturnedExaminers(locals.db, env)
 				])
-					// After both: announce what the card's new place calls for.
+					// After both: announce what the card's new place calls for, and a
+					// student and teacher who have just been paired.
 					.then(() => announceArrivals(locals.db, env))
+					.then(() => announcePairings(locals.db, env))
 					.catch((err) =>
 						console.error('[training-tools] end-of-course pass after webhook failed', err)
 					)
