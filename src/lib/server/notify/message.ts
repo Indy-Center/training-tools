@@ -1,7 +1,6 @@
 import { NOTIFY_CHANNELS } from '$lib/config';
 import type { DirectNotice, Notice } from './index';
-import type { DirectSend, Message } from '@indy-center/indy-larry-worker';
-import type { ChannelSendWithButtons } from './larry-next';
+import type { ChannelSend, DirectSend, Message } from '@indy-center/indy-larry-worker';
 
 /**
  * A notice as a message for Larry to post.
@@ -22,7 +21,7 @@ function clip(text: string, max: number): string {
 	return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
-export function buildMessage(notice: Notice, now: Date): ChannelSendWithButtons {
+export function buildMessage(notice: Notice, now: Date): ChannelSend {
 	const mentions = [...new Set((notice.mention ?? []).filter((id) => DISCORD_ID.test(id)))];
 
 	return {
