@@ -38,7 +38,7 @@
 	const groups = $derived(groupByCourse(rows));
 
 	/** Columns in the table, for the course heading that spans them. */
-	const COLUMNS = 8;
+	const COLUMNS = 6;
 </script>
 
 <ActionResult error={form?.sheetError} done={form?.sheetDone} note={form?.sheetNote} />
@@ -65,17 +65,16 @@
 						<th class="px-3 py-3 font-medium">Student</th>
 						<th class="px-3 py-3 font-medium">Status</th>
 						<th class="px-3 py-3 font-medium">Since</th>
-						<th class="px-3 py-3 font-medium">Availability</th>
 						<th class="px-3 py-3 font-medium">Contact</th>
 						<th class="px-3 py-3 font-medium">VATUSA course</th>
 						<th class="px-3 py-3 font-medium">Teacher</th>
-						<th class="px-3 py-3 font-medium"><span class="sr-only">Actions</span></th>
 					</tr>
 				</thead>
 
 				{#each groups as group (group.code)}
 					{@const courseName = findCourse(group.code)?.name ?? group.code}
-					<tbody class="divide-y divide-slate-700/60">
+					<!-- No divide-y: each student draws their own line, so an entry of two rows has one. -->
+					<tbody>
 						<tr class="bg-slate-800/60">
 							<th colspan={COLUMNS} scope="colgroup" class="px-3 py-2 text-left text-sm text-white">
 								{courseName}
@@ -85,7 +84,7 @@
 						</tr>
 
 						{#each group.rows as row (row.id)}
-							<StudentRow {row} {courseName} {vatusaKeySet} bind:busy />
+							<StudentRow {row} {courseName} {vatusaKeySet} columns={COLUMNS} bind:busy />
 						{/each}
 					</tbody>
 				{/each}

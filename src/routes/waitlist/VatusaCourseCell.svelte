@@ -35,7 +35,7 @@
 		variant="secondary"
 		class="mt-2"
 		fields={{ id: row.id }}
-		question={`Mark the VATUSA ${row.exam} course as passed for ${row.name}?\n\nThis dates the card today. It is normally picked up from VATUSA by itself.`}
+		question={`Manually mark the VATUSA ${row.exam} course as passed for ${row.name}?`}
 		bind:busy
 	/>
 {:else}
@@ -43,7 +43,7 @@
 		action="assignVatusa"
 		label="Assign {row.exam}"
 		fields={{ id: row.id }}
-		question={`Assign the VATUSA ${row.exam} course to ${row.name}?\n\nThis dates the card today${vatusaKeySet ? ' and, where VATUSA allows it, assigns the course there, which emails them' : ''}.`}
+		question={`Assign the VATUSA ${row.exam} course to ${row.name}?`}
 		bind:busy
 	/>
 {/if}

@@ -39,7 +39,7 @@
 			<p class="mt-2 text-gray-400">
 				Training staff will reach out when a teacher is assigned.
 				{#if mine.notification}
-					Preferred contact:
+					You will be contacted by
 					<span class="text-gray-300">{NOTIFICATION_LABELS[mine.notification]}</span>.
 				{/if}
 			</p>
