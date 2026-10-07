@@ -55,7 +55,7 @@ const IN_TRAINING_STATUS = 'In Training';
  * is, then by how long they have waited.
  */
 export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Promise<WaitlistRow[]> {
-	const [waiting, people, teachers, levels, assigned] = await Promise.all([
+	const [waiting, people, teachers, levels, assigned, emailRows] = await Promise.all([
 		db
 			.select()
 			.from(enrollmentsTable)
@@ -69,8 +69,13 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 		getPeople(db),
 		listTeachers(db),
 		getAllCurrentQualifications(db),
-		getAssignedEnrollments(db)
+		getAssignedEnrollments(db),
+		// Whole table, like `getPeople`: D1's 100-parameter limit.
+		db
+			.select({ cid: rosterMembersTable.cid, email: rosterMembersTable.email })
+			.from(rosterMembersTable)
 	]);
+	const emails = new Map(emailRows.map((row) => [row.cid, row.email]));
 
 	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
 	const active = teachers.filter(
@@ -134,6 +139,11 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 				waitlistedAt: enrollment.createdAt,
 				availability: enrollment.availability,
 				notificationPreference: enrollment.notificationPreference,
+				// Only where it is how they asked to be reached.
+				contactEmail:
+					enrollment.notificationPreference === 'email'
+						? (emails.get(enrollment.cid) ?? null)
+						: null,
 				exam: academyExamFor(enrollment.course),
 				vatusaAssignedOn: enrollment.vatusaAssignedOn,
 				vatusaCompletedOn: enrollment.vatusaCompletedOn,
