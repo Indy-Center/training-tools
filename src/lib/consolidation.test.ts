@@ -1,63 +1,137 @@
 import { describe, expect, it } from 'vitest';
-import { checkConsolidation, requiredConsolidationHours } from './consolidation';
+import {
+	callsignPosition,
+	checkConsolidation,
+	consolidationRequirement,
+	hoursOnPositions,
+	type AtcSession
+} from './consolidation';
 
-const requirements = { S1: 10, S2: 15, S3: 20 };
+const requirements = {
+	'A-LC': { hours: 30, positions: ['GND', 'TWR'] },
+	'T-RC': { hours: 50, positions: ['TWR'] }
+};
 
-describe('requiredConsolidationHours', () => {
-	it('reads the configured requirement for a rating', () => {
-		expect(requiredConsolidationHours('S2', requirements)).toBe(15);
+/** A session of `hours` on `callsign`, starting at midnight on the given day of January 2026. */
+function session(callsign: string, hours: number, day = 1): AtcSession {
+	const start = Date.UTC(2026, 0, day);
+	return {
+		callsign,
+		start: new Date(start).toISOString(),
+		end: new Date(start + hours * 3_600_000).toISOString()
+	};
+}
+
+describe('consolidationRequirement', () => {
+	it('reads the configured requirement for a course', () => {
+		expect(consolidationRequirement('T-RC', requirements)).toEqual({
+			hours: 50,
+			positions: ['TWR']
+		});
 	});
 
-	it('normalizes the short code', () => {
-		expect(requiredConsolidationHours(' s1 ', requirements)).toBe(10);
+	it('has no requirement for unlisted courses', () => {
+		expect(consolidationRequirement('S-GC', requirements)).toBeNull();
+		expect(consolidationRequirement(null, requirements)).toBeNull();
 	});
 
-	it('has no requirement for unlisted ratings', () => {
-		expect(requiredConsolidationHours('OBS', requirements)).toBe(0);
-		expect(requiredConsolidationHours('C1', requirements)).toBe(0);
-		expect(requiredConsolidationHours(null, requirements)).toBe(0);
+	it('treats a setting with no hours or no positions as no requirement', () => {
+		expect(consolidationRequirement('X', { X: { hours: 0, positions: ['TWR'] } })).toBeNull();
+		expect(consolidationRequirement('X', { X: { hours: -5, positions: ['TWR'] } })).toBeNull();
+		expect(consolidationRequirement('X', { X: { hours: 10, positions: [] } })).toBeNull();
+	});
+});
+
+describe('callsignPosition', () => {
+	it('is the last segment of the callsign', () => {
+		expect(callsignPosition('CVG_TWR')).toBe('TWR');
+		expect(callsignPosition('IND_E_TWR')).toBe('TWR');
+		expect(callsignPosition('IND_83_CTR')).toBe('CTR');
 	});
 
-	it('clamps a negative setting to zero', () => {
-		expect(requiredConsolidationHours('S1', { S1: -5 })).toBe(0);
+	it('normalizes case and whitespace', () => {
+		expect(callsignPosition(' ind_gnd ')).toBe('GND');
+	});
+});
+
+describe('hoursOnPositions', () => {
+	it('adds up sessions on any of the positions and ignores the rest', () => {
+		const sessions = [
+			session('IND_GND', 2),
+			session('IND_E_TWR', 1.5, 2),
+			session('IND_APP', 10, 3),
+			session('IND_DEL', 4, 4)
+		];
+
+		expect(hoursOnPositions(sessions, ['GND', 'TWR'])).toBeCloseTo(3.5);
+	});
+
+	it('counts an open session up to now', () => {
+		const open = { callsign: 'IND_TWR', start: '2026-01-01T00:00:00Z', end: null };
+
+		expect(hoursOnPositions([open], ['TWR'], new Date('2026-01-01T01:30:00Z'))).toBeCloseTo(1.5);
+	});
+
+	it('adds nothing for a session whose times make no sense', () => {
+		const sessions = [
+			{ callsign: 'IND_TWR', start: 'not a date', end: '2026-01-01T01:00:00Z' },
+			{ callsign: 'IND_TWR', start: '2026-01-01T02:00:00Z', end: '2026-01-01T01:00:00Z' },
+			session('IND_TWR', 1, 2)
+		];
+
+		expect(hoursOnPositions(sessions, ['TWR'])).toBeCloseTo(1);
 	});
 });
 
 describe('checkConsolidation', () => {
-	it('is met without any hours when the rating carries no requirement', () => {
-		expect(
-			checkConsolidation({ ratingShort: 'OBS', hoursByRating: null, requirements })
-		).toMatchObject({ status: 'met' });
+	it('is met without any sessions when the course carries no requirement', () => {
+		expect(checkConsolidation({ course: 'S-GC', sessions: null, requirements })).toEqual({
+			status: 'met',
+			course: 'S-GC',
+			required: 0
+		});
 	});
 
-	it('counts only hours at the current rating', () => {
-		// Plenty of S1 time does not consolidate S2.
-		expect(
-			checkConsolidation({ ratingShort: 'S2', hoursByRating: { s1: 80, s2: 4.5 }, requirements })
-		).toEqual({ status: 'not-met', rating: 'S2', required: 15, logged: 4.5 });
+	it('is met when there is no course to enroll in', () => {
+		expect(checkConsolidation({ course: null, sessions: null, requirements })).toMatchObject({
+			status: 'met'
+		});
 	});
 
-	it('is met at exactly the requirement', () => {
+	it('counts only hours on the positions the course asks for', () => {
+		// Plenty of ground time does not consolidate for T-RC.
 		expect(
-			checkConsolidation({ ratingShort: 'S3', hoursByRating: { s3: 20 }, requirements })
-		).toMatchObject({ status: 'met', rating: 'S3', required: 20 });
+			checkConsolidation({
+				course: 'T-RC',
+				sessions: [session('IND_GND', 80), session('IND_TWR', 4.5, 10)],
+				requirements
+			})
+		).toEqual({ status: 'not-met', course: 'T-RC', required: 50, logged: 4.5 });
 	});
 
-	it('treats a missing rating key as no hours', () => {
+	it('adds the positions together when a course lists more than one', () => {
 		expect(
-			checkConsolidation({ ratingShort: 'S1', hoursByRating: {}, requirements })
-		).toMatchObject({
+			checkConsolidation({
+				course: 'A-LC',
+				sessions: [session('IND_GND', 20), session('CMH_TWR', 10, 10)],
+				requirements
+			})
+		).toEqual({ status: 'met', course: 'A-LC', required: 30 });
+	});
+
+	it('treats no matching sessions as no hours', () => {
+		expect(checkConsolidation({ course: 'T-RC', sessions: [], requirements })).toMatchObject({
 			status: 'not-met',
 			logged: 0
 		});
 	});
 
 	// A VATSIM outage must not let everyone through.
-	it('fails closed when the hours could not be fetched', () => {
-		expect(checkConsolidation({ ratingShort: 'S1', hoursByRating: null, requirements })).toEqual({
+	it('fails closed when the sessions could not be fetched', () => {
+		expect(checkConsolidation({ course: 'T-RC', sessions: null, requirements })).toEqual({
 			status: 'unknown',
-			rating: 'S1',
-			required: 10
+			course: 'T-RC',
+			required: 50
 		});
 	});
 });

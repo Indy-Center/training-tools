@@ -12,9 +12,9 @@ import {
 import type { Consolidation } from './consolidation';
 import { CLOSED_ENROLLMENT_STATUSES, ENROLLMENT_STATUSES } from './db/schema/enrollments';
 
-const met: Consolidation = { status: 'met', rating: 'S2', required: 15 };
-const notMet: Consolidation = { status: 'not-met', rating: 'S2', required: 15, logged: 3 };
-const unknown: Consolidation = { status: 'unknown', rating: 'S2', required: 15 };
+const met: Consolidation = { status: 'met', course: 'T-RC', required: 50 };
+const notMet: Consolidation = { status: 'not-met', course: 'T-RC', required: 50, logged: 3 };
+const unknown: Consolidation = { status: 'unknown', course: 'T-RC', required: 50 };
 
 describe('resolveTrainingFlow with no open request', () => {
 	it('sends consolidated home controllers to enrollment', () => {
@@ -68,7 +68,7 @@ describe('resolveTrainingFlow with no open request', () => {
 				membership: 'home',
 				ratingId: 1,
 				ratingShort: 'OBS',
-				consolidation: { status: 'met', rating: 'OBS', required: 0 }
+				consolidation: { status: 'met', course: 'S-GC', required: 0 }
 			})
 		).toBe('enroll');
 	});

@@ -34,10 +34,6 @@
 		if (!assignee) return TRAINING_TEXT.notAssignedYet;
 		return assignee.name ? `${assignee.name} (${assignee.value})` : assignee.value;
 	}
-
-	function formatHours(hours: number): string {
-		return `${hours.toFixed(1)} hours`;
-	}
 </script>
 
 <svelte:head>
@@ -186,7 +182,7 @@
 					<CopyPanel copy={TRAINING_COPY.consolidating} icon={IconClockOutline}>
 						<div>
 							<div class="mb-1 flex justify-between text-xs text-gray-400">
-								<span>{formatHours(consolidation.logged)} logged at {consolidation.rating}</span>
+								<span>{consolidation.logged.toFixed(1)} qualifying hours logged</span>
 								<span>{consolidation.required} hours required</span>
 							</div>
 							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-800">

@@ -90,10 +90,13 @@ no open request — the site opens on `/teach`: the bare `/` redirects there. Th
 student view is still on their menu, linked as `/?view=student`, which is what
 gets past the redirect.
 
-Consolidation is hours logged at the member's **current** rating, from VATSIM's
-public stats endpoint, against `CONSOLIDATION_HOURS` in `src/lib/config.ts`. A
-rating not listed there has no requirement. If VATSIM cannot be reached the
-member is held back rather than let through.
+Consolidation is hours logged on certain positions before enrolling in a
+course, set per course in `CONSOLIDATION_REQUIREMENTS` in `src/lib/config.ts`:
+30 on `_GND` or `_TWR` for A-LC, 50 on `_TWR` for T-RC, and 50 on `_APP` or
+`_DEP` for E-RC. Positions are read from the callsign suffix of each session in
+VATSIM's public member history, at any facility. A course not listed there has
+no requirement. If VATSIM cannot be reached the member is held back rather than
+let through.
 
 The in-training view links the course's Moodle entry when `MOODLE_COURSE_URLS`
 has one. Scheduling and the student's next lesson will join it there.
@@ -211,7 +214,7 @@ src/
 │   ├── training-flow.ts       pure request+roster+rating → view logic
 │   ├── request-timeline.ts    pure open request → timeline steps, with the dates we hold
 │   ├── enrollment-status.ts   status and contact-method labels, shared by every page
-│   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
+│   ├── consolidation.ts       pure hours-on-position check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            shared components, by what they are for:
 │   │   ├── ui/                Panel, Button, Alert, Badge, ChoiceCard, FilterChip, PageHero — no knowledge of training

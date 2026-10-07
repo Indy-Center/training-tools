@@ -23,7 +23,7 @@ export type TrainingFlow =
 	| OpenEnrollmentStatus
 	// No open request.
 	| 'enroll' // home controller who may enroll in their next course
-	| 'consolidating' // home controller who has not yet consolidated their rating
+	| 'consolidating' // home controller short of the hours their next course asks for
 	| 'extra-courses' // home controller holding our highest certification
 	| 'visiting-controller' // on our roster as a visitor
 	| 'transfer-or-visit' // a rated VATUSA controller who is not on our roster
