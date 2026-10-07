@@ -101,7 +101,7 @@
 				finish &&
 				data.mode === 'live' &&
 				!confirm(
-					`File this report and ${finish === 'rating-exam' ? 'recommend' : 'complete the course for'} ${data.student.name}${finish === 'rating-exam' ? ' for a rating exam' : ''}?\n\nThis moves their card and cannot be undone.`
+					`File this report and ${finish === 'rating-exam' ? 'recommend' : 'complete the course for'} ${data.student.name}${finish === 'rating-exam' ? ' for a rating exam' : ''}?\n\nThis cannot be undone.`
 				)
 			) {
 				return cancel();
@@ -235,7 +235,7 @@
 				required
 				rows="10"
 				maxlength={MAX_NOTES_LENGTH}
-				placeholder="What was covered, how it went, and what to work on next."
+				placeholder="What was covered and how it went."
 				class="mt-2 {inputClasses}">{values.notes}</textarea
 			>
 			<p class="mt-1 text-xs text-gray-500">
@@ -294,7 +294,9 @@
 						/>
 						<span>
 							<span class="text-white">{FINISH_LABELS[choice].label}</span>
-							<span class="block text-xs text-gray-400">{FINISH_LABELS[choice].detail}</span>
+							<span class="block text-xs text-gray-400"
+								>{FINISH_LABELS[choice].detail(data.student.course)}</span
+							>
 						</span>
 					</label>
 				{/each}

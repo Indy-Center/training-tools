@@ -8,6 +8,7 @@
  * (VATUSA/api, `TrainingController::postNewRecord` and
  * `Training_records_endpoints.md`) on 2026-10-06. See research/vatusa-roster.md
  */
+import { findCredential } from './certifications';
 import {
 	afterTrainingOptions,
 	canCompleteExam,
@@ -44,9 +45,8 @@ const EXAM_RESULTS: Readonly<Record<number, ExamResult>> = { 1: 'passed', 2: 'no
 
 /** What a result does to the card, said beside the choice and again before sending. */
 export const EXAM_RESULT_DETAILS: Record<ExamResult, string> = {
-	passed: 'Dates the card, applies the certification and sends it to the TA to audit.',
-	'not-passed':
-		'Moves the card to Needs CATP and clears its Training Completed date. The TA decides what further training they get.'
+	passed: 'Applies the certification and sends it to the TA to audit.',
+	'not-passed': 'The TA decides what further training they get.'
 };
 
 /**
@@ -54,15 +54,24 @@ export const EXAM_RESULT_DETAILS: Record<ExamResult, string> = {
  * course goes next. Ticking it dates the card and moves it on; for a rating
  * exam it also flags the report as a recommendation.
  */
-export const FINISH_LABELS: Record<AfterTraining, { label: string; detail: string }> = {
+export const FINISH_LABELS: Record<
+	AfterTraining,
+	{ label: string; detail: (course: string) => string }
+> = {
 	'rating-exam': {
 		label: 'Recommend for a rating exam',
-		detail:
-			'Flags this report as a recommendation on VATUSA, dates the card and moves it to Rating Exam, where an examiner takes it.'
+		detail: () =>
+			'Marks their training complete and notifies instructors the student is ready for a rating exam.'
 	},
 	'certification-update': {
 		label: 'Mark the course complete',
-		detail: 'Dates the card, applies the certification and sends it to the TA to audit.'
+		// Custom Training earns nothing of its own, so there is nothing to name.
+		detail: (course) => {
+			const credential = findCredential(course);
+			return credential
+				? `Applies the ${credential.code} ${credential.kind} and sends it to the TA to audit.`
+				: 'Sends it to the TA to audit.';
+		}
 	}
 };
 
