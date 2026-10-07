@@ -67,13 +67,13 @@
 	<p class="mb-6 flex items-center gap-2 text-sm text-green-400">
 		<IconCheck class="h-4 w-4" />
 		Training report filed with VATUSA{reported ? ` (record ${reported})` : ''}{card === 'moved'
-			? ', and the card moved on'
+			? ", and the student's enrollment was updated"
 			: ''}.
 	</p>
 	{#if card === 'stuck'}
 		<Alert tone="warning" class="mb-6">
 			The report is filed, but the student's enrollment was not updated. Report this to the training
-			admin- do not file the report again.
+			admin; do not file the report again.
 		</Alert>
 	{/if}
 	{#if evaluate}
@@ -248,7 +248,7 @@
 											'claimExam',
 											exam.enrollmentId,
 											'Claim this exam',
-											`Claim the rating exam for ${exam.name}?\n\nYou go on the card as its examiner, and arrange the exam with them directly.`
+											`Claim the rating exam for ${exam.name}?\n\nYou become their examiner, and arrange the exam with them directly.`
 										)}
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">

@@ -8,6 +8,6 @@
 Complete the consolidation hours to enroll in the next course.
 
 Before you enroll in your next course, <a href="https://wiki.flyindycenter.com/en/policies/training#h-450-rating-consolidation">the training policy</a>
-requires you to consolidate your current rating by controlling at it for a minimum number of hours.
+requires you to log a minimum number of consolidation hours.
 
 Hours can take a few minutes to update after a session. Come back once you've reached the requirement to enroll.

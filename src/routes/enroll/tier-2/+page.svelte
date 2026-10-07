@@ -31,9 +31,9 @@
 					staff them.
 				</p>
 				<p>
-					The Tier 2 Center endorsement is earned through a self-led course on our learning site.
-					There's no waitlist and no mentor to schedule with — work through the material at your own
-					pace.
+					The Tier 2 Center endorsement is earned through a self-led course on the VATUSA Academy.
+					There's no waitlist and no teacher to schedule with — work through the material at your
+					own pace.
 				</p>
 				<p class="text-gray-400">
 					Once you've completed the course, the training staff will add the endorsement to your
@@ -50,7 +50,7 @@
 						<IconOpenInNew class="h-4 w-4" />
 					</Button>
 				{:else}
-					<p>Please contact the training staff to enroll in ZID Tier-2 self-certification.</p>
+					<p>Please contact the training staff to enroll in ZID Tier 2 self-certification.</p>
 				{/if}
 				<p>
 					<a href="/" class="text-sky-400 hover:text-sky-300">← Back to training home</a>

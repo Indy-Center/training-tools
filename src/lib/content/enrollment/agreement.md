@@ -5,7 +5,7 @@
   waiting.
 - **Come prepared.** Read the material for the session beforehand. Training time
   is for practice and feedback, not for a first read of the documentation.
-- **Keep controlling between sessions.** Roughly one lesson a week is the
+- **Keep studying between sessions.** Roughly one lesson a week is the
   expectation, and the students who progress fastest are the ones who study
   in between.
 - **Tell us if you need to pause.** Life happens. A break you tell us about is

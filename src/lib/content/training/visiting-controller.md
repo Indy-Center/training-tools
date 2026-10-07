@@ -2,8 +2,8 @@
   Shown on / to a visiting controller on our roster.
 -->
 
-Indy Center enjoys allowing our cab and terminal positions to be fully unrestricted.
+Our cab and terminal positions are fully unrestricted for visiting controllers.
 
-Check out optional self-led training and seminars below.
+Check out our optional self-led training and seminars.
 
 If you'd like to continue your rating training with us, transfer to Indy Center.

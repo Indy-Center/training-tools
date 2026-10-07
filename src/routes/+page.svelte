@@ -11,6 +11,7 @@
 	import { displayName } from '$lib/user';
 	import { page } from '$app/state';
 	import { findCourse, formatWeeksRange } from '$lib/courses';
+	import { academyExamFor } from '$lib/vatusa-academy';
 	import { SHARED_COPY, TRAINING_COPY, TRAINING_TEXT } from '$lib/content/training';
 	import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
 	import IconAccount from '~icons/mdi/account-circle';
@@ -153,7 +154,7 @@
 				{:else if request.status === 'rating-exam'}
 					<CopyPanel copy={TRAINING_COPY['rating-exam']} icon={IconCertificate}>
 						<dl class="divide-y divide-slate-700/60 rounded-lg border border-slate-700/60">
-							{@render fact('Your instructor', assigneeLabel(request.instructor))}
+							{@render fact('Your examiner', assigneeLabel(request.instructor))}
 						</dl>
 					</CopyPanel>
 				{:else if request.status === 'needs-catp'}
@@ -168,7 +169,7 @@
 				{@const course = data.nextCourse ? findCourse(data.nextCourse) : undefined}
 				{#if course}
 					<EnrollmentForm
-						intro={TRAINING_COPY.enroll}
+						intro={academyExamFor(course.code) ? SHARED_COPY.enrollAcademy : TRAINING_COPY.enroll}
 						{course}
 						controller={data.enroll.controller}
 						credentials={data.enroll.credentials}

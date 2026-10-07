@@ -246,7 +246,7 @@ export function checkReport(
 	const ots = otsChoices(allowed.examiner).find(
 		(choice) => String(choice.value) === (values.otsStatus || '0')
 	);
-	if (!ots) errors.push('Only the examiner on the card can report a rating exam result.');
+	if (!ots) errors.push("Only the student's examiner can report a rating exam result.");
 
 	const finish = allowed.finish.find((option) => option === values.finish) ?? null;
 	if (values.finish !== '' && !finish) {

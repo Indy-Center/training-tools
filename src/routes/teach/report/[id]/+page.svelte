@@ -205,7 +205,7 @@
 				</dd>
 			</div>
 			<div>
-				<dt class="text-gray-400">Instructor</dt>
+				<dt class="text-gray-400">Filed by</dt>
 				<dd class="mt-1 text-white">
 					{data.instructor.name}
 					<span class="font-mono text-xs text-gray-500">{data.instructor.cid}</span>
@@ -326,10 +326,12 @@
 				<p class="mt-3 text-xs text-gray-400">
 					{examResult
 						? EXAM_RESULT_DETAILS[examResult]
-						: 'An ordinary session: the card stays put.'}
+						: 'An ordinary session: their enrollment does not change.'}
 				</p>
 				{#if data.mode === 'test'}
-					<p class="mt-1 text-xs text-orange-300">In test mode the card is not moved either.</p>
+					<p class="mt-1 text-xs text-orange-300">
+						In test mode the enrollment is not updated either.
+					</p>
 				{/if}
 			</fieldset>
 		{/if}
@@ -358,7 +360,7 @@
 					</label>
 				{/each}
 				{#if data.mode === 'test'}
-					<p class="text-xs text-orange-300">In test mode the card is not moved either.</p>
+					<p class="text-xs text-orange-300">In test mode the enrollment is not updated either.</p>
 				{/if}
 			</fieldset>
 		{/if}
@@ -369,7 +371,7 @@
 			</Button>
 			<Button href="/teach" variant="secondary">Cancel</Button>
 			{#if data.finishChoices.length === 0 && !examResult}
-				<span class="text-xs text-gray-500">This does not move the student's card.</span>
+				<span class="text-xs text-gray-500">This does not change the student's enrollment.</span>
 			{/if}
 		</div>
 	</form>
