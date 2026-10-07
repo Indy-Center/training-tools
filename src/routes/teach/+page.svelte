@@ -7,6 +7,7 @@
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
+	import { vatusaEvaluationUrl } from '$lib/config';
 	import { QUALIFICATION_LEVEL_LABELS } from '$lib/teachers';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCalendarClock from '~icons/mdi/calendar-clock';
@@ -239,6 +240,19 @@
 									{/if}
 									{#if exam.canComplete || exam.taughtByYou}
 										{@render report(exam.enrollmentId)}
+									{/if}
+									{#if exam.canComplete}
+										<Button
+											href={vatusaEvaluationUrl(exam.cid)}
+											target="_blank"
+											rel="noopener noreferrer"
+											size="sm"
+											variant="secondary"
+											class="mt-3"
+										>
+											VATUSA evaluation form
+											<IconOpen class="h-4 w-4" />
+										</Button>
 									{/if}
 									{#if exam.taughtByYou}
 										<!-- Not a form: the same button, greyed out, so it is plain the

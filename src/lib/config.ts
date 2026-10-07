@@ -13,6 +13,14 @@ export const COMMUNITY_URL = 'https://flyindycenter.com';
 /** VATSIM's id for the VATUSA division, as identity's VATSIM profile carries it. */
 export const VATUSA_DIVISION_ID = 'USA';
 
+/**
+ * VATUSA's OTS evaluation form for a controller, on its own site: its API keeps
+ * evaluations to itself, so the examiner fills the form in there.
+ */
+export function vatusaEvaluationUrl(cid: string): string {
+	return `https://www.vatusa.net/legacy/mgt/controller/${cid}/eval`;
+}
+
 /** VATSIM rating ids. Anything below S1 cannot control. */
 export const RATING_OBS = 1;
 export const RATING_S1 = 2;
