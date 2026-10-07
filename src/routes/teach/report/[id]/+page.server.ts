@@ -141,6 +141,9 @@ export const actions: Actions = {
 			if (!result.ok) console.error('CTRS report filed, card not moved', result.message);
 			card = result.ok ? '&card=moved' : '&card=stuck';
 		}
-		redirect(303, `/teach?reported=${recordId ?? ''}${card}`);
+		// An exam's report is followed by VATUSA's evaluation form, which `/teach`
+		// offers next.
+		const evaluation = allowed.examiner ? `&evaluate=${enrollment.cid}` : '';
+		redirect(303, `/teach?reported=${recordId ?? ''}${card}${evaluation}`);
 	}
 };

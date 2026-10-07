@@ -28,6 +28,11 @@
 	const reported = $derived(page.url.searchParams.get('reported'));
 	/** Whether that report was also meant to move the card, and did. */
 	const card = $derived(page.url.searchParams.get('card'));
+	/** The student an examiner has just reported on: their VATUSA evaluation form comes next. */
+	const evaluate = $derived.by(() => {
+		const cid = page.url.searchParams.get('evaluate');
+		return cid && /^\d+$/.test(cid) ? cid : null;
+	});
 </script>
 
 <svelte:head>
@@ -70,6 +75,20 @@
 			The report is filed, but the student's card could not be moved. Use the button beside them
 			below; do not file the report again.
 		</Alert>
+	{/if}
+	{#if evaluate}
+		<div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-gray-300">
+			<span>Next, fill in the evaluation on VATUSA and submit the promotion there.</span>
+			<Button
+				href={vatusaEvaluationUrl(evaluate)}
+				target="_blank"
+				rel="noopener noreferrer"
+				size="sm"
+			>
+				VATUSA evaluation form
+				<IconOpen class="h-4 w-4" />
+			</Button>
+		</div>
 	{/if}
 {/if}
 
@@ -276,6 +295,11 @@
 											`Claim the rating exam for ${exam.name}?\n\nYou go on the card as its examiner, and arrange the exam with them directly.`
 										)}
 									{:else if exam.canComplete}
+										<p class="mt-3 text-xs text-gray-400">
+											File the training report, then the VATUSA evaluation and promotion. Once
+											VATUSA shows the new rating this card moves to audit on its own; the buttons
+											below are for an exam with no promotion to wait for, or one not passed.
+										</p>
 										<div class="flex flex-wrap gap-2">
 											{@render step(
 												'completeExam',

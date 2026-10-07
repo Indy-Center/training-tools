@@ -107,20 +107,21 @@ never reopened by Jira.
 
 Every 15 minutes (`*/15 * * * *`), in this order:
 
-| Job                       | Does                                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------- |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                   |
-| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)           |
-| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)             |
-| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)      |
-| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)        |
-| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                  |
-| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)        |
-| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)        |
-| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)           |
-| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`) |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)           |
-| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)          |
+| Job                       | Does                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                    |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)            |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)              |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)       |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)         |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                   |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)         |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)         |
+| exam promotions           | Marks a rating exam passed once VATUSA shows the promotion (`completePromotedExams`) |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)            |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)  |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)            |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)           |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -588,6 +589,14 @@ Update until 2026-10-06). The app's own name for it is still
 
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
+
+**A passed exam usually closes itself.** The examiner files the training
+report, then fills in VATUSA's evaluation form and submits the promotion there
+(`/teach` links to the form). When the roster sync next shows the student at the
+rating the exam was for, the cron marks the exam passed exactly as the button
+would (`completePromotedExams`). That only applies to a claimed exam whose
+student began the request below that rating (`promotionEarned`); anyone else,
+and any exam not passed, is still closed with the buttons.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira
