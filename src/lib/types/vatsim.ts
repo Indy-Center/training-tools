@@ -32,8 +32,9 @@ export type VatsimAtcSession = {
 /**
  * `/v2/members/{cid}/atc` — newest first, 100 per page by default.
  *
- * `limit` narrows the page (`?limit=1` returns 450 bytes rather than 42 KB).
- * `per_page` and `page_size` are silently ignored.
+ * `limit` sets the page size (`?limit=1` returns 450 bytes rather than 42 KB)
+ * and `offset` pages through. `per_page` and `page_size` are silently ignored.
+ * `count` is the member's total, not the page's.
  */
 export type VatsimAtcResponse = {
 	items: VatsimAtcSession[];

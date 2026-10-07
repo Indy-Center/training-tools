@@ -1,8 +1,8 @@
 <!--
   Shown on / to a home controller who has a next course but has not logged the
-  consolidation hours for their current rating. The hours and the progress bar
-  are drawn by the page, beneath this text; the numbers are CONSOLIDATION_HOURS
-  in $lib/config.ts.
+  consolidation hours that course asks for. The hours and the progress bar are
+  drawn by the page, beneath this text; the numbers are
+  CONSOLIDATION_REQUIREMENTS in $lib/config.ts.
 -->
 
 Complete the consolidation hours and enroll in the next course.
