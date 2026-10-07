@@ -112,7 +112,11 @@ export const load: PageServerLoad = async (event) => {
 			removedAt: teacher.removedAt,
 			joinedAt: teacher.joinedAt
 		},
-		students: studentRows(assignments.students, people, platform?.env.JIRA_BASE_URL),
+		// Without the TRK card: a teacher has no access to the board, and this page
+		// is theirs as much as a training admin's.
+		students: studentRows(assignments.students, people, undefined).map(
+			({ issueKey: _issueKey, issueUrl: _issueUrl, ...student }) => student
+		),
 		qualifications: QUALIFICATION_CREDENTIALS.map((credential) => ({
 			code: credential.code,
 			name: credential.name,

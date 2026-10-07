@@ -21,7 +21,6 @@
 	import IconSeal from '~icons/mdi/seal';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCheck from '~icons/mdi/check-circle';
-	import IconOpen from '~icons/mdi/open-in-new';
 
 	let { data, form } = $props();
 
@@ -89,17 +88,6 @@
 					<span class="font-mono text-xs text-gray-500">{student.cid}</span>
 					<Badge size="sm" color="sky" label={student.course} />
 					<EnrollmentStatusBadge status={student.status} />
-					{#if student.issueUrl}
-						<a
-							href={student.issueUrl}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300"
-						>
-							{student.issueKey}
-							<IconOpen class="h-3 w-3" />
-						</a>
-					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -196,7 +184,7 @@
 		</div>
 	</Panel>
 
-	<Panel title="Qualifications" icon={IconSeal}>
+	<Panel title="Qualifications" icon={IconSeal} fill>
 		<div class="px-4 py-5">
 			{#if form?.qualificationsSaved}
 				<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
