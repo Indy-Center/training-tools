@@ -181,7 +181,58 @@ function vatusaKey(env: Partial<Env> | undefined): string | null {
 }
 
 /**
+ * When this student first passed the written exam their course needs, or null
+ * when they have not — or when it cannot be found out: no API key, no exam for
+ * the course, or VATUSA not answering. A failed read is not a "no", so callers
+ * treat null as "carry on as before", never as proof they still have it to do.
+ */
+async function earlierPass(
+	env: Partial<Env> | undefined,
+	enrollment: Pick<Enrollment, 'cid' | 'course'>
+): Promise<Date | null> {
+	const exam = academyExamFor(enrollment.course);
+	const key = vatusaKey(env);
+	if (!exam || !key) return null;
+
+	try {
+		return firstPass((await fetchAcademyTranscript(key, enrollment.cid))[exam]);
+	} catch (err) {
+		console.error(
+			'[training-tools] VATUSA transcript check failed',
+			enrollment.cid,
+			err instanceof VatusaError ? err.message : err
+		);
+		return null;
+	}
+}
+
+/**
+ * Date the card as completed for someone who had already passed the exam
+ * before they asked for this course: for another facility, or on an earlier
+ * request. Run when a request is filed, so they never show as waiting on a
+ * course they have done. Returns the day they passed, or null when nothing was
+ * recorded.
+ */
+export async function recordEarlierVatusaPass(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: Enrollment
+): Promise<Date | null> {
+	if (enrollment.vatusaCompletedOn || !enrollment.jiraIssueKey) return null;
+
+	const passed = await earlierPass(env, enrollment);
+	if (!passed) return null;
+
+	const result = await completeVatusaCourse(db, env, enrollment, null, passed);
+	return result.ok ? passed : null;
+}
+
+/**
  * Assign the VATUSA written course, and date the card.
+ *
+ * Their transcript is read first. Someone who has already passed the exam is
+ * not enrolled a second time: the card is dated as completed with the day they
+ * passed, and `alreadyPassed` says so.
  *
  * For S2, S3 and C1 the course is assigned on VATUSA itself, through its API,
  * in the name of our TA (or ATM). VATUSA has no course to assign for the basic
@@ -198,11 +249,17 @@ export async function assignVatusaCourse(
 	enrollment: Enrollment,
 	by: string,
 	now = new Date()
-): Promise<FlowResult & { byHand?: string }> {
+): Promise<FlowResult & { byHand?: string; alreadyPassed?: Date }> {
 	const exam = academyExamFor(enrollment.course);
 	if (!exam) return { ok: false, message: 'This course has no VATUSA written course.' };
 	if (enrollment.vatusaAssignedOn) {
 		return { ok: false, message: 'The VATUSA course is already marked as assigned.' };
+	}
+
+	const passed = await earlierPass(env, enrollment);
+	if (passed) {
+		const result = await completeVatusaCourse(db, env, enrollment, null, passed);
+		return result.ok ? { ok: true, alreadyPassed: passed } : result;
 	}
 
 	let byHand: string | undefined;

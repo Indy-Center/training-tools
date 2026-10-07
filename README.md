@@ -510,6 +510,10 @@ What staff do from a row:
   through its API, in the name of the facility's TA — or the ATM when there is no
   TA. VATUSA emails the student. S-GC has none: the basic exam is passed before
   anyone joins a facility.
+  Someone who has **already passed** the exam — for another facility, or on an
+  earlier request — is not enrolled again: their transcript is read when they
+  file the request and again when Assign is pressed, and the card is dated as
+  completed with the day they passed (`recordEarlierVatusaPass`).
   Once it is assigned the student has 30 days: they are messaged privately on
   Discord when it is assigned, with 22 and 16 days left, and when the time is up
   (`$lib/vatusa-reminders.ts`, `sendVatusaReminders`). The training admins are
