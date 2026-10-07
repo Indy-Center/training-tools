@@ -54,7 +54,9 @@ export const CONSOLIDATION_REQUIREMENTS: Readonly<Record<string, ConsolidationRe
  * pointing at their mentor or the training staff, so this can fill in one
  * course at a time as `indy-moodle` publishes them.
  */
-export const MOODLE_COURSE_URLS: Readonly<Partial<Record<string, string>>> = {};
+export const MOODLE_COURSE_URLS: Readonly<Partial<Record<string, string>>> = {
+	'T2-CTR': 'https://academy.vatusa.net/mod/quiz/view.php?id=1882'
+};
 
 /**
  * Who `$lib/server/notify` can tell, and the Discord channel each goes to.
