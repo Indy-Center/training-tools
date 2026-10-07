@@ -63,9 +63,7 @@
 
 <div class="mb-8">
 	<h1 class="text-3xl font-bold text-white">Training report</h1>
-	<p class="mt-1 text-sm text-gray-400">
-		Filed in VATUSA's training records (CTRS) for the student, in your name.
-	</p>
+	<p class="mt-1 text-sm text-gray-400">Filed in VATUSA's training records (CTRS)</p>
 </div>
 
 {#if !data.keySet}
@@ -103,7 +101,7 @@
 				finish &&
 				data.mode === 'live' &&
 				!confirm(
-					`File this report and ${finish === 'rating-exam' ? 'recommend' : 'complete the course for'} ${data.student.name}${finish === 'rating-exam' ? ' for a rating exam' : ''}?\n\nThis moves their card and cannot be undone from here.`
+					`File this report and ${finish === 'rating-exam' ? 'recommend' : 'complete the course for'} ${data.student.name}${finish === 'rating-exam' ? ' for a rating exam' : ''}?\n\nThis moves their card and cannot be undone.`
 				)
 			) {
 				return cancel();
@@ -112,7 +110,7 @@
 				examResult &&
 				data.mode === 'live' &&
 				!confirm(
-					`File this report with the rating exam ${examResult === 'passed' ? 'passed' : 'not passed'} for ${data.student.name}?\n\n${EXAM_RESULT_DETAILS[examResult]}\n\nThis cannot be undone from here.`
+					`File this report with the rating exam ${examResult === 'passed' ? 'passed' : 'not passed'} for ${data.student.name}?\n\n${EXAM_RESULT_DETAILS[examResult]}\n\nThis cannot be undone.`
 				)
 			) {
 				return cancel();
@@ -240,7 +238,9 @@
 				placeholder="What was covered, how it went, and what to work on next."
 				class="mt-2 {inputClasses}">{values.notes}</textarea
 			>
-			<p class="mt-1 text-xs text-gray-500">The student can read this on VATUSA.</p>
+			<p class="mt-1 text-xs text-gray-500">
+				Please describe all areas you gave training on. The students have access to these notes.
+			</p>
 		</div>
 
 		{#if data.otsChoices.length > 1}

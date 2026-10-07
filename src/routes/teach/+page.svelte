@@ -58,8 +58,8 @@
 
 {#if data.selfAssigned}
 	<Alert class="mb-6">
-		Your own enrollment is assigned to you on the TRK board. You cannot teach yourself — ask
-		training staff to assign another teacher.
+		Your own enrollment is assigned to you. You cannot teach yourself — ask training staff to assign
+		another teacher.
 	</Alert>
 {/if}
 
@@ -72,8 +72,8 @@
 	</p>
 	{#if card === 'stuck'}
 		<Alert tone="warning" class="mb-6">
-			The report is filed, but the student's card could not be moved. Ask a training admin to move
-			it on the TRK board; do not file the report again.
+			The report is filed, but the student's enrollment was not updated. Report this to the training
+			admin- do not file the report again.
 		</Alert>
 	{/if}
 	{#if evaluate}
@@ -266,9 +266,8 @@
 										)}
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">
-											File the training report with the result: passed sends this card to audit, not
-											passed to Needs CATP. Then fill in the evaluation on VATUSA, and submit the
-											promotion there for a pass.
+											File the training report with the result. Then fill in the evaluation on
+											VATUSA.
 										</p>
 									{/if}
 								</li>
