@@ -9,30 +9,30 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 ## HTTP surface
 
-| Route                        | Auth       | Purpose                                                                |
-| ---------------------------- | ---------- | ---------------------------------------------------------------------- |
-| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation        |
-| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one   |
-| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status            |
-| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2            |
-| `GET /waitlist`              | required   | Per-course counts and your own place; for staff, everyone waiting too  |
-| `GET /stats`                 | required   | Redirects to `/waitlist`, which replaced it                            |
-| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                   |
-| `GET /certifications`        | staff      | Search the roster by CID or name                                       |
-| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                    |
-| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                            |
-| `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`                |
-| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                |
-| `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                  |
-| `GET /teach/report/{id}`     | teacher    | A training report form for one of their students                       |
-| `POST /teach/report/{id}`    | teacher    | `?/submit` files the report in VATUSA's CTRS                           |
-| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                     |
-| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                           |
-| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`   |
-| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs |
-| `POST /admin`                | admin      | `?/retry` files a stuck request again                                  |
-| `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                     |
-| `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                               |
+| Route                        | Auth       | Purpose                                                                                                            |
+| ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation                                                    |
+| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one                                               |
+| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status                                                        |
+| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2                                                        |
+| `GET /waitlist`              | required   | Per-course counts and your own place; for staff, everyone waiting too                                              |
+| `GET /stats`                 | required   | Redirects to `/waitlist`, which replaced it                                                                        |
+| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                                                               |
+| `GET /certifications`        | staff      | Search the roster by CID or name                                                                                   |
+| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                                                                |
+| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                                                                        |
+| `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`, `?/changeTeacher`, `?/withdrawStudent`, `?/removeStudent` |
+| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                                                            |
+| `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                                                              |
+| `GET /teach/report/{id}`     | teacher    | A training report form for one of their students                                                                   |
+| `POST /teach/report/{id}`    | teacher    | `?/submit` files the report in VATUSA's CTRS                                                                       |
+| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                                                                 |
+| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                                                                       |
+| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`                                               |
+| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs                                             |
+| `POST /admin`                | admin      | `?/retry` files a stuck request again                                                                              |
+| `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
+| `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
 
 `?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
 both gate on `loadTrainingContext()`, the same call `/` renders from.
