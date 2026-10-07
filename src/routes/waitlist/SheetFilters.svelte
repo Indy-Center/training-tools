@@ -7,6 +7,7 @@
 		type StatusFilter,
 		type WaitlistRow
 	} from '$lib/waitlist';
+	import IconChevronDown from '~icons/mdi/chevron-down';
 
 	/**
 	 * The sheet's filters: a chip per status, on until clicked off, and a course
@@ -40,15 +41,21 @@
 
 	<span class="ml-auto flex items-center gap-2">
 		<label for="sheet-course" class="text-gray-400">Course</label>
-		<select
-			id="sheet-course"
-			bind:value={course}
-			class="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1 text-sm text-white"
-		>
-			<option value="">All courses</option>
-			{#each courses as code (code)}
-				<option value={code}>{code}</option>
-			{/each}
-		</select>
+		<!-- Our own arrow: the browser's is all but invisible on the dark background. -->
+		<span class="relative">
+			<select
+				id="sheet-course"
+				bind:value={course}
+				class="cursor-pointer appearance-none rounded-lg border border-slate-600 bg-slate-800 py-1.5 pr-9 pl-3 text-sm text-white transition-colors hover:border-slate-500 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+			>
+				<option value="">All courses</option>
+				{#each courses as code (code)}
+					<option value={code}>{code}</option>
+				{/each}
+			</select>
+			<IconChevronDown
+				class="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-300"
+			/>
+		</span>
 	</span>
 </div>
