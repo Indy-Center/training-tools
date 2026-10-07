@@ -299,8 +299,10 @@
 				<div class="flex items-center justify-between px-4 py-3">
 					<dt class="text-gray-400">Students in training</dt>
 					<dd class="text-white">
-						{data.slots.used}{#if data.slots.total !== null}
-							<span class="text-gray-500"> of {data.slots.total}</span>{/if}
+						{data.slots.used}
+						{#if data.slots.total !== null}
+							<span class="text-gray-500">of {data.slots.total}</span>
+						{/if}
 					</dd>
 				</div>
 				<div class="flex items-center justify-between px-4 py-3">
