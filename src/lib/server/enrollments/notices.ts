@@ -87,13 +87,34 @@ export function withdrawnNotice(request: NoticeRequest & { was: string }): Notic
 	};
 }
 
+/** What the exam post says while nobody has claimed it. */
+export const EXAM_WAITING = 'Waiting for an examiner';
+
 /**
- * A student is at Rating Exam with nobody to examine them yet. Goes to the
- * instructors' channel and pings the evaluators who could take it.
+ * Where a rating exam stands, for its post in the instructors' channel: the
+ * line it shows while the exam is open, or null once it is over — passed, not
+ * passed, withdrawn or sent back — when the post is removed.
+ *
+ * `examiner` is whoever claimed it, as they should be named.
+ */
+export function examStatus(request: {
+	status: string;
+	withdrawn: boolean;
+	examiner: string | null;
+}): string | null {
+	if (request.withdrawn || request.status !== 'rating-exam') return null;
+	return request.examiner?.trim() ? `Claimed by ${request.examiner.trim()}` : EXAM_WAITING;
+}
+
+/**
+ * A student is at Rating Exam. Goes to the instructors' channel, pings the
+ * evaluators who could take it, and is kept up to date with `status` until the
+ * exam is over.
  */
 export function examReadyNotice(
 	request: NoticeRequest & { availability: string | null },
-	evaluators: string[]
+	evaluators: string[],
+	status: string = EXAM_WAITING
 ): Notice {
 	return {
 		audience: 'instructors',
@@ -101,7 +122,9 @@ export function examReadyNotice(
 		summary: `${request.name} has finished training and needs a rating exam.`,
 		link: `${SITE_URL}/teach`,
 		mention: evaluators,
+		buttons: [{ label: 'Open Teach', url: `${SITE_URL}/teach` }],
 		fields: [
+			{ label: 'Status', value: status },
 			{ label: 'Student', value: student(request) },
 			{ label: 'Taught by', value: request.teacher ?? 'not set' },
 			...(request.availability ? [{ label: 'Availability', value: request.availability }] : [])

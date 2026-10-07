@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, ne, or } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
@@ -6,13 +6,15 @@ import { highestCertification } from '$lib/certifications';
 import { evaluatesCourse } from '$lib/course-completion';
 import { isAssignedTo } from '$lib/teachers';
 import { getLiveCredentialsByCid } from '$lib/server/certifications';
-import { notify, type Notice } from '$lib/server/notify';
+import { notify, notifyDelete, notifyEdit, notifyTracked, type Notice } from '$lib/server/notify';
 import { getPeople } from '$lib/server/roster';
 import { getAllCurrentQualifications, listTeachers } from '$lib/server/teachers';
 import {
 	announcementFor,
 	awaitingAuditNotice,
+	EXAM_WAITING,
 	examReadyNotice,
+	examStatus,
 	needsCatpNotice,
 	type NoticeRequest
 } from './notices';
@@ -48,6 +50,8 @@ type People = {
 	discordIds: Map<string, string>;
 	evaluators: (course: string, request: Enrollment) => string[];
 	holds: (cid: string) => string | null;
+	/** Who TRK's `RE Instructor` value names, by name when they are one of our teachers. */
+	examinerName: (value: string | null) => string | null;
 };
 
 async function loadPeople(db: Database): Promise<People> {
@@ -86,7 +90,12 @@ async function loadPeople(db: Database): Promise<People> {
 					const id = discordIds.get(teacher.cid);
 					return id ? [id] : [];
 				}),
-		holds: (cid) => highestCertification(credentials.get(cid) ?? [])?.code ?? null
+		holds: (cid) => highestCertification(credentials.get(cid) ?? [])?.code ?? null,
+		examinerName: (value) => {
+			if (!value?.trim()) return null;
+			const teacher = teachers.find((candidate) => isAssignedTo(value, candidate));
+			return (teacher && people.get(teacher.cid)?.name) || value.trim();
+		}
 	};
 }
 
@@ -192,14 +201,109 @@ export async function announceArrivals(
 		const notice = noticeFor(enrollment, people, env?.JIRA_BASE_URL, previous);
 		if (!notice) continue;
 
-		const outcome = await notify(env, notice);
+		// The exam post is one this app goes on looking after, so it has to know
+		// which message it became.
+		const tracked = announcementFor(enrollment.status) === 'exam-ready';
+		const { outcome, messageId } = tracked
+			? await notifyTracked(env, notice)
+			: { outcome: await notify(env, notice), messageId: null };
+
 		if (outcome === 'failed') {
 			// Larry refused or could not be reached: put it back for the next pass.
 			await mark(db, enrollment, enrollment.status, previous);
 			continue;
 		}
+
+		if (tracked) {
+			// A post left over from an earlier attempt at the exam is replaced by this one.
+			if (enrollment.examMessageId) {
+				await notifyDelete(env, 'instructors', enrollment.examMessageId);
+			}
+			await db
+				.update(enrollmentsTable)
+				.set({ examMessageId: messageId, examMessageStatus: messageId ? EXAM_WAITING : null })
+				.where(eq(enrollmentsTable.id, enrollment.id));
+		}
 		announced += 1;
 	}
 
+	await updateExamPosts(db, env, people);
+
 	return { pending: pending.length, announced };
+}
+
+/**
+ * Keep each rating exam's post in the instructors' channel saying where the
+ * exam stands, and remove it once the exam is over.
+ *
+ * Keyed on what the card says, like everything else here: the post is compared
+ * with the request's status and examiner on every pass, so a claim, a result or
+ * a withdrawal made anywhere — this app or the board — reaches it. Each change
+ * is claimed before it is sent, and put back if Larry refuses.
+ */
+async function updateExamPosts(
+	db: Database,
+	env: Partial<Env> | undefined,
+	people: People | null
+): Promise<void> {
+	const posts = await db
+		.select()
+		.from(enrollmentsTable)
+		.where(isNotNull(enrollmentsTable.examMessageId));
+
+	for (const enrollment of posts) {
+		const messageId = enrollment.examMessageId!;
+		const shown = enrollment.examMessageStatus;
+
+		people ??= await loadPeople(db);
+		const status = examStatus({
+			status: enrollment.status,
+			withdrawn: enrollment.withdrawnAt !== null,
+			examiner: people.examinerName(enrollment.reInstructor)
+		});
+		if (status === shown) continue;
+
+		// Claim the change first, so a concurrent pass does not make it too.
+		const claimed = await db
+			.update(enrollmentsTable)
+			.set(
+				status === null
+					? { examMessageId: null, examMessageStatus: null }
+					: { examMessageStatus: status }
+			)
+			.where(
+				and(
+					eq(enrollmentsTable.id, enrollment.id),
+					eq(enrollmentsTable.examMessageId, messageId),
+					shown === null
+						? isNull(enrollmentsTable.examMessageStatus)
+						: eq(enrollmentsTable.examMessageStatus, shown)
+				)
+			)
+			.returning({ id: enrollmentsTable.id });
+		if (claimed.length === 0) continue;
+
+		const outcome =
+			status === null
+				? await notifyDelete(env, 'instructors', messageId)
+				: await notifyEdit(
+						env,
+						messageId,
+						examReadyNotice(
+							{
+								...describe(enrollment, people, env?.JIRA_BASE_URL),
+								availability: enrollment.availability
+							},
+							[],
+							status
+						)
+					);
+
+		if (outcome === 'failed') {
+			await db
+				.update(enrollmentsTable)
+				.set({ examMessageId: messageId, examMessageStatus: shown })
+				.where(eq(enrollmentsTable.id, enrollment.id));
+		}
+	}
 }
