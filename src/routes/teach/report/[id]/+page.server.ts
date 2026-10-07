@@ -26,9 +26,9 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
  *
  * A report can also end the training: the teacher ticks "recommend for a
  * rating exam" or "mark the course complete", whichever the course has, and
- * once VATUSA has the report the card is moved exactly as "Mark training
- * complete" on `/teach` moves it. Reporting a rating exam as passed does
- * **not** move the card — that is still the button on `/teach`.
+ * once VATUSA has the report the card is moved (`completeTraining`). Reporting a
+ * rating exam as passed does **not** move the card — the promotion on VATUSA
+ * does, when the cron sees it.
  *
  * `CTRS_SUBMIT` in wrangler.jsonc switches it: `live` files the record;
  * anything else asks VATUSA to check it and save nothing.
@@ -128,7 +128,7 @@ export const actions: Actions = {
 		}
 
 		// The report is with VATUSA now, so nothing below sends them back to the
-		// form: filing it twice would be worse than a card left for the button.
+		// form: filing it twice would be worse than a card left for a training admin.
 		let card = '';
 		if (checked.finish) {
 			const result = await completeTraining(

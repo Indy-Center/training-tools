@@ -34,8 +34,8 @@ const OTS_RECOMMENDED = 3;
 
 /**
  * The tick that ends the training with this report, worded for where the
- * course goes next. Ticking it does what "Mark training complete" on `/teach`
- * does; for a rating exam it also flags the report as a recommendation.
+ * course goes next. Ticking it dates the card and moves it on; for a rating
+ * exam it also flags the report as a recommendation.
  */
 export const FINISH_LABELS: Record<AfterTraining, { label: string; detail: string }> = {
 	'rating-exam': {

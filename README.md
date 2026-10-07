@@ -554,12 +554,13 @@ report is filed in VATUSA's training records in their name
   exam** where the course ends in one, **Mark the course complete** where it
   does not, and both for Custom Training. Ticked, the report is filed first —
   flagged on VATUSA as a recommendation (`ots_status` 3) in the first case —
-  and then the card is moved exactly as **Mark training complete** on `/teach`
-  moves it. If the card cannot be moved the report still stands, and `/teach`
-  says to use the button instead.
+  and then the card is moved (`completeTraining`). This is the only way a
+  teacher ends training from the site. If the card cannot be moved the report
+  still stands, and `/teach` says to ask a training admin to move it.
 - **A rating exam result** (passed / not passed) is offered only to the
   examiner on the card, at the exam stage. Filing one **does not move the
-  card** — that is still the button on `/teach`.
+  card**: a pass is picked up from the promotion (below), and a card not passed
+  is moved to Needs CATP on the board.
 - **The form is checked against VATUSA's rules first** (`checkReport`), so the
   teacher hears everything wrong at once.
 - **Nothing is stored here**: the record is VATUSA's.
@@ -574,14 +575,14 @@ How a course finishes, and who moves it. The rules are pure functions in
 `$lib/course-completion.ts`; the Jira writes are in
 `$lib/server/enrollments/completion.ts`.
 
-| Step                       | Who                                                                  | What happens on the card                                                                    |
-| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
-| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
-| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Audit                                                        |
-| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                           |
-| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
-| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
+| Step                    | Who                                                                  | What happens on the card                                                                    |
+| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Training report, ticked | the teacher on the card (`/teach/report`)                            | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Claim this exam         | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
+| Promotion on VATUSA     | that examiner, on VATUSA; the cron sees it on the roster             | `RE Completed` dated; moved to Audit                                                        |
+| Not passed              | a training admin, on the TRK board                                   | moved to Needs CATP by hand                                                                 |
+| _(automatic)_           | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
+| Audit complete          | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
 TRK's status for a finished course waiting on the TA is **Audit** (Certification
 Update until 2026-10-06). The app's own name for it is still
@@ -590,13 +591,13 @@ Update until 2026-10-06). The app's own name for it is still
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
 
-**A passed exam usually closes itself.** The examiner files the training
-report, then fills in VATUSA's evaluation form and submits the promotion there
-(`/teach` links to the form). When the roster sync next shows the student at the
-rating the exam was for, the cron marks the exam passed exactly as the button
-would (`completePromotedExams`). That only applies to a claimed exam whose
-student began the request below that rating (`promotionEarned`); anyone else,
-and any exam not passed, is still closed with the buttons.
+**A passed exam closes itself.** The examiner files the training report, then
+fills in VATUSA's evaluation form and submits the promotion there (`/teach`
+links to the form). When the roster sync next shows the student at the rating
+the exam was for, the cron marks the exam passed (`completePromotedExams`).
+That only applies to a claimed exam whose student began the request below that
+rating (`promotionEarned`). `/teach` has no buttons for the result: any other
+exam, and any exam not passed, is moved on the TRK board by a training admin.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira

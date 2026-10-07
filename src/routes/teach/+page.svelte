@@ -72,8 +72,8 @@
 	</p>
 	{#if card === 'stuck'}
 		<Alert tone="warning" class="mb-6">
-			The report is filed, but the student's card could not be moved. Use the button beside them
-			below; do not file the report again.
+			The report is filed, but the student's card could not be moved. Ask a training admin to move
+			it on the TRK board; do not file the report again.
 		</Alert>
 	{/if}
 	{#if evaluate}
@@ -177,38 +177,6 @@
 								</p>
 							{/if}
 							{@render report(student.enrollmentId)}
-							{#if student.canComplete && student.next.length === 1}
-								{@const leadsTo =
-									student.next[0] === 'rating-exam'
-										? 'This dates the card and moves it to Rating Exam, where an examiner takes it.'
-										: 'This dates the card, applies the certification and sends it to the TA to audit.'}
-								{@render step(
-									'completeTraining',
-									student.enrollmentId,
-									'Mark training complete',
-									`Mark training complete for ${student.name}?\n\n${leadsTo}`
-								)}
-							{:else if student.canComplete}
-								<!-- The teacher's call: this training may or may not need examining. -->
-								<div class="flex flex-wrap gap-2">
-									{@render step(
-										'completeTraining',
-										student.enrollmentId,
-										'Training complete: needs a rating exam',
-										`Mark training complete for ${student.name}, with a rating exam to follow?\n\nThis dates the card and moves it to Rating Exam, where an examiner takes it.`,
-										'primary',
-										'rating-exam'
-									)}
-									{@render step(
-										'completeTraining',
-										student.enrollmentId,
-										'Training complete: no exam',
-										`Mark training complete for ${student.name}, with no rating exam?\n\nThis dates the card and sends it to the TA to audit.`,
-										'secondary',
-										'certification-update'
-									)}
-								</div>
-							{/if}
 						</li>
 					{/each}
 				</ul>
@@ -297,24 +265,8 @@
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">
 											File the training report, then the VATUSA evaluation and promotion. Once
-											VATUSA shows the new rating this card moves to audit on its own; the buttons
-											below are for an exam with no promotion to wait for, or one not passed.
+											VATUSA shows the new rating this card moves to audit on its own.
 										</p>
-										<div class="flex flex-wrap gap-2">
-											{@render step(
-												'completeExam',
-												exam.enrollmentId,
-												'Passed: mark exam complete',
-												`Mark the rating exam passed for ${exam.name}?\n\nThis dates the card, applies the certification and sends it to the TA to audit.`
-											)}
-											{@render step(
-												'failExam',
-												exam.enrollmentId,
-												'Not passed',
-												`Record that ${exam.name} did not pass the rating exam?\n\nThe card moves to Needs CATP and its Training Completed date is cleared. The TA decides what further training they get.`,
-												'secondary'
-											)}
-										</div>
 									{/if}
 								</li>
 							{/each}
