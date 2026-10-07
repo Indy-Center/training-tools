@@ -7,9 +7,7 @@ import {
 	ctrsMode,
 	isExaminerFor,
 	otsChoices,
-	POSITION_PATTERN,
 	readReport,
-	suggestedPosition,
 	type ReportValues
 } from './ctrs';
 
@@ -31,7 +29,6 @@ const good: ReportValues = {
 	otsStatus: '0',
 	finish: '',
 	score: '',
-	movements: '',
 	notes: 'Worked ground through a busy push.'
 };
 
@@ -97,17 +94,15 @@ describe('finishChoices', () => {
 	});
 });
 
-describe('suggestedPosition and blankReport', () => {
-	it('suggests a position VATUSA would accept, or nothing', () => {
-		for (const course of ['S-GC', 'A-GC', 'S-LC', 'A-LC', 'T-RC', 'E-RC']) {
-			expect(suggestedPosition(course)).toMatch(POSITION_PATTERN);
-		}
-		expect(suggestedPosition('CUSTOM')).toBe('');
-	});
-
-	it('starts on now, in Zulu', () => {
-		const blank = blankReport('T-RC', new Date('2026-10-06T23:41:09Z'));
-		expect(blank).toMatchObject({ date: '2026-10-06', time: '23:41', position: 'IND_APP' });
+describe('blankReport', () => {
+	it('starts on now, in Zulu, with position and duration left to fill in', () => {
+		const blank = blankReport(new Date('2026-10-06T23:41:09Z'));
+		expect(blank).toMatchObject({
+			date: '2026-10-06',
+			time: '23:41',
+			position: '',
+			duration: ''
+		});
 	});
 });
 
@@ -137,7 +132,6 @@ describe('checkReport', () => {
 				location: 1,
 				otsStatus: 0,
 				score: null,
-				movements: null,
 				notes: good.notes
 			},
 			finish: null,
@@ -145,15 +139,9 @@ describe('checkReport', () => {
 		});
 	});
 
-	it('keeps progress and movements', () => {
-		const result = checkReport(
-			{ ...good, score: '4', movements: '32' },
-			{ examiner: false, finish: [] }
-		);
-		expect(result).toMatchObject({
-			ok: true,
-			record: { score: 4, movements: 32 }
-		});
+	it('keeps progress', () => {
+		const result = checkReport({ ...good, score: '4' }, { examiner: false, finish: [] });
+		expect(result).toMatchObject({ ok: true, record: { score: 4 } });
 	});
 
 	it('names everything wrong at once', () => {
@@ -165,13 +153,12 @@ describe('checkReport', () => {
 				position: 'INDY GROUND',
 				location: '7',
 				score: '6',
-				movements: '-1',
 				notes: ''
 			},
 			{ examiner: false, finish: [] }
 		);
 		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.errors).toHaveLength(7);
+		if (!result.ok) expect(result.errors).toHaveLength(6);
 	});
 
 	it('refuses a duration of a day or more, which VATUSA cannot read', () => {

@@ -192,7 +192,7 @@
 			</div>
 		</div>
 
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="grid gap-4 sm:grid-cols-2">
 			<div>
 				<label for="location" class={labelClasses}>Where</label>
 				<select id="location" name="location" required class="mt-2 {inputClasses}">
@@ -211,19 +211,6 @@
 						<option value={score} selected={values.score === score}>{score}</option>
 					{/each}
 				</select>
-			</div>
-			<div>
-				<label for="movements" class={labelClasses}>Movements</label>
-				<input
-					id="movements"
-					name="movements"
-					type="number"
-					min="0"
-					step="1"
-					placeholder="Optional"
-					value={values.movements}
-					class="mt-2 {inputClasses}"
-				/>
 			</div>
 		</div>
 

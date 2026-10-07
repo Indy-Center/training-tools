@@ -89,7 +89,7 @@ export const load: PageServerLoad = async (event) => {
 		instructor: { cid: teacher.cid, name: displayName(session.user) },
 		otsChoices: otsChoices(allowed.examiner),
 		finishChoices: allowed.finish,
-		blank: blankReport(enrollment.course, new Date()),
+		blank: blankReport(new Date()),
 		keySet: apiKey !== null,
 		mode
 	};

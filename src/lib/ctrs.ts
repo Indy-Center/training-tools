@@ -92,7 +92,6 @@ export type TrainingRecord = {
 	otsStatus: 0 | 1 | 2 | 3;
 	/** The student's progress, 1 to 5, or null. VATUSA's API calls it `score`. */
 	score: number | null;
-	movements: number | null;
 	notes: string;
 };
 
@@ -107,40 +106,25 @@ export type ReportValues = {
 	/** Where the training goes if this report ends it; empty if it carries on. */
 	finish: string;
 	score: string;
-	movements: string;
 	notes: string;
 };
 
 /**
- * A position to start the form on, from the course. Only a starting point:
- * S-GC is taught at the simple fields, so the teacher will often change it.
+ * What a new form starts with. Position and duration are left for the teacher:
+ * a default that is nearly right gets filed as it is. `now` is passed in so it
+ * can be tested.
  */
-export function suggestedPosition(course: string): string {
-	const suffix: Record<string, string> = {
-		'S-GC': 'GND',
-		'A-GC': 'GND',
-		'S-LC': 'TWR',
-		'A-LC': 'TWR',
-		'T-RC': 'APP',
-		'E-RC': 'CTR'
-	};
-	if (course === 'E-RC') return 'ZID_CTR';
-	return suffix[course] ? `IND_${suffix[course]}` : '';
-}
-
-/** What a new form starts with. `now` is passed in so it can be tested. */
-export function blankReport(course: string, now: Date): ReportValues {
+export function blankReport(now: Date): ReportValues {
 	const iso = now.toISOString();
 	return {
 		date: iso.slice(0, 10),
 		time: iso.slice(11, 16),
-		duration: '01:00',
-		position: suggestedPosition(course),
+		duration: '',
+		position: '',
 		location: '1',
 		otsStatus: '0',
 		finish: '',
 		score: '',
-		movements: '',
 		notes: ''
 	};
 }
@@ -201,7 +185,6 @@ export function readReport(form: { get(name: string): unknown }): ReportValues {
 		otsStatus: text(form.get('otsStatus')),
 		finish: text(form.get('finish')),
 		score: text(form.get('score')),
-		movements: text(form.get('movements')),
 		notes: text(form.get('notes'))
 	};
 }
@@ -278,14 +261,6 @@ export function checkReport(
 		}
 	}
 
-	let movements: number | null = null;
-	if (values.movements !== '') {
-		movements = Number(values.movements);
-		if (!Number.isInteger(movements) || movements < 0) {
-			errors.push('Movements is a whole number, or left blank.');
-		}
-	}
-
 	if (!values.notes) errors.push('Write some notes on the session.');
 	if (values.notes.length > MAX_NOTES_LENGTH) {
 		errors.push(`Keep the notes under ${MAX_NOTES_LENGTH.toLocaleString('en-US')} characters.`);
@@ -302,7 +277,6 @@ export function checkReport(
 			location: location.value,
 			otsStatus: finish === 'rating-exam' ? OTS_RECOMMENDED : ots.value,
 			score,
-			movements,
 			notes: values.notes
 		},
 		finish,
