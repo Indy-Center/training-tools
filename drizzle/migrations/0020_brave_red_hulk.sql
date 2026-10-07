@@ -1,0 +1,1 @@
+ALTER TABLE `teachers` ADD `student_message` text;

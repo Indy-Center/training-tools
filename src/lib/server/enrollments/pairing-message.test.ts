@@ -9,6 +9,7 @@ const AFTERNOON = new Date('2026-10-07T18:00:00Z');
 const pairing: Pairing = {
 	student: { name: 'Nick Bottoms', discordId: STUDENT },
 	teacher: { name: 'Jim Reburn', discordId: TEACHER },
+	teacherMessage: null,
 	course: 'S-GC',
 	notificationPreference: 'discord',
 	availability: 'Most days after 11pm Eastern.'
@@ -87,6 +88,16 @@ describe('buildPairingMessage', () => {
 
 		expect(message.content?.length).toBe(2000);
 		expect(message.content?.endsWith('…')).toBe(true);
+	});
+
+	it('passes on what the teacher wrote for their students', () => {
+		const { content } = buildPairingMessage(
+			{ ...pairing, teacherMessage: ' Book with me at https://example.com/jim ' },
+			AFTERNOON
+		);
+
+		expect(content).toContain('**From Jim Reburn:** Book with me at https://example.com/jim\n');
+		expect(buildPairingMessage(pairing, AFTERNOON).content).not.toContain('**From ');
 	});
 
 	it('says so when nothing was given', () => {

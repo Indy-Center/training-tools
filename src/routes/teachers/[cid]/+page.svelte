@@ -10,6 +10,7 @@
 	import Timeline from '$lib/components/controller/Timeline.svelte';
 	import {
 		MAX_STUDENT_SLOTS,
+		STUDENT_MESSAGE_MAX_LENGTH,
 		QUALIFICATION_LEVEL_LABELS,
 		TEACHER_STATUS_LABELS
 	} from '$lib/teachers';
@@ -127,6 +128,27 @@
 						{/if}
 					</div>
 
+					<div>
+						<label for="studentMessage" class="block text-sm text-gray-400">
+							Message to your students
+						</label>
+						<textarea
+							id="studentMessage"
+							name="studentMessage"
+							rows="3"
+							maxlength={STUDENT_MESSAGE_MAX_LENGTH}
+							placeholder="e.g. Book a session with me at https://…"
+							class="mt-2 {inputClasses}">{data.teacher.studentMessage ?? ''}</textarea
+						>
+						<p class="mt-1 text-xs text-gray-500">
+							Sent to each new student in Discord when you are paired: a booking link, how you like
+							to work, anything they should know.
+						</p>
+						{#if form?.profileErrors?.studentMessage}
+							<p class="mt-2 text-sm text-red-400">{form.profileErrors.studentMessage}</p>
+						{/if}
+					</div>
+
 					<Button type="submit" disabled={saving}>
 						{saving ? 'Saving…' : 'Save'}
 					</Button>
@@ -135,6 +157,12 @@
 				<p class="text-sm whitespace-pre-line text-white">
 					{data.teacher.availability ?? 'No availability set.'}
 				</p>
+				{#if data.teacher.studentMessage}
+					<h3 class="mt-4 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+						Message to students
+					</h3>
+					<p class="mt-1 text-sm whitespace-pre-line text-white">{data.teacher.studentMessage}</p>
+				{/if}
 			{/if}
 		</div>
 	</Panel>

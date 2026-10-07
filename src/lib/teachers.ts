@@ -275,18 +275,46 @@ export function isAssignedTo(
 /** Guards against a typo like 30 for 3; no real teacher is near it. */
 export const MAX_STUDENT_SLOTS = 20;
 
-export type TeacherProfileInput = { availability?: unknown; studentSlots?: unknown };
+/**
+ * A teacher's message to their students. Short on purpose: it rides along in
+ * the pairing message, which has Discord's 2,000 characters to fit in.
+ */
+export const STUDENT_MESSAGE_MAX_LENGTH = 500;
+
+export type TeacherProfileInput = {
+	availability?: unknown;
+	studentSlots?: unknown;
+	studentMessage?: unknown;
+};
+
+type TeacherProfileErrors = {
+	availability?: string;
+	studentSlots?: string;
+	studentMessage?: string;
+};
 
 export type TeacherProfileValidation =
-	| { ok: true; values: { availability: string | null; studentSlots: number | null } }
-	| { ok: false; errors: { availability?: string; studentSlots?: string } };
+	| {
+			ok: true;
+			values: {
+				availability: string | null;
+				studentSlots: number | null;
+				studentMessage: string | null;
+			};
+	  }
+	| { ok: false; errors: TeacherProfileErrors };
 
 /**
- * The teacher-editable part of a profile, from a form. Both may be cleared:
- * blank availability or slots means "not set", not zero.
+ * The teacher-editable part of a profile, from a form. All of it may be
+ * cleared: blank means "not set", and for slots that is not the same as zero.
  */
 export function validateTeacherProfile(input: TeacherProfileInput): TeacherProfileValidation {
-	const errors: { availability?: string; studentSlots?: string } = {};
+	const errors: TeacherProfileErrors = {};
+
+	const messageText = typeof input.studentMessage === 'string' ? input.studentMessage.trim() : '';
+	if (messageText.length > STUDENT_MESSAGE_MAX_LENGTH) {
+		errors.studentMessage = `Keep this under ${STUDENT_MESSAGE_MAX_LENGTH} characters.`;
+	}
 
 	const availabilityText = typeof input.availability === 'string' ? input.availability.trim() : '';
 	if (availabilityText.length > AVAILABILITY_MAX_LENGTH) {
@@ -299,6 +327,13 @@ export function validateTeacherProfile(input: TeacherProfileInput): TeacherProfi
 		errors.studentSlots = `Enter a whole number from 0 to ${MAX_STUDENT_SLOTS}, or leave it blank.`;
 	}
 
-	if (errors.availability || errors.studentSlots) return { ok: false, errors };
-	return { ok: true, values: { availability: availabilityText || null, studentSlots: slots } };
+	if (Object.keys(errors).length > 0) return { ok: false, errors };
+	return {
+		ok: true,
+		values: {
+			availability: availabilityText || null,
+			studentSlots: slots,
+			studentMessage: messageText || null
+		}
+	};
 }

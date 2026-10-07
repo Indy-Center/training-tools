@@ -14,6 +14,7 @@ import {
 
 export type ProfileChange =
 	| { field: 'availability'; from: string | null; to: string | null }
+	| { field: 'message'; from: string | null; to: string | null }
 	| { field: 'slots'; from: number | null; to: number | null }
 	| { field: 'initials'; from: string | null; to: string | null }
 	| { field: 'status'; from: TeacherStatus; to: TeacherStatus };

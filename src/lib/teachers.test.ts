@@ -260,7 +260,7 @@ describe('validateTeacherProfile', () => {
 	it('accepts availability and a whole number of slots', () => {
 		expect(validateTeacherProfile({ availability: ' Weeknights ', studentSlots: '3' })).toEqual({
 			ok: true,
-			values: { availability: 'Weeknights', studentSlots: 3 }
+			values: { availability: 'Weeknights', studentSlots: 3, studentMessage: null }
 		});
 	});
 
@@ -268,7 +268,7 @@ describe('validateTeacherProfile', () => {
 	it('treats blanks as not set', () => {
 		expect(validateTeacherProfile({ availability: '', studentSlots: '' })).toEqual({
 			ok: true,
-			values: { availability: null, studentSlots: null }
+			values: { availability: null, studentSlots: null, studentMessage: null }
 		});
 	});
 
@@ -283,6 +283,16 @@ describe('validateTeacherProfile', () => {
 		for (const value of ['1.5', '-1', 'two', '21']) {
 			expect(validateTeacherProfile({ studentSlots: value }).ok).toBe(false);
 		}
+	});
+
+	it('takes a message to students, trimmed, up to its limit', () => {
+		expect(
+			validateTeacherProfile({ studentMessage: ' Book at https://example.com ' })
+		).toMatchObject({ ok: true, values: { studentMessage: 'Book at https://example.com' } });
+		expect(validateTeacherProfile({ studentMessage: 'x'.repeat(501) })).toMatchObject({
+			ok: false,
+			errors: { studentMessage: 'Keep this under 500 characters.' }
+		});
 	});
 
 	it('rejects availability over the limit', () => {

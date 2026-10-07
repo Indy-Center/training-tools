@@ -524,7 +524,8 @@ What staff do from a row:
 - **Either way the pair is told, straight away.** Once the teacher's Discord
   channel exists the student is given its role and both are pinged there with who they are paired with, the
   course, how the student prefers to be reached (never an email address) and
-  when they can train (`announcePairings`, `pairing-message.ts`).
+  when they can train, with the teacher's own message to their students if they
+  have written one on `/teachers/{cid}` (`announcePairings`, `pairing-message.ts`).
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
   the two; either closes the request.

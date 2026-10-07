@@ -106,6 +106,7 @@ export const load: PageServerLoad = async (event) => {
 			status: teacher.status,
 			initials: teacher.initials,
 			availability: teacher.availability,
+			studentMessage: teacher.studentMessage,
 			studentSlots: teacher.studentSlots,
 			onRoster: teacher.removedAt === null,
 			removedAt: teacher.removedAt,
@@ -148,7 +149,8 @@ export const actions: Actions = {
 		const data = await event.request.formData();
 		const validation = validateTeacherProfile({
 			availability: data.get('availability') ?? '',
-			studentSlots: data.get('studentSlots') ?? ''
+			studentSlots: data.get('studentSlots') ?? '',
+			studentMessage: data.get('studentMessage') ?? ''
 		});
 		if (!validation.ok) return fail(400, { profileErrors: validation.errors });
 

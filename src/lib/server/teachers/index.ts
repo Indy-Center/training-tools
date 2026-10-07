@@ -133,6 +133,7 @@ export function assignmentsFor(
 
 export type ProfileInput = {
 	availability?: string | null;
+	studentMessage?: string | null;
 	studentSlots?: number | null;
 	status?: TeacherStatus;
 	initials?: string | null;
@@ -144,6 +145,9 @@ export function diffProfile(teacher: Teacher, input: ProfileInput): ProfileChang
 
 	if (input.availability !== undefined && input.availability !== teacher.availability) {
 		changes.push({ field: 'availability', from: teacher.availability, to: input.availability });
+	}
+	if (input.studentMessage !== undefined && input.studentMessage !== teacher.studentMessage) {
+		changes.push({ field: 'message', from: teacher.studentMessage, to: input.studentMessage });
 	}
 	if (input.studentSlots !== undefined && input.studentSlots !== teacher.studentSlots) {
 		changes.push({ field: 'slots', from: teacher.studentSlots, to: input.studentSlots });
@@ -160,6 +164,7 @@ export function diffProfile(teacher: Teacher, input: ProfileInput): ProfileChang
 
 const CHANGE_EVENTS = {
 	availability: 'teacher.availability',
+	message: 'teacher.message',
 	slots: 'teacher.slots',
 	status: 'teacher.status',
 	initials: 'teacher.initials'
@@ -187,6 +192,7 @@ export async function updateTeacherProfile(
 	const set: Partial<Teacher> = { updatedAt: now, updatedBy: actor };
 	for (const change of changes) {
 		if (change.field === 'availability') set.availability = change.to;
+		if (change.field === 'message') set.studentMessage = change.to;
 		if (change.field === 'slots') set.studentSlots = change.to;
 		if (change.field === 'status') set.status = change.to;
 		if (change.field === 'initials') set.initials = change.to;

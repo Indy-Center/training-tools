@@ -25,6 +25,8 @@ const CONTACT_LABELS: Record<string, string> = { discord: 'Discord', email: 'Ema
 export type Pairing = {
 	student: { name: string; discordId: string | null };
 	teacher: { name: string; discordId: string | null };
+	/** The teacher's own words for their students, from their profile. */
+	teacherMessage: string | null;
 	course: string;
 	notificationPreference: string | null;
 	availability: string | null;
@@ -59,7 +61,11 @@ export function buildPairingMessage(pairing: Pairing, now: Date): Message {
 		`**Student:** ${pairing.student.name}`,
 		`**Teacher:** ${pairing.teacher.name}`,
 		`**Course:** ${course ? `${course.name} (${course.code})` : pairing.course}`,
-		`**Preferred Student Contact:** ${CONTACT_LABELS[pairing.notificationPreference ?? ''] ?? 'Not given'}`
+		`**Preferred Student Contact:** ${CONTACT_LABELS[pairing.notificationPreference ?? ''] ?? 'Not given'}`,
+		// Bounded where it is saved (`STUDENT_MESSAGE_MAX_LENGTH`), so it never has to give way.
+		...(pairing.teacherMessage?.trim()
+			? [`**From ${pairing.teacher.name}:** ${pairing.teacherMessage.trim()}`]
+			: [])
 	].join('\n');
 
 	// Availability is whatever the student typed, and the only part without a

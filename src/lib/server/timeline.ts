@@ -66,7 +66,7 @@ export function describeActivity(
 	if ('from' in detail || 'to' in detail) {
 		if (event === 'teacher.status') {
 			parts.push(`${statusLabel(detail.from)} → ${statusLabel(detail.to)}`);
-		} else if (event === 'teacher.availability') {
+		} else if (event === 'teacher.availability' || event === 'teacher.message') {
 			// Free text can run to paragraphs; the new value is what matters.
 			parts.push(`Now: ${orNotSet(detail.to)}`);
 		} else {

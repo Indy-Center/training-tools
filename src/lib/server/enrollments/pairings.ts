@@ -144,6 +144,7 @@ export async function announcePairings(
 				{
 					student,
 					teacher: person(teacher.cid, teacher.initials ?? teacher.cid),
+					teacherMessage: teacher.studentMessage,
 					course: enrollment.course,
 					notificationPreference: enrollment.notificationPreference,
 					availability: enrollment.availability

@@ -59,6 +59,12 @@ export const teachersTable = sqliteTable(
 
 		/** Free text, like a student's: when in the week they can teach. */
 		availability: text('availability'),
+		/**
+		 * Free text for their students: a booking link, how they like to work. Sent
+		 * with the "you've been paired" message — see
+		 * `$lib/server/enrollments/pairing-message.ts`.
+		 */
+		studentMessage: text('student_message'),
 		/** How many students they will take at once. Null until they say. */
 		studentSlots: integer('student_slots'),
 
