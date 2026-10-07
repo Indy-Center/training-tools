@@ -563,10 +563,9 @@ report is filed in VATUSA's training records in their name
   teacher hears everything wrong at once.
 - **Nothing is stored here**: the record is VATUSA's.
 
-`CTRS_SUBMIT` is `test` for now: VATUSA checks the report and answers as it
-would, but saves nothing and moves no card, and the page says so. Set it to `live` once a test
-has been seen to pass. Like the academy calls, this was written from VATUSA's
-public source and **had not been run with a real key** when it was written.
+`CTRS_SUBMIT` is `live`: reports are filed with VATUSA. Set it to `test` and
+VATUSA checks the report and answers as it would, but saves nothing and moves
+no card, and the page says so.
 
 ### The end of a course
 

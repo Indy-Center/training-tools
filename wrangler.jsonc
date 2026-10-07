@@ -54,7 +54,8 @@
 		"DISCORD_TRAINING_ADMIN_ROLE_ID": "1389685131744383138",
 		// Training reports from /teach to VATUSA's CTRS. "live" files them; anything
 		// else ("test") has VATUSA check the report and save nothing.
-		"CTRS_SUBMIT": "test"
+		// Live since 2026-10-07, after a test report was seen to pass.
+		"CTRS_SUBMIT": "live"
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
 	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157
