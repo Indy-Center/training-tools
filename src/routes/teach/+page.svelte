@@ -9,6 +9,7 @@
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import { vatusaEvaluationUrl } from '$lib/config';
 	import { QUALIFICATION_LEVEL_LABELS } from '$lib/teachers';
+	import { notificationLabel } from '$lib/enrollment-status';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCalendarClock from '~icons/mdi/calendar-clock';
 	import IconSeal from '~icons/mdi/seal';
@@ -165,6 +166,17 @@
 							{#if student.availability}
 								<p class="mt-1 text-xs whitespace-pre-line text-gray-400">
 									{student.availability}
+								</p>
+							{/if}
+							{#if student.notificationPreference}
+								<p class="mt-1 text-xs text-gray-400">
+									Preferred contact: {notificationLabel(student.notificationPreference)}
+									{#if student.contactEmail}
+										·
+										<a href="mailto:{student.contactEmail}" class="text-sky-400 hover:text-sky-300">
+											{student.contactEmail}
+										</a>
+									{/if}
 								</p>
 							{/if}
 							{@render report(student.enrollmentId)}

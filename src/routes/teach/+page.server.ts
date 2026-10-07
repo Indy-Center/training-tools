@@ -1,7 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { canManageTeachers } from '$lib/utils/permissions';
 import { requireSession } from '$lib/server/guards';
-import { getPeople } from '$lib/server/roster';
+import { getPeople, getRosterEmails } from '$lib/server/roster';
 import {
 	completeExam,
 	completeTraining,
@@ -49,10 +49,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(303, canManageTeachers(session.roles) ? '/teachers' : '/');
 	}
 
-	const [enrollments, people, qualifications] = await Promise.all([
+	const [enrollments, people, qualifications, emails] = await Promise.all([
 		getAssignedEnrollments(locals.db),
 		getPeople(locals.db),
-		getCurrentQualifications(locals.db, teacher.cid)
+		getCurrentQualifications(locals.db, teacher.cid),
+		getRosterEmails(locals.db)
 	]);
 
 	const assignments = assignmentsFor(teacher, enrollments);
@@ -92,6 +93,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			const enrollment = byId.get(row.enrollmentId)!;
 			return {
 				...row,
+				notificationPreference: enrollment.notificationPreference,
+				// Their own teacher has to be able to reach them. Only for these rows —
+				// this teacher's students — and only where email is how they asked to
+				// be reached.
+				contactEmail:
+					enrollment.notificationPreference === 'email'
+						? (emails.get(enrollment.cid) ?? null)
+						: null,
 				canComplete: canCompleteTraining(enrollment, teacher),
 				// What "training complete" may lead to: one button each, saying so.
 				next: afterTrainingOptions(enrollment.course)

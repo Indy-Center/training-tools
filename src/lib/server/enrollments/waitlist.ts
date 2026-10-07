@@ -10,7 +10,7 @@ import { transitionIssueToStatus, WITHDRAWN_STATUS } from '$lib/server/jira/enro
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { findSelectOption, toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import { TEACHER_FIELD } from '$lib/server/jira/status';
-import { getPeople } from '$lib/server/roster';
+import { getPeople, getRosterEmails } from '$lib/server/roster';
 import {
 	assignmentsFor,
 	getAllCurrentQualifications,
@@ -55,7 +55,7 @@ const IN_TRAINING_STATUS = 'In Training';
  * is, then by how long they have waited.
  */
 export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Promise<WaitlistRow[]> {
-	const [waiting, people, teachers, levels, assigned, emailRows] = await Promise.all([
+	const [waiting, people, teachers, levels, assigned, emails] = await Promise.all([
 		db
 			.select()
 			.from(enrollmentsTable)
@@ -70,12 +70,8 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 		listTeachers(db),
 		getAllCurrentQualifications(db),
 		getAssignedEnrollments(db),
-		// Whole table, like `getPeople`: D1's 100-parameter limit.
-		db
-			.select({ cid: rosterMembersTable.cid, email: rosterMembersTable.email })
-			.from(rosterMembersTable)
+		getRosterEmails(db)
 	]);
-	const emails = new Map(emailRows.map((row) => [row.cid, row.email]));
 
 	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
 	const active = teachers.filter(
