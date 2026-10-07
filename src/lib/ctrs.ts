@@ -8,7 +8,12 @@
  * (VATUSA/api, `TrainingController::postNewRecord` and
  * `Training_records_endpoints.md`) on 2026-10-06. See research/vatusa-roster.md
  */
-import { afterTrainingOptions, canCompleteTraining, type AfterTraining } from './course-completion';
+import {
+	afterTrainingOptions,
+	canCompleteExam,
+	canCompleteTraining,
+	type AfterTraining
+} from './course-completion';
 import { ASSIGNED_STATUSES, isAssignedTo } from './teachers';
 
 /** Where the session happened. The numbers are VATUSA's. */
@@ -21,9 +26,10 @@ export const SESSION_LOCATIONS = [
 /**
  * Whether the session was a rating exam ("OTS"). The numbers are VATUSA's.
  *
- * A result is the examiner's to choose. "Recommended" (3) is never chosen: it
- * is what the teacher's "recommend for a rating exam" tick sends — see
- * `FINISH_LABELS`.
+ * A result is the examiner's to choose, and it moves the card: passed on to
+ * audit, not passed to Needs CATP — see `ExamResult`. "Recommended" (3) is never
+ * chosen: it is what the teacher's "recommend for a rating exam" tick sends —
+ * see `FINISH_LABELS`.
  */
 export const OTS_STATUSES = [
 	{ value: 0, label: 'Not a rating exam' },
@@ -31,6 +37,17 @@ export const OTS_STATUSES = [
 	{ value: 2, label: 'Rating exam: not passed' }
 ] as const;
 const OTS_RECOMMENDED = 3;
+
+/** What an examiner's report says of the exam, and so where the card goes. */
+export type ExamResult = 'passed' | 'not-passed';
+const EXAM_RESULTS: Readonly<Record<number, ExamResult>> = { 1: 'passed', 2: 'not-passed' };
+
+/** What a result does to the card, said beside the choice and again before sending. */
+export const EXAM_RESULT_DETAILS: Record<ExamResult, string> = {
+	passed: 'Dates the card, applies the certification and sends it to the TA to audit.',
+	'not-passed':
+		'Moves the card to Needs CATP and clears its Training Completed date. The TA decides what further training they get.'
+};
 
 /**
  * The tick that ends the training with this report, worded for where the
@@ -128,9 +145,13 @@ type Reportable = {
 };
 type Reporter = { cid: string; initials: string | null };
 
-/** Whether this teacher is the examiner on the card, at the exam stage. */
+/**
+ * Whether this teacher is the examiner on the card, at the exam stage — and so
+ * the one whose report carries the result. Never the student's own teacher,
+ * even if staff put them on the card by hand.
+ */
 export function isExaminerFor(enrollment: Reportable, teacher: Reporter): boolean {
-	return enrollment.status === 'rating-exam' && isAssignedTo(enrollment.reInstructor, teacher);
+	return canCompleteExam(enrollment, teacher);
 }
 
 /**
@@ -194,7 +215,13 @@ function clockTime(value: string): string | null {
 }
 
 export type ReportResult =
-	| { ok: true; record: TrainingRecord; finish: AfterTraining | null }
+	| {
+			ok: true;
+			record: TrainingRecord;
+			finish: AfterTraining | null;
+			/** The examiner's result, which moves the card. Null for any other report. */
+			examResult: ExamResult | null;
+	  }
 	| { ok: false; errors: string[] };
 
 /**
@@ -269,7 +296,8 @@ export function checkReport(
 			movements,
 			notes: values.notes
 		},
-		finish
+		finish,
+		examResult: EXAM_RESULTS[ots.value] ?? null
 	};
 }
 

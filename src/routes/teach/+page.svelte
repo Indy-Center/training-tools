@@ -78,7 +78,9 @@
 	{/if}
 	{#if evaluate}
 		<div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-gray-300">
-			<span>Next, fill in the evaluation on VATUSA and submit the promotion there.</span>
+			<span>
+				Next, fill in the evaluation on VATUSA, and submit the promotion there if they passed.
+			</span>
 			<Button
 				href={vatusaEvaluationUrl(evaluate)}
 				target="_blank"
@@ -264,8 +266,9 @@
 										)}
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">
-											File the training report, then the VATUSA evaluation and promotion. Once
-											VATUSA shows the new rating this card moves to audit on its own.
+											File the training report with the result: passed sends this card to audit, not
+											passed to Needs CATP. Then fill in the evaluation on VATUSA, and submit the
+											promotion there for a pass.
 										</p>
 									{/if}
 								</li>

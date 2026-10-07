@@ -59,10 +59,16 @@ describe('canReport', () => {
 
 describe('isExaminerFor', () => {
 	it('is only the examiner on the card, at the exam stage', () => {
-		const exam = { ...enrollment, status: 'rating-exam', reInstructor: '1000001' };
+		const exam = { ...enrollment, status: 'rating-exam', teacher: 'ZZ', reInstructor: '1000001' };
 		expect(isExaminerFor(exam, teacher)).toBe(true);
 		expect(isExaminerFor({ ...exam, status: 'needs-catp' }, teacher)).toBe(false);
 		expect(isExaminerFor({ ...exam, reInstructor: 'ZZ' }, teacher)).toBe(false);
+	});
+
+	// The result moves the card, and nobody examines their own student.
+	it('is never the student’s own teacher', () => {
+		const exam = { ...enrollment, status: 'rating-exam', teacher: 'AB', reInstructor: 'AB' };
+		expect(isExaminerFor(exam, teacher)).toBe(false);
 	});
 });
 
@@ -134,7 +140,8 @@ describe('checkReport', () => {
 				movements: null,
 				notes: good.notes
 			},
-			finish: null
+			finish: null,
+			examResult: null
 		});
 	});
 
@@ -184,6 +191,22 @@ describe('checkReport', () => {
 			ok: true,
 			record: { otsStatus: 1 }
 		});
+	});
+
+	it('says which way an exam result moves the card', () => {
+		const result = (otsStatus: string) =>
+			checkReport({ ...good, otsStatus }, { examiner: true, finish: [] });
+
+		expect(result('1')).toMatchObject({ examResult: 'passed' });
+		expect(result('2')).toMatchObject({ examResult: 'not-passed' });
+		expect(result('0')).toMatchObject({ examResult: null });
+	});
+
+	// A recommendation is the teacher's report, not a result.
+	it('has no exam result on a report that recommends for the exam', () => {
+		expect(
+			checkReport({ ...good, finish: 'rating-exam' }, { examiner: false, finish: ['rating-exam'] })
+		).toMatchObject({ examResult: null });
 	});
 });
 

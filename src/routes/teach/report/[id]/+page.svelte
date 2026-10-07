@@ -5,7 +5,12 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
-	import { FINISH_LABELS, MAX_NOTES_LENGTH, SESSION_LOCATIONS } from '$lib/ctrs';
+	import {
+		EXAM_RESULT_DETAILS,
+		FINISH_LABELS,
+		MAX_NOTES_LENGTH,
+		SESSION_LOCATIONS
+	} from '$lib/ctrs';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboard from '~icons/mdi/clipboard-text-clock';
@@ -22,6 +27,15 @@
 	$effect(() => {
 		finish = values.finish;
 	});
+
+	/** The examiner's result, if one is chosen: it moves the card too. */
+	let otsStatus = $state('0');
+	$effect(() => {
+		otsStatus = values.otsStatus || '0';
+	});
+	const examResult = $derived(
+		otsStatus === '1' ? 'passed' : otsStatus === '2' ? 'not-passed' : null
+	);
 
 	const inputClasses =
 		'w-full rounded-lg border border-slate-600/50 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-sky-500 focus:ring-sky-500/50';
@@ -83,6 +97,15 @@
 				data.mode === 'live' &&
 				!confirm(
 					`File this report and ${finish === 'rating-exam' ? 'recommend' : 'complete the course for'} ${data.student.name}${finish === 'rating-exam' ? ' for a rating exam' : ''}?\n\nThis moves their card and cannot be undone from here.`
+				)
+			) {
+				return cancel();
+			}
+			if (
+				examResult &&
+				data.mode === 'live' &&
+				!confirm(
+					`File this report with the rating exam ${examResult === 'passed' ? 'passed' : 'not passed'} for ${data.student.name}?\n\n${EXAM_RESULT_DETAILS[examResult]}\n\nThis cannot be undone from here.`
 				)
 			) {
 				return cancel();
@@ -179,13 +202,22 @@
 				<!-- Only the examiner has a result to give. -->
 				<div>
 					<label for="otsStatus" class={labelClasses}>Rating exam</label>
-					<select id="otsStatus" name="otsStatus" required class="mt-2 {inputClasses}">
+					<select
+						id="otsStatus"
+						name="otsStatus"
+						required
+						class="mt-2 {inputClasses}"
+						onchange={(event) => (otsStatus = event.currentTarget.value)}
+					>
 						{#each data.otsChoices as choice (choice.value)}
 							<option value={choice.value} selected={String(choice.value) === values.otsStatus}>
 								{choice.label}
 							</option>
 						{/each}
 					</select>
+					{#if examResult}
+						<p class="mt-2 text-xs text-gray-400">{EXAM_RESULT_DETAILS[examResult]}</p>
+					{/if}
 				</div>
 			{/if}
 			<div>
@@ -258,7 +290,7 @@
 				{sending ? 'Sending…' : data.mode === 'test' ? 'Check with VATUSA' : 'File report'}
 			</Button>
 			<Button href="/teach" variant="secondary">Cancel</Button>
-			{#if data.finishChoices.length === 0}
+			{#if data.finishChoices.length === 0 && !examResult}
 				<span class="text-xs text-gray-500">This does not move the student's card.</span>
 			{/if}
 		</div>
