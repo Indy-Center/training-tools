@@ -5,11 +5,9 @@
   in $lib/config.ts.
 -->
 
-Complete the consolidation hours and enroll in the next course.
+Complete the consolidation hours to enroll in the next course.
 
-Before you enroll in your next course, the training policy asks you to
-consolidate your current rating by controlling at it for a minimum number of
-hours.
+Before you enroll in your next course, <a href="https://wiki.flyindycenter.com/en/policies/training#h-450-rating-consolidation">the training policy</a>
+requires you to consolidate your current rating by controlling at it for a minimum number of hours.
 
-Hours come from your VATSIM statistics, so they can take a little while to
-update after a session. Come back once you've reached the requirement to enroll.
+Hours can take a few minutes to update after a session. Come back once you've reached the requirement to enroll.

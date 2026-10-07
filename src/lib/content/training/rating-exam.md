@@ -3,5 +3,5 @@
   instructor beneath this text.
 -->
 
-Your training is done and your rating exam is being arranged. An Instructor will
+Your training is done and your rating exam is being arranged. An Examiner will
 contact you to schedule.

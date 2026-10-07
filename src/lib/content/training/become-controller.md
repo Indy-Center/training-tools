@@ -4,9 +4,6 @@
   whose home is another VATSIM division.
 -->
 
-You're signed in with your VATSIM account, but you aren't a rated VATUSA
-controller yet, so there's nothing to enroll in here just yet.
+You aren't a rated VATUSA controller yet, so there's nothing to enroll in here just yet.
 
-Controllers start at a VATSIM training organisation, where you'll complete the
-basic exam and your first rating. Once you're a VATUSA controller and on our
-roster, come back here to enroll in Indy Center training.
+To begin training as a controller or transfer from another division/region review the knowledge links below. Select Indianapolis ARTCC as your subdivision, we will see you soon!

@@ -27,9 +27,8 @@
 		<Panel title="About this course" icon={IconInformation}>
 			<div class="space-y-4 px-4 py-5 text-sm text-gray-300">
 				<p>
-					Some of our enroute sectors are designated Tier 2: they work differently enough from
-					standard procedures that controllers need a specific endorsement to staff them, whatever
-					their rating.
+					Our enroute sectors are designated Tier 2: controllers need a specific endorsement to
+					staff them.
 				</p>
 				<p>
 					The Tier 2 Center endorsement is earned through a self-led course on our learning site.
@@ -51,10 +50,7 @@
 						<IconOpenInNew class="h-4 w-4" />
 					</Button>
 				{:else}
-					<p>
-						The course isn't open for self sign-up yet. Ask the training staff on Discord and
-						they'll get you access.
-					</p>
+					<p>Please contact the training staff enroll in ZID Tier-2 self-certification.</p>
 				{/if}
 				<p>
 					<a href="/" class="text-sky-400 hover:text-sky-300">← Back to training home</a>
