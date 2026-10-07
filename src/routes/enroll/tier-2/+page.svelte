@@ -50,7 +50,7 @@
 						<IconOpenInNew class="h-4 w-4" />
 					</Button>
 				{:else}
-					<p>Please contact the training staff enroll in ZID Tier-2 self-certification.</p>
+					<p>Please contact the training staff to enroll in ZID Tier-2 self-certification.</p>
 				{/if}
 				<p>
 					<a href="/" class="text-sky-400 hover:text-sky-300">← Back to training home</a>
