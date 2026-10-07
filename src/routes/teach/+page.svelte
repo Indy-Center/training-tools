@@ -7,6 +7,7 @@
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
+	import { vatusaEvaluationUrl } from '$lib/config';
 	import { QUALIFICATION_LEVEL_LABELS } from '$lib/teachers';
 	import IconAccountMultiple from '~icons/mdi/account-multiple-check';
 	import IconCalendarClock from '~icons/mdi/calendar-clock';
@@ -27,6 +28,11 @@
 	const reported = $derived(page.url.searchParams.get('reported'));
 	/** Whether that report was also meant to move the card, and did. */
 	const card = $derived(page.url.searchParams.get('card'));
+	/** The student an examiner has just reported on: their VATUSA evaluation form comes next. */
+	const evaluate = $derived.by(() => {
+		const cid = page.url.searchParams.get('evaluate');
+		return cid && /^\d+$/.test(cid) ? cid : null;
+	});
 </script>
 
 <svelte:head>
@@ -52,8 +58,8 @@
 
 {#if data.selfAssigned}
 	<Alert class="mb-6">
-		Your own enrollment is assigned to you on the TRK board. You cannot teach yourself — ask
-		training staff to assign another teacher.
+		Your own enrollment is assigned to you. You cannot teach yourself — ask training staff to assign
+		another teacher.
 	</Alert>
 {/if}
 
@@ -61,14 +67,30 @@
 	<p class="mb-6 flex items-center gap-2 text-sm text-green-400">
 		<IconCheck class="h-4 w-4" />
 		Training report filed with VATUSA{reported ? ` (record ${reported})` : ''}{card === 'moved'
-			? ', and the card moved on'
+			? ", and the student's enrollment was updated"
 			: ''}.
 	</p>
 	{#if card === 'stuck'}
 		<Alert tone="warning" class="mb-6">
-			The report is filed, but the student's card could not be moved. Use the button beside them
-			below; do not file the report again.
+			The report is filed, but the student's enrollment was not updated. Report this to the training
+			admin; do not file the report again.
 		</Alert>
+	{/if}
+	{#if evaluate}
+		<div class="mb-6 flex flex-wrap items-center gap-3 text-sm text-gray-300">
+			<span>
+				Next, fill in the evaluation on VATUSA, and submit the promotion there if they passed.
+			</span>
+			<Button
+				href={vatusaEvaluationUrl(evaluate)}
+				target="_blank"
+				rel="noopener noreferrer"
+				size="sm"
+			>
+				VATUSA evaluation form
+				<IconOpen class="h-4 w-4" />
+			</Button>
+		</div>
 	{/if}
 {/if}
 
@@ -157,38 +179,6 @@
 								</p>
 							{/if}
 							{@render report(student.enrollmentId)}
-							{#if student.canComplete && student.next.length === 1}
-								{@const leadsTo =
-									student.next[0] === 'rating-exam'
-										? 'This dates the card and moves it to Rating Exam, where an examiner takes it.'
-										: 'This dates the card, applies the certification and sends it to the TA to audit.'}
-								{@render step(
-									'completeTraining',
-									student.enrollmentId,
-									'Mark training complete',
-									`Mark training complete for ${student.name}?\n\n${leadsTo}`
-								)}
-							{:else if student.canComplete}
-								<!-- The teacher's call: this training may or may not need examining. -->
-								<div class="flex flex-wrap gap-2">
-									{@render step(
-										'completeTraining',
-										student.enrollmentId,
-										'Training complete: needs a rating exam',
-										`Mark training complete for ${student.name}, with a rating exam to follow?\n\nThis dates the card and moves it to Rating Exam, where an examiner takes it.`,
-										'primary',
-										'rating-exam'
-									)}
-									{@render step(
-										'completeTraining',
-										student.enrollmentId,
-										'Training complete: no exam',
-										`Mark training complete for ${student.name}, with no rating exam?\n\nThis dates the card and sends it to the TA to audit.`,
-										'secondary',
-										'certification-update'
-									)}
-								</div>
-							{/if}
 						</li>
 					{/each}
 				</ul>
@@ -237,46 +227,34 @@
 											{exam.availability}
 										</p>
 									{/if}
-									{#if exam.canComplete || exam.taughtByYou}
+									{#if exam.canComplete}
 										{@render report(exam.enrollmentId)}
 									{/if}
-									{#if exam.taughtByYou}
-										<!-- Not a form: the same button, greyed out, so it is plain the
-										     exam exists and why this teacher cannot take it. -->
-										<div class="mt-3 flex flex-wrap items-center gap-3">
-											<Button
-												type="button"
-												size="sm"
-												disabled
-												title="Another evaluator examines the students you taught."
-											>
-												Claim this exam
-											</Button>
-											<span class="text-xs text-gray-400">Your student</span>
-										</div>
-									{:else if exam.canClaim}
+									{#if exam.canComplete}
+										<Button
+											href={vatusaEvaluationUrl(exam.cid)}
+											target="_blank"
+											rel="noopener noreferrer"
+											size="sm"
+											variant="secondary"
+											class="mt-3"
+										>
+											VATUSA evaluation form
+											<IconOpen class="h-4 w-4" />
+										</Button>
+									{/if}
+									{#if exam.canClaim}
 										{@render step(
 											'claimExam',
 											exam.enrollmentId,
 											'Claim this exam',
-											`Claim the rating exam for ${exam.name}?\n\nYou go on the card as its examiner, and arrange the exam with them directly.`
+											`Claim the rating exam for ${exam.name}?\n\nYou become their examiner, and arrange the exam with them directly.`
 										)}
 									{:else if exam.canComplete}
-										<div class="flex flex-wrap gap-2">
-											{@render step(
-												'completeExam',
-												exam.enrollmentId,
-												'Passed: mark exam complete',
-												`Mark the rating exam passed for ${exam.name}?\n\nThis dates the card, applies the certification and sends it to the TA to audit.`
-											)}
-											{@render step(
-												'failExam',
-												exam.enrollmentId,
-												'Not passed',
-												`Record that ${exam.name} did not pass the rating exam?\n\nThe card moves to Needs CATP and its Training Completed date is cleared. The TA decides what further training they get.`,
-												'secondary'
-											)}
-										</div>
+										<p class="mt-3 text-xs text-gray-400">
+											File the training report with the result. Then fill in the evaluation on
+											VATUSA.
+										</p>
 									{/if}
 								</li>
 							{/each}
@@ -299,8 +277,10 @@
 				<div class="flex items-center justify-between px-4 py-3">
 					<dt class="text-gray-400">Students in training</dt>
 					<dd class="text-white">
-						{data.slots.used}{#if data.slots.total !== null}
-							<span class="text-gray-500"> of {data.slots.total}</span>{/if}
+						{data.slots.used}
+						{#if data.slots.total !== null}
+							<span class="text-gray-500">of {data.slots.total}</span>
+						{/if}
 					</dd>
 				</div>
 				<div class="flex items-center justify-between px-4 py-3">
@@ -326,11 +306,13 @@
 			<ul class="divide-y divide-slate-700/60 text-sm">
 				{#each data.qualifications as qualification (qualification.code)}
 					<li class="flex items-center justify-between gap-3 px-4 py-2">
-						<span class="text-gray-300">
-							{qualification.name}
-							<span class="font-mono text-xs text-gray-500">({qualification.code})</span>
+						<span class="font-mono text-gray-300">
+							{qualification.code}
+							<span class="font-sans text-xs text-gray-500">({qualification.name})</span>
 						</span>
-						<span class={qualification.level ? 'text-white' : 'text-gray-500'}>
+						<span
+							class="shrink-0 text-right {qualification.level ? 'text-white' : 'text-gray-500'}"
+						>
 							{QUALIFICATION_LEVEL_LABELS[qualification.level ?? 'none']}
 						</span>
 					</li>

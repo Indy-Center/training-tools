@@ -10,7 +10,13 @@ import {
 	readReport
 } from '$lib/ctrs';
 import { findCourse } from '$lib/courses';
-import { completeTraining, getEnrollment } from '$lib/server/enrollments';
+import {
+	completeExam,
+	completeTraining,
+	failExam,
+	getEnrollment,
+	type FlowResult
+} from '$lib/server/enrollments';
 import { requireSession } from '$lib/server/guards';
 import { getPeople } from '$lib/server/roster';
 import { getActiveTeacher } from '$lib/server/teachers';
@@ -26,9 +32,10 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
  *
  * A report can also end the training: the teacher ticks "recommend for a
  * rating exam" or "mark the course complete", whichever the course has, and
- * once VATUSA has the report the card is moved exactly as "Mark training
- * complete" on `/teach` moves it. Reporting a rating exam as passed does
- * **not** move the card — that is still the button on `/teach`.
+ * once VATUSA has the report the card is moved (`completeTraining`).
+ *
+ * The examiner's report ends the exam the same way: passed moves the card on
+ * to audit (`completeExam`), not passed to Needs CATP (`failExam`).
  *
  * `CTRS_SUBMIT` in wrangler.jsonc switches it: `live` files the record;
  * anything else asks VATUSA to check it and save nothing.
@@ -82,7 +89,7 @@ export const load: PageServerLoad = async (event) => {
 		instructor: { cid: teacher.cid, name: displayName(session.user) },
 		otsChoices: otsChoices(allowed.examiner),
 		finishChoices: allowed.finish,
-		blank: blankReport(enrollment.course, new Date()),
+		blank: blankReport(new Date()),
 		keySet: apiKey !== null,
 		mode
 	};
@@ -128,19 +135,28 @@ export const actions: Actions = {
 		}
 
 		// The report is with VATUSA now, so nothing below sends them back to the
-		// form: filing it twice would be worse than a card left for the button.
-		let card = '';
+		// form: filing it twice would be worse than a card left for a training admin.
+		const { db } = event.locals;
+		const env = event.platform?.env;
+		const by = displayName(session.user);
+
+		let result: FlowResult | null = null;
 		if (checked.finish) {
-			const result = await completeTraining(
-				event.locals.db,
-				event.platform?.env,
-				enrollment,
-				displayName(session.user),
-				checked.finish
-			);
+			result = await completeTraining(db, env, enrollment, by, checked.finish);
+		} else if (checked.examResult === 'passed') {
+			result = await completeExam(db, env, enrollment, by);
+		} else if (checked.examResult === 'not-passed') {
+			result = await failExam(db, env, enrollment, by);
+		}
+
+		let card = '';
+		if (result) {
 			if (!result.ok) console.error('CTRS report filed, card not moved', result.message);
 			card = result.ok ? '&card=moved' : '&card=stuck';
 		}
-		redirect(303, `/teach?reported=${recordId ?? ''}${card}`);
+		// An exam's report is followed by VATUSA's evaluation form, which `/teach`
+		// offers next.
+		const evaluation = allowed.examiner ? `&evaluate=${enrollment.cid}` : '';
+		redirect(303, `/teach?reported=${recordId ?? ''}${card}${evaluation}`);
 	}
 };

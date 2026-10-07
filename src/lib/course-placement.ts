@@ -80,7 +80,7 @@ export function resolvePlacement(input: PlacementInput): Placement {
 		return {
 			suggested: null,
 			reason: current
-				? `You already hold ${current.code}, our highest certification. Contact the training staff to request adhock training.`
+				? `You already hold ${current.code}, our highest certification. Ask the training staff about custom training.`
 				: 'Training staff will confirm your placement.'
 		};
 	}

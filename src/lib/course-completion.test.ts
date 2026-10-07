@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
 	afterTraining,
 	afterTrainingOptions,
-	evaluatesCourse,
+	canClaimExam,
 	canCompleteExam,
 	canCompleteTraining,
-	canClaimExam,
 	credentialChangeFor,
+	evaluatesCourse,
 	formatHold,
 	holdLabels,
 	missingEvidence

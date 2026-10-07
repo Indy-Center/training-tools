@@ -11,6 +11,7 @@
 	import { displayName } from '$lib/user';
 	import { page } from '$app/state';
 	import { findCourse, formatWeeksRange } from '$lib/courses';
+	import { academyExamFor } from '$lib/vatusa-academy';
 	import { SHARED_COPY, TRAINING_COPY, TRAINING_TEXT } from '$lib/content/training';
 	import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
 	import IconAccount from '~icons/mdi/account-circle';
@@ -33,17 +34,13 @@
 		if (!assignee) return TRAINING_TEXT.notAssignedYet;
 		return assignee.name ? `${assignee.name} (${assignee.value})` : assignee.value;
 	}
-
-	function formatHours(hours: number): string {
-		return `${hours.toFixed(1)} hours`;
-	}
 </script>
 
 <svelte:head>
 	<title>Indy Center | Training</title>
 	<meta
 		name="description"
-		content="Controller training at Indy Center — enroll, track your progress, and see where you are on the waitlist."
+		content="Controller training at Indy Center — enroll and track your progress."
 	/>
 </svelte:head>
 
@@ -76,13 +73,9 @@
 		{#if data.rosterMember}
 			<div class="mt-3 flex items-center justify-center gap-2">
 				<Badge size="sm" color="sky" label={data.rosterMember.ratingShort} />
-				<Badge
-					size="sm"
-					color={data.rosterMember.membership === 'home' ? 'green' : 'purple'}
-					label={data.rosterMember.membership === 'home'
-						? `${data.rosterMember.facility} home controller`
-						: `Visiting ${data.rosterMember.facility}`}
-				/>
+				{#if data.rosterMember.membership === 'visit'}
+					<Badge size="sm" color="purple" label="Visiting from {data.rosterMember.facility}" />
+				{/if}
 			</div>
 		{/if}
 	</PageHero>
@@ -157,7 +150,7 @@
 				{:else if request.status === 'rating-exam'}
 					<CopyPanel copy={TRAINING_COPY['rating-exam']} icon={IconCertificate}>
 						<dl class="divide-y divide-slate-700/60 rounded-lg border border-slate-700/60">
-							{@render fact('Your instructor', assigneeLabel(request.instructor))}
+							{@render fact('Your examiner', assigneeLabel(request.instructor))}
 						</dl>
 					</CopyPanel>
 				{:else if request.status === 'needs-catp'}
@@ -172,7 +165,7 @@
 				{@const course = data.nextCourse ? findCourse(data.nextCourse) : undefined}
 				{#if course}
 					<EnrollmentForm
-						intro={TRAINING_COPY.enroll}
+						intro={academyExamFor(course.code) ? SHARED_COPY.enrollAcademy : TRAINING_COPY.enroll}
 						{course}
 						controller={data.enroll.controller}
 						credentials={data.enroll.credentials}
@@ -189,7 +182,7 @@
 					<CopyPanel copy={TRAINING_COPY.consolidating} icon={IconClockOutline}>
 						<div>
 							<div class="mb-1 flex justify-between text-xs text-gray-400">
-								<span>{formatHours(consolidation.logged)} logged at {consolidation.rating}</span>
+								<span>{consolidation.logged.toFixed(1)} qualifying hours logged</span>
 								<span>{consolidation.required} hours required</span>
 							</div>
 							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-800">

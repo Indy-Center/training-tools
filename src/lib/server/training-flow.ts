@@ -72,11 +72,13 @@ export async function loadTrainingContext(locals: App.Locals): Promise<TrainingC
 		held
 	};
 
+	const nextCourse = resolvePlacement({ held }).suggested;
+
 	let flow = resolveTrainingFlow(input);
 	let consolidation: Consolidation | null = null;
 
 	if (flow === 'consolidating') {
-		consolidation = await getConsolidation(cid, rosterMember!.ratingShort);
+		consolidation = await getConsolidation(cid, nextCourse);
 		flow = resolveTrainingFlow({ ...input, consolidation });
 	}
 
@@ -86,7 +88,7 @@ export async function loadTrainingContext(locals: App.Locals): Promise<TrainingC
 		openEnrollment,
 		held,
 		consolidation,
-		nextCourse: resolvePlacement({ held }).suggested,
+		nextCourse,
 		ratingShort
 	};
 }

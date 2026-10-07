@@ -13,29 +13,44 @@ export const COMMUNITY_URL = 'https://flyindycenter.com';
 /** VATSIM's id for the VATUSA division, as identity's VATSIM profile carries it. */
 export const VATUSA_DIVISION_ID = 'USA';
 
+/**
+ * VATUSA's OTS evaluation form for a controller, on its own site: its API keeps
+ * evaluations to itself, so the examiner fills the form in there.
+ */
+export function vatusaEvaluationUrl(cid: string): string {
+	return `https://www.vatusa.net/legacy/mgt/controller/${cid}/eval`;
+}
+
 /** VATSIM rating ids. Anything below S1 cannot control. */
 export const RATING_OBS = 1;
 export const RATING_S1 = 2;
 /** S3 and above may be granted evaluator on S-GC as a mentor (DEV-175). */
 export const RATING_S3 = 4;
 
+/** Hours on a set of positions that a course asks for before enrollment. */
+export type ConsolidationRequirement = {
+	hours: number;
+	/** Callsign suffixes that count, e.g. `TWR` for `IND_E_TWR`. Hours on any of them add up. */
+	positions: readonly string[];
+};
+
 /**
- * Consolidation: hours a home controller must log at their current rating
- * before they can enroll in the next course. Keyed by VATSIM short rating.
+ * Consolidation: hours a home controller must log on certain positions before
+ * they can enroll in a course. Keyed by the course being enrolled in.
  *
- * Counted from VATSIM's per-rating stats, so hours are network-wide rather than
- * ZID-only — VATSIM does not break them down by facility.
+ * Positions are told apart by callsign suffix, because nothing says which
+ * position a session worked. Hours are network-wide rather than ZID-only: a
+ * suffix matches at any facility.
  *
- * A rating that is absent (or 0) has no requirement. OBS has nothing to
- * consolidate, and there is no course after E-RC, so C1 and above are left out.
+ * A course that is absent has no requirement.
  *
- * **These numbers are the training team's to set.** The values here are
- * placeholders until the training policy states them.
+ * From the training policy, section 4.5.0:
+ * https://wiki.flyindycenter.com/en/policies/training#h-450-rating-consolidation
  */
-export const CONSOLIDATION_HOURS: Readonly<Record<string, number>> = {
-	S1: 10,
-	S2: 15,
-	S3: 20
+export const CONSOLIDATION_REQUIREMENTS: Readonly<Record<string, ConsolidationRequirement>> = {
+	'A-LC': { hours: 30, positions: ['GND', 'TWR'] },
+	'T-RC': { hours: 50, positions: ['TWR'] },
+	'E-RC': { hours: 50, positions: ['APP', 'DEP'] }
 };
 
 /**
@@ -47,7 +62,9 @@ export const CONSOLIDATION_HOURS: Readonly<Record<string, number>> = {
  * pointing at their mentor or the training staff, so this can fill in one
  * course at a time as `indy-moodle` publishes them.
  */
-export const MOODLE_COURSE_URLS: Readonly<Partial<Record<string, string>>> = {};
+export const MOODLE_COURSE_URLS: Readonly<Partial<Record<string, string>>> = {
+	'T2-CTR': 'https://academy.vatusa.net/mod/quiz/view.php?id=1882'
+};
 
 /**
  * Who `$lib/server/notify` can tell, and the Discord channel each goes to.

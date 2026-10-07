@@ -90,10 +90,13 @@ no open request — the site opens on `/teach`: the bare `/` redirects there. Th
 student view is still on their menu, linked as `/?view=student`, which is what
 gets past the redirect.
 
-Consolidation is hours logged at the member's **current** rating, from VATSIM's
-public stats endpoint, against `CONSOLIDATION_HOURS` in `src/lib/config.ts`. A
-rating not listed there has no requirement. If VATSIM cannot be reached the
-member is held back rather than let through.
+Consolidation is hours logged on certain positions before enrolling in a
+course, set per course in `CONSOLIDATION_REQUIREMENTS` in `src/lib/config.ts`:
+30 on `_GND` or `_TWR` for A-LC, 50 on `_TWR` for T-RC, and 50 on `_APP` or
+`_DEP` for E-RC. Positions are read from the callsign suffix of each session in
+VATSIM's public member history, at any facility. A course not listed there has
+no requirement. If VATSIM cannot be reached the member is held back rather than
+let through.
 
 The in-training view links the course's Moodle entry when `MOODLE_COURSE_URLS`
 has one. Scheduling and the student's next lesson will join it there.
@@ -209,8 +212,9 @@ src/
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
 │   ├── training-flow.ts       pure request+roster+rating → view logic
+│   ├── request-timeline.ts    pure open request → timeline steps, with the dates we hold
 │   ├── enrollment-status.ts   status and contact-method labels, shared by every page
-│   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
+│   ├── consolidation.ts       pure hours-on-position check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
 │   ├── components/            shared components, by what they are for:
 │   │   ├── ui/                Panel, Button, Alert, Badge, ChoiceCard, FilterChip, PageHero — no knowledge of training
@@ -552,20 +556,24 @@ report is filed in VATUSA's training records in their name
   exam** where the course ends in one, **Mark the course complete** where it
   does not, and both for Custom Training. Ticked, the report is filed first —
   flagged on VATUSA as a recommendation (`ots_status` 3) in the first case —
-  and then the card is moved exactly as **Mark training complete** on `/teach`
-  moves it. If the card cannot be moved the report still stands, and `/teach`
-  says to use the button instead.
+  and then the card is moved (`completeTraining`). This is the only way a
+  teacher ends training from the site. If the card cannot be moved the report
+  still stands, and `/teach` says to ask a training admin to move it.
 - **A rating exam result** (passed / not passed) is offered only to the
-  examiner on the card, at the exam stage. Filing one **does not move the
-  card** — that is still the button on `/teach`.
+  examiner on the card, at the exam stage, and never to the student's own
+  teacher. Filing one **moves the card**: passed to Audit (`completeExam`), not
+  passed to Needs CATP (`failExam`).
 - **The form is checked against VATUSA's rules first** (`checkReport`), so the
   teacher hears everything wrong at once.
 - **Nothing is stored here**: the record is VATUSA's.
+- **An unsent report is kept as a draft in the teacher's browser**
+  (`localStorage`, one per request), so the form can stay open through a
+  session and survive a refresh. It is cleared when the report is filed. The
+  last-session tick and the exam result are not kept.
 
-`CTRS_SUBMIT` is `test` for now: VATUSA checks the report and answers as it
-would, but saves nothing and moves no card, and the page says so. Set it to `live` once a test
-has been seen to pass. Like the academy calls, this was written from VATUSA's
-public source and **had not been run with a real key** when it was written.
+`CTRS_SUBMIT` is `live`: reports are filed with VATUSA. Set it to `test` and
+VATUSA checks the report and answers as it would, but saves nothing and moves
+no card, and the page says so.
 
 ### The end of a course
 
@@ -573,14 +581,14 @@ How a course finishes, and who moves it. The rules are pure functions in
 `$lib/course-completion.ts`; the Jira writes are in
 `$lib/server/enrollments/completion.ts`.
 
-| Step                       | Who                                                                  | What happens on the card                                                                    |
-| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Mark training complete     | the teacher on the card (`/teach`)                                   | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
-| Claim this exam            | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
-| Passed: mark exam complete | that examiner (`/teach`)                                             | `RE Completed` dated; moved to Audit                                                        |
-| Not passed                 | that examiner (`/teach`)                                             | moved to Needs CATP; `Training Completed` cleared                                           |
-| _(automatic)_              | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
-| Audit complete             | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
+| Step                        | Who                                                                  | What happens on the card                                                                    |
+| --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Training report, ticked     | the teacher on the card (`/teach/report`)                            | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
+| Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
+| Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
+| _(automatic)_               | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
+| Audit complete              | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
 TRK's status for a finished course waiting on the TA is **Audit** (Certification
 Update until 2026-10-06). The app's own name for it is still
@@ -588,6 +596,12 @@ Update until 2026-10-06). The app's own name for it is still
 
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
+
+**The examiner's training report ends the exam.** Filed as passed or not
+passed, it moves the card as the table says, after VATUSA has accepted the
+record. The examiner then fills in VATUSA's evaluation form and, for a pass,
+submits the promotion there; `/teach` links to the form on a claimed exam and
+again after the report. `/teach` has no buttons for the result.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira

@@ -81,7 +81,7 @@ export const TRAINING_COPY = {
 		body: visitingController,
 		actions: [
 			{
-				label: 'Read about transferring to Indy',
+				label: 'Read about transferring to Indy Center',
 				href: BECOME_CONTROLLER_URL,
 				external: true,
 				style: 'secondary'
@@ -93,13 +93,13 @@ export const TRAINING_COPY = {
 		body: extraCourses
 	},
 	consolidating: {
-		title: 'Consolidate your rating',
+		title: 'Consolidation hours',
 		body: consolidating
 	},
 	// The form's own introduction. The agreement it ends with is `ENROLLMENT_COPY.agreement`.
 	enroll: {
 		title: 'Before you enroll',
-		body: ENROLLMENT_COPY.whatHappensNext + ENROLLMENT_COPY.writtenExam
+		body: ENROLLMENT_COPY.whatHappensNext
 	},
 
 	// --- An open request, by status ------------------------------------------
@@ -121,7 +121,7 @@ export const TRAINING_COPY = {
 		body: needsCatp
 	},
 	'certification-update': {
-		title: 'Updating your certificate',
+		title: 'Your course is being audited',
 		body: certificationUpdate
 	}
 } as const satisfies Record<TrainingFlow, CopyBlock>;
@@ -133,9 +133,14 @@ export const SHARED_COPY = {
 		title: 'Controller Training',
 		body: signedOut
 	},
+	/** The enrollment form's introduction, for a course with a VATUSA Academy course. */
+	enrollAcademy: {
+		title: 'Before you enroll',
+		body: ENROLLMENT_COPY.whatHappensNext + ENROLLMENT_COPY.writtenExam
+	},
 	/** Replaces the consolidation copy when VATSIM could not give us their hours. */
 	consolidationUnknown: {
-		title: 'Consolidate your rating',
+		title: 'Consolidation hours',
 		body: consolidationUnknown
 	},
 	/** Offered beneath the extra-courses and visitor copy to anyone due Tier 2. */
@@ -157,7 +162,7 @@ export const TRAINING_TEXT = {
 	openCourseButton: 'Open your course',
 	/** The enroll view, in the unlikely case we cannot work out their next course. */
 	noNextCourse:
-		"We couldn't work out which course is next for you. Please contact the training staff on Discord.",
+		"We couldn't work out which course is next for you. Please contact the training staff.",
 	withdraw: {
 		intro:
 			'Not quite ready? Withdrawing lets someone else take your place in line. You can submit a new request any time.',

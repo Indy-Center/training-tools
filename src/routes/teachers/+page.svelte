@@ -69,8 +69,9 @@
 				<tr>
 					<th class="px-4 py-3 font-medium">Teacher</th>
 					<th class="px-4 py-3 font-medium">Status</th>
-					<th class="px-4 py-3 font-medium">Students</th>
-					<th class="px-4 py-3 font-medium" title="In training / slots set">Slots</th>
+					<th class="px-4 py-3 text-center font-medium" title="In training / slots set"
+						>Students / Slots</th
+					>
 					{#each data.credentials as code (code)}
 						<th class="px-2 py-3 text-center font-mono font-medium">{code}</th>
 					{/each}
@@ -93,8 +94,7 @@
 						<td class="px-4 py-3">
 							<TeacherStatusBadge status={teacher.status} />
 						</td>
-						<td class="px-4 py-3 text-white">{teacher.assigned}</td>
-						<td class="px-4 py-3 font-mono text-white">
+						<td class="px-4 py-3 text-center font-mono text-white">
 							{slotsLabel(teacher.slots)}
 							{#if teacher.status === 'loa' && teacher.slots.total !== null}
 								<span class="block text-xs text-orange-400">not open</span>

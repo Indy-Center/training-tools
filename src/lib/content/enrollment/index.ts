@@ -26,7 +26,7 @@ import writtenExam from './written-exam.md';
  * A date rather than a number so that "which terms did they accept" is
  * answerable from the value itself, without a lookup table.
  */
-export const TERMS_VERSION = '2026-09-21';
+export const TERMS_VERSION = '2026-10-07';
 
 export const ENROLLMENT_COPY = {
 	whatHappensNext,

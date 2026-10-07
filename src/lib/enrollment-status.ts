@@ -21,7 +21,7 @@ export const STATUS_LABELS: Record<string, string> = {
 	'in-training': 'In training',
 	'rating-exam': 'Rating exam',
 	'needs-catp': 'Needs CATP',
-	'certification-update': 'Updating your certificate',
+	'certification-update': 'Being audited',
 	completed: 'Completed',
 	removed: 'Removed from the waitlist',
 	withdrawn: 'Withdrawn'

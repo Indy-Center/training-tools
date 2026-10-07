@@ -83,6 +83,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					createdAt: openEnrollment.createdAt,
 					availability: openEnrollment.availability,
 					notificationPreference: openEnrollment.notificationPreference,
+					// Dates for the timeline on the request panel.
+					vatusaAssignedOn: openEnrollment.vatusaAssignedOn,
+					vatusaCompletedOn: openEnrollment.vatusaCompletedOn,
+					certificationAppliedAt: openEnrollment.certificationAppliedAt,
 					// Jira holds initials; the student is shown who that is.
 					teacher: await findAssignee(locals.db, openEnrollment.teacher),
 					instructor:

@@ -178,9 +178,7 @@
 				align="start"
 				class="mt-5"
 			>
-				<span class="text-sm text-white">
-					I've read what's asked of me and what I can expect.
-				</span>
+				<span class="text-sm text-white"> I've read what's asked of me. </span>
 			</ChoiceCard>
 		</div>
 	</Panel>

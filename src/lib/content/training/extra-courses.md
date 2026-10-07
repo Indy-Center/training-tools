@@ -7,5 +7,4 @@
   Add the optional courses here as they become available.
 -->
 
-Great work — you hold our highest certification. Check out the optional courses,
-or ask the training staff on Discord about ad hoc training.
+Check out the optional courses, or ask the training staff about requesting custom training.

@@ -1,22 +1,18 @@
 import {
 	checkConsolidation,
-	requiredConsolidationHours,
+	consolidationRequirement,
 	type Consolidation
 } from '$lib/consolidation';
-import { fetchAtcHoursByRating } from '$lib/server/vatsim';
+import { fetchAtcSessions } from '$lib/server/vatsim';
 
 /**
- * Look up a home controller's consolidation against VATSIM.
+ * Look up a home controller's consolidation for a course against VATSIM.
  *
- * Only calls VATSIM when their rating actually carries a requirement, so an
- * OBS or C1 member costs no subrequest.
+ * Only calls VATSIM when the course actually carries a requirement, so
+ * enrolling in S-GC costs no subrequest.
  */
-export async function getConsolidation(
-	cid: string,
-	ratingShort: string | null
-): Promise<Consolidation> {
-	const hoursByRating =
-		requiredConsolidationHours(ratingShort) > 0 ? await fetchAtcHoursByRating(cid) : null;
+export async function getConsolidation(cid: string, course: string | null): Promise<Consolidation> {
+	const sessions = consolidationRequirement(course) ? await fetchAtcSessions(cid) : null;
 
-	return checkConsolidation({ ratingShort, hoursByRating });
+	return checkConsolidation({ course, sessions });
 }

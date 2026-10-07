@@ -3,7 +3,7 @@
   on our roster who holds E-RC but not the Tier 2 Center endorsement.
 -->
 
-You're certified on our enroute sectors. Our Tier 2 sectors also need the Tier 2
+You're certified on all our positions. Indianapolis ARTCC sectors also need the Tier 2
 Center endorsement, and that's the one thing left for you to earn here.
 
 Tier 2 is a self-led course you complete online, at your own pace. You don't

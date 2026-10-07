@@ -8,7 +8,13 @@
  * (VATUSA/api, `TrainingController::postNewRecord` and
  * `Training_records_endpoints.md`) on 2026-10-06. See research/vatusa-roster.md
  */
-import { afterTrainingOptions, canCompleteTraining, type AfterTraining } from './course-completion';
+import { findCredential } from './certifications';
+import {
+	afterTrainingOptions,
+	canCompleteExam,
+	canCompleteTraining,
+	type AfterTraining
+} from './course-completion';
 import { ASSIGNED_STATUSES, isAssignedTo } from './teachers';
 
 /** Where the session happened. The numbers are VATUSA's. */
@@ -21,9 +27,10 @@ export const SESSION_LOCATIONS = [
 /**
  * Whether the session was a rating exam ("OTS"). The numbers are VATUSA's.
  *
- * A result is the examiner's to choose. "Recommended" (3) is never chosen: it
- * is what the teacher's "recommend for a rating exam" tick sends — see
- * `FINISH_LABELS`.
+ * A result is the examiner's to choose, and it moves the card: passed on to
+ * audit, not passed to Needs CATP — see `ExamResult`. "Recommended" (3) is never
+ * chosen: it is what the teacher's "recommend for a rating exam" tick sends —
+ * see `FINISH_LABELS`.
  */
 export const OTS_STATUSES = [
 	{ value: 0, label: 'Not a rating exam' },
@@ -32,20 +39,39 @@ export const OTS_STATUSES = [
 ] as const;
 const OTS_RECOMMENDED = 3;
 
+/** What an examiner's report says of the exam, and so where the card goes. */
+export type ExamResult = 'passed' | 'not-passed';
+const EXAM_RESULTS: Readonly<Record<number, ExamResult>> = { 1: 'passed', 2: 'not-passed' };
+
+/** What a result does to the card, said beside the choice and again before sending. */
+export const EXAM_RESULT_DETAILS: Record<ExamResult, string> = {
+	passed: 'Applies the certification and sends it to the TA to audit.',
+	'not-passed': 'The TA decides what further training they get.'
+};
+
 /**
  * The tick that ends the training with this report, worded for where the
- * course goes next. Ticking it does what "Mark training complete" on `/teach`
- * does; for a rating exam it also flags the report as a recommendation.
+ * course goes next. Ticking it dates the card and moves it on; for a rating
+ * exam it also flags the report as a recommendation.
  */
-export const FINISH_LABELS: Record<AfterTraining, { label: string; detail: string }> = {
+export const FINISH_LABELS: Record<
+	AfterTraining,
+	{ label: string; detail: (course: string) => string }
+> = {
 	'rating-exam': {
 		label: 'Recommend for a rating exam',
-		detail:
-			'Flags this report as a recommendation on VATUSA, dates the card and moves it to Rating Exam, where an examiner takes it.'
+		detail: () =>
+			'Marks their training complete and notifies instructors the student is ready for a rating exam.'
 	},
 	'certification-update': {
 		label: 'Mark the course complete',
-		detail: 'Dates the card, applies the certification and sends it to the TA to audit.'
+		// Custom Training earns nothing of its own, so there is nothing to name.
+		detail: (course) => {
+			const credential = findCredential(course);
+			return credential
+				? `Applies the ${credential.code} ${credential.kind} and sends it to the TA to audit.`
+				: 'Sends it to the TA to audit.';
+		}
 	}
 };
 
@@ -66,7 +92,6 @@ export type TrainingRecord = {
 	otsStatus: 0 | 1 | 2 | 3;
 	/** The student's progress, 1 to 5, or null. VATUSA's API calls it `score`. */
 	score: number | null;
-	movements: number | null;
 	notes: string;
 };
 
@@ -81,40 +106,25 @@ export type ReportValues = {
 	/** Where the training goes if this report ends it; empty if it carries on. */
 	finish: string;
 	score: string;
-	movements: string;
 	notes: string;
 };
 
 /**
- * A position to start the form on, from the course. Only a starting point:
- * S-GC is taught at the simple fields, so the teacher will often change it.
+ * What a new form starts with. Position and duration are left for the teacher:
+ * a default that is nearly right gets filed as it is. `now` is passed in so it
+ * can be tested.
  */
-export function suggestedPosition(course: string): string {
-	const suffix: Record<string, string> = {
-		'S-GC': 'GND',
-		'A-GC': 'GND',
-		'S-LC': 'TWR',
-		'A-LC': 'TWR',
-		'T-RC': 'APP',
-		'E-RC': 'CTR'
-	};
-	if (course === 'E-RC') return 'ZID_CTR';
-	return suffix[course] ? `IND_${suffix[course]}` : '';
-}
-
-/** What a new form starts with. `now` is passed in so it can be tested. */
-export function blankReport(course: string, now: Date): ReportValues {
+export function blankReport(now: Date): ReportValues {
 	const iso = now.toISOString();
 	return {
 		date: iso.slice(0, 10),
 		time: iso.slice(11, 16),
-		duration: '01:00',
-		position: suggestedPosition(course),
+		duration: '',
+		position: '',
 		location: '1',
 		otsStatus: '0',
 		finish: '',
 		score: '',
-		movements: '',
 		notes: ''
 	};
 }
@@ -128,9 +138,13 @@ type Reportable = {
 };
 type Reporter = { cid: string; initials: string | null };
 
-/** Whether this teacher is the examiner on the card, at the exam stage. */
+/**
+ * Whether this teacher is the examiner on the card, at the exam stage — and so
+ * the one whose report carries the result. Never the student's own teacher,
+ * even if staff put them on the card by hand.
+ */
 export function isExaminerFor(enrollment: Reportable, teacher: Reporter): boolean {
-	return enrollment.status === 'rating-exam' && isAssignedTo(enrollment.reInstructor, teacher);
+	return canCompleteExam(enrollment, teacher);
 }
 
 /**
@@ -171,7 +185,6 @@ export function readReport(form: { get(name: string): unknown }): ReportValues {
 		otsStatus: text(form.get('otsStatus')),
 		finish: text(form.get('finish')),
 		score: text(form.get('score')),
-		movements: text(form.get('movements')),
 		notes: text(form.get('notes'))
 	};
 }
@@ -194,7 +207,13 @@ function clockTime(value: string): string | null {
 }
 
 export type ReportResult =
-	| { ok: true; record: TrainingRecord; finish: AfterTraining | null }
+	| {
+			ok: true;
+			record: TrainingRecord;
+			finish: AfterTraining | null;
+			/** The examiner's result, which moves the card. Null for any other report. */
+			examResult: ExamResult | null;
+	  }
 	| { ok: false; errors: string[] };
 
 /**
@@ -227,7 +246,7 @@ export function checkReport(
 	const ots = otsChoices(allowed.examiner).find(
 		(choice) => String(choice.value) === (values.otsStatus || '0')
 	);
-	if (!ots) errors.push('Only the examiner on the card can report a rating exam result.');
+	if (!ots) errors.push("Only the student's examiner can report a rating exam result.");
 
 	const finish = allowed.finish.find((option) => option === values.finish) ?? null;
 	if (values.finish !== '' && !finish) {
@@ -239,14 +258,6 @@ export function checkReport(
 		score = Number(values.score);
 		if (!Number.isInteger(score) || score < 1 || score > 5) {
 			errors.push('Progress is a whole number from 1 to 5, or left blank.');
-		}
-	}
-
-	let movements: number | null = null;
-	if (values.movements !== '') {
-		movements = Number(values.movements);
-		if (!Number.isInteger(movements) || movements < 0) {
-			errors.push('Movements is a whole number, or left blank.');
 		}
 	}
 
@@ -266,10 +277,10 @@ export function checkReport(
 			location: location.value,
 			otsStatus: finish === 'rating-exam' ? OTS_RECOMMENDED : ots.value,
 			score,
-			movements,
 			notes: values.notes
 		},
-		finish
+		finish,
+		examResult: EXAM_RESULTS[ots.value] ?? null
 	};
 }
 

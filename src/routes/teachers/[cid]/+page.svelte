@@ -230,7 +230,7 @@
 									<select
 										id="level-{qualification.code}"
 										name="level:{qualification.code}"
-										class="rounded-lg border border-slate-600/50 bg-slate-900/60 py-1.5 text-sm text-white focus:border-sky-500 focus:ring-sky-500/50"
+										class="w-52 rounded-lg border border-slate-600/50 bg-slate-900/60 py-1.5 text-sm text-white focus:border-sky-500 focus:ring-sky-500/50"
 									>
 										<option value="" selected={qualification.level === null}>
 											{QUALIFICATION_LEVEL_LABELS.none}
