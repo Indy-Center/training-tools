@@ -51,7 +51,10 @@
 		"DISCORD_SYNC": "live",
 		// The Discord role that can see every teacher channel Larry creates
 		// ("Training Admin"). No channels are made until this is set.
-		"DISCORD_TRAINING_ADMIN_ROLE_ID": "1389685131744383138"
+		"DISCORD_TRAINING_ADMIN_ROLE_ID": "1389685131744383138",
+		// Training reports from /teach to VATUSA's CTRS. "live" files them; anything
+		// else ("test") has VATUSA check the report and save nothing.
+		"CTRS_SUBMIT": "test"
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
 	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157

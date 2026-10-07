@@ -24,6 +24,8 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 | `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`                |
 | `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                |
 | `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                  |
+| `GET /teach/report/{id}`     | teacher    | A training report form for one of their students                       |
+| `POST /teach/report/{id}`    | teacher    | `?/submit` files the report in VATUSA's CTRS                           |
 | `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                     |
 | `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                           |
 | `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`   |
@@ -169,6 +171,7 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_PROJECT_KEY`               | `TRK` — the Student Tracking waitlist                              |
 | `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
 | `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
+| `CTRS_SUBMIT`                    | `live` files training reports; anything else only checks them      |
 
 | Secret                | What it is                                                       |
 | --------------------- | ---------------------------------------------------------------- |
@@ -531,6 +534,31 @@ and no transcript is read; the buttons still date the card. The deploy sets it
 from the `ENV_VATUSA_API_KEY` organisation secret. The VATUSA calls were written
 from its API description and public source and **had not been run with a real
 key** when this was written.
+
+### Training reports (CTRS)
+
+**File training report**, beside each student on `/teach`, opens
+`/teach/report/{enrollment id}` with the student and the instructor already
+filled in. The teacher gives the date and Zulu start, duration, position,
+where it took place, an optional score and movement count, and notes; the
+report is filed in VATUSA's training records in their name
+(`POST /v2/user/{cid}/training/record`, `submitTrainingRecord`).
+
+- **Who may file one** is `canReport` in `$lib/ctrs.ts`: the teacher or the
+  examiner on an open card, never on their own enrollment. Checked in the load
+  and again in the action.
+- **A rating exam result** (passed / not passed) is offered only to the
+  examiner on the card, at the exam stage. Filing one **does not move the
+  card** — that is still the button on `/teach`.
+- **The form is checked against VATUSA's rules first** (`checkReport`), so the
+  teacher hears everything wrong at once.
+- **Nothing is stored here**: the record is VATUSA's, and the TRK card is not
+  touched.
+
+`CTRS_SUBMIT` is `test` for now: VATUSA checks the report and answers as it
+would, but saves nothing, and the page says so. Set it to `live` once a test
+has been seen to pass. Like the academy calls, this was written from VATUSA's
+public source and **had not been run with a real key** when it was written.
 
 ### The end of a course
 

@@ -1,5 +1,6 @@
 import { FACILITY_ID } from '$lib/config';
 import type { VatusaRosterMember, VatusaRosterResponse } from '$lib/types/vatusa';
+import type { TrainingRecord } from '$lib/ctrs';
 import type { AcademyExam, AcademyTranscript } from '$lib/vatusa-academy';
 
 const VATUSA_API_BASE_URL = 'https://api.vatusa.net';
@@ -125,4 +126,52 @@ export async function fetchAcademyTranscript(
 	}
 	const body = (await response.json()) as { data?: AcademyTranscript };
 	return body.data ?? {};
+}
+
+/**
+ * File a training session in VATUSA's CTRS, in `instructorCid`'s name. The key
+ * must belong to the student's home facility, or one they visit.
+ *
+ * With `test`, VATUSA checks the record and answers as it would, but saves
+ * nothing — and the id comes back null. Throws VatusaError if refused.
+ *
+ * Written from VATUSA's public source (`TrainingController::postNewRecord`),
+ * read on 2026-10-06. **Not yet exercised with a real key** when this was written.
+ */
+export async function submitTrainingRecord(
+	apiKey: string,
+	studentCid: string,
+	instructorCid: string,
+	record: TrainingRecord,
+	options: { test: boolean }
+): Promise<{ id: number | null }> {
+	const query = new URLSearchParams({ apikey: apiKey });
+	if (options.test) query.set('test', '1');
+
+	const body = new URLSearchParams({
+		instructor_id: instructorCid,
+		session_date: record.sessionDate,
+		position: record.position,
+		duration: record.duration,
+		location: String(record.location),
+		ots_status: String(record.otsStatus),
+		notes: record.notes
+	});
+	if (record.score !== null) body.set('score', String(record.score));
+	if (record.movements !== null) body.set('movements', String(record.movements));
+	if (record.soloGranted) body.set('solo_granted', '1');
+
+	const response = await fetch(
+		`${VATUSA_API_BASE_URL}/v2/user/${encodeURIComponent(studentCid)}/training/record?${query}`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body
+		}
+	);
+	if (!response.ok) {
+		throw new VatusaError(response.status, await vatusaMessage(response));
+	}
+	const answer = (await response.json()) as { data?: { id?: number | null } };
+	return { id: answer.data?.id ?? null };
 }

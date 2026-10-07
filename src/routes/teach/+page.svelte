@@ -15,11 +15,16 @@
 	import IconOpen from '~icons/mdi/open-in-new';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconCheck from '~icons/mdi/check-circle';
+	import IconClipboard from '~icons/mdi/clipboard-text-clock';
+	import { page } from '$app/state';
 
 	let { data, form } = $props();
 
 	/** The request a step is running for, so only its button shows as busy. */
 	let busyId = $state<string | null>(null);
+
+	/** Set by the report form when it sends someone back here: VATUSA's record number. */
+	const reported = $derived(page.url.searchParams.get('reported'));
 </script>
 
 <svelte:head>
@@ -48,6 +53,13 @@
 		Your own enrollment is assigned to you on the TRK board. You cannot teach yourself — ask
 		training staff to assign another teacher.
 	</Alert>
+{/if}
+
+{#if reported !== null && !form}
+	<p class="mb-6 flex items-center gap-2 text-sm text-green-400">
+		<IconCheck class="h-4 w-4" />
+		Training report filed with VATUSA{reported ? ` (record ${reported})` : ''}.
+	</p>
 {/if}
 
 {#if form?.flowError}
@@ -95,6 +107,14 @@
 	</form>
 {/snippet}
 
+<!-- Opens the CTRS form for one student, with who they are already filled in. -->
+{#snippet report(id: string)}
+	<Button href="/teach/report/{id}" size="sm" variant="secondary" class="mt-3">
+		<IconClipboard class="h-4 w-4" />
+		File training report
+	</Button>
+{/snippet}
+
 <div class="grid gap-6 lg:grid-cols-3">
 	<div class="lg:col-span-2">
 		<Panel title="Your students" icon={IconAccountMultiple}>
@@ -126,6 +146,7 @@
 									{student.availability}
 								</p>
 							{/if}
+							{@render report(student.enrollmentId)}
 							{#if student.canComplete && student.next.length === 1}
 								{@const leadsTo =
 									student.next[0] === 'rating-exam'
@@ -205,6 +226,9 @@
 										<p class="mt-1 text-xs whitespace-pre-line text-gray-400">
 											{exam.availability}
 										</p>
+									{/if}
+									{#if exam.canComplete || exam.taughtByYou}
+										{@render report(exam.enrollmentId)}
 									{/if}
 									{#if exam.taughtByYou}
 										<!-- Not a form: the same button, greyed out, so it is plain the
