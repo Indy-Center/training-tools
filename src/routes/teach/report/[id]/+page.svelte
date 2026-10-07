@@ -10,16 +10,75 @@
 		EXAM_RESULT_DETAILS,
 		FINISH_LABELS,
 		MAX_NOTES_LENGTH,
-		SESSION_LOCATIONS
+		SESSION_LOCATIONS,
+		type ReportValues
 	} from '$lib/ctrs';
+	import { formatDateTime } from '$lib/format';
+	import { page } from '$app/state';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboard from '~icons/mdi/clipboard-text-clock';
 
 	let { data, form } = $props();
 
-	/** What was typed, after a refusal; otherwise a fresh form for this student. */
-	const values = $derived(form?.values ?? data.blank);
+	/**
+	 * A report is written over a session that can run for hours, so what has been
+	 * typed is kept in this browser until it is filed: a refresh, a closed tab or
+	 * an expired sign-in does not lose it. One draft per student's request.
+	 *
+	 * The choices that move the card — the last-session tick and the exam result —
+	 * are deliberately not kept: those are made at the end, looking at the form.
+	 */
+	const DRAFT_FIELDS = [
+		'date',
+		'time',
+		'duration',
+		'position',
+		'location',
+		'score',
+		'notes'
+	] as const;
+	type Draft = Pick<ReportValues, (typeof DRAFT_FIELDS)[number]>;
+	const draftKey = $derived(`training-report:${page.params.id}`);
+
+	let draft = $state<{ values: Draft; savedAt: number } | null>(null);
+
+	// Browser storage can be unavailable or full; a draft is a convenience, so
+	// every use of it fails quietly.
+	$effect(() => {
+		try {
+			const stored = JSON.parse(localStorage.getItem(draftKey) ?? 'null');
+			if (stored?.values && typeof stored.savedAt === 'number') draft = stored;
+		} catch {
+			draft = null;
+		}
+	});
+
+	function saveDraft(formElement: HTMLFormElement) {
+		const fields = new FormData(formElement);
+		const kept = Object.fromEntries(
+			DRAFT_FIELDS.map((field) => [field, String(fields.get(field) ?? '')])
+		);
+		try {
+			localStorage.setItem(draftKey, JSON.stringify({ values: kept, savedAt: Date.now() }));
+		} catch {
+			// Nothing to do: the form still works without it.
+		}
+	}
+
+	function clearDraft() {
+		draft = null;
+		try {
+			localStorage.removeItem(draftKey);
+		} catch {
+			// As above.
+		}
+	}
+
+	/** What was typed, after a refusal; else an unsent draft; else a fresh form. */
+	const values = $derived<ReportValues>(
+		form?.values ?? (draft ? { ...data.blank, ...draft.values } : data.blank)
+	);
 
 	let sending = $state(false);
 
@@ -116,13 +175,24 @@
 				return cancel();
 			}
 			sending = true;
-			return async ({ update }) => {
+			return async ({ result, update }) => {
+				// Filed: the redirect back to /teach is the only success.
+				if (result.type === 'redirect') clearDraft();
 				// Never cleared: a refused report is corrected, not retyped.
 				await update({ reset: false });
 				sending = false;
 			};
 		}}
+		oninput={(event) => saveDraft(event.currentTarget)}
 	>
+		{#if draft && !form}
+			<p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400">
+				<span>Picked up where you left off (saved {formatDateTime(draft.savedAt)}).</span>
+				<button type="button" class="text-sky-400 hover:text-sky-300" onclick={clearDraft}>
+					Start over
+				</button>
+			</p>
+		{/if}
 		<!-- Who it is about and who is filing it: fixed, and decided by the server. -->
 		<dl class="grid gap-4 text-sm sm:grid-cols-2">
 			<div>

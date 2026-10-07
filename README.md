@@ -563,6 +563,10 @@ report is filed in VATUSA's training records in their name
 - **The form is checked against VATUSA's rules first** (`checkReport`), so the
   teacher hears everything wrong at once.
 - **Nothing is stored here**: the record is VATUSA's.
+- **An unsent report is kept as a draft in the teacher's browser**
+  (`localStorage`, one per request), so the form can stay open through a
+  session and survive a refresh. It is cleared when the report is filed. The
+  last-session tick and the exam result are not kept.
 
 `CTRS_SUBMIT` is `live`: reports are filed with VATUSA. Set it to `test` and
 VATUSA checks the report and answers as it would, but saves nothing and moves
