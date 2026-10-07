@@ -64,9 +64,8 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	const jiraBaseUrl = platform?.env.JIRA_BASE_URL;
 
 	// Everyone at the exam stage this teacher has a part in: exams they could
-	// claim, exams they have claimed, and their own students, who are shown
-	// here rather than under "Your students" once their training is done —
-	// with the reason they cannot examine them.
+	// claim, exams they have claimed, and their own students — who are still
+	// under "Your students" too — with the reason they cannot examine them.
 	const exams = enrollments.filter(
 		(enrollment) =>
 			enrollment.status === 'rating-exam' &&
@@ -89,12 +88,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 			studentSlots: teacher.studentSlots,
 			inTraining: assignments.inTraining
 		}),
-		// At the exam stage they move to `exams`, below.
-		students: studentRows(
-			assignments.students.filter((enrollment) => enrollment.status !== 'rating-exam'),
-			people,
-			jiraBaseUrl
-		).map((row) => {
+		// Still listed at the exam stage: the teacher goes on filing reports for
+		// practice sessions until the exam is done.
+		students: studentRows(assignments.students, people, jiraBaseUrl).map((row) => {
 			const enrollment = byId.get(row.enrollmentId)!;
 			return {
 				...row,

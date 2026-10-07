@@ -227,7 +227,7 @@
 											{exam.availability}
 										</p>
 									{/if}
-									{#if exam.canComplete || exam.taughtByYou}
+									{#if exam.canComplete}
 										{@render report(exam.enrollmentId)}
 									{/if}
 									{#if exam.canComplete}
