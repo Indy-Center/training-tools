@@ -8,7 +8,6 @@ import {
 	announceArrivals,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
-	completePromotedExams,
 	importBoardIssues,
 	reconcileEnrollments,
 	sweepEnrollmentStatuses
@@ -42,7 +41,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in nine places, each noted below.
+ * Order matters in eight places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -138,17 +137,6 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await clearReturnedExaminers(db, env);
 				return result.pending > 0 ? result : null;
-			}
-		},
-		{
-			// After the roster sync, which is where a new rating arrives, and the
-			// sweep, which says whose exam is claimed. Before the certification
-			// updates, so the card it moves to Audit is certified in the same run.
-			name: 'exam promotions',
-			description: 'Marks a rating exam passed once VATUSA shows the student promoted.',
-			run: async () => {
-				const result = await completePromotedExams(db, env);
-				return result.completed > 0 ? result : null;
 			}
 		},
 		{

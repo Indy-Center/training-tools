@@ -20,7 +20,7 @@
  */
 import { findCredential, highestCertification } from './certifications';
 import { findCourse } from './courses';
-import { hasEvaluation, isAssignedTo, RATING_EXAMS, type QualificationLevel } from './teachers';
+import { hasEvaluation, isAssignedTo, type QualificationLevel } from './teachers';
 
 export type AfterTraining = 'rating-exam' | 'certification-update';
 
@@ -220,43 +220,4 @@ export function canCompleteExam(request: Request, teacher: Teacher): boolean {
 		!taughtThem(request, teacher) &&
 		isAssignedTo(request.reInstructor, teacher)
 	);
-}
-
-/** VATSIM's ids for the ratings a controller works up through. */
-const CONTROLLER_RATING_IDS: Readonly<Record<string, number>> = {
-	OBS: 1,
-	S1: 2,
-	S2: 3,
-	S3: 4,
-	C1: 5
-};
-
-/**
- * The rating a request's exam was for, once VATUSA shows the student holds it —
- * which is what says the exam was passed and the promotion submitted. Null
- * otherwise.
- *
- * Only for a request that began **below** that rating, so the promotion can
- * only have come from this exam: someone training for a certification whose
- * rating they already hold never gets a promotion to notice, and their exam is
- * still closed by the examiner. A request with no rating recorded — one imported
- * from the board — is left to the examiner for the same reason.
- *
- * Needs an examiner on the card, because the certification is held without one.
- */
-export function promotionEarned(
-	request: Pick<Request, 'course' | 'status' | 'reInstructor'> & { submittedRating: string | null },
-	/** VATSIM rating id, as the roster mirror holds it now. */
-	currentRating: number | null
-): string | null {
-	if (request.status !== 'rating-exam' || !request.reInstructor?.trim()) return null;
-
-	const examined = RATING_EXAMS[request.course as keyof typeof RATING_EXAMS];
-	const target = examined ? CONTROLLER_RATING_IDS[examined] : undefined;
-	const began = CONTROLLER_RATING_IDS[request.submittedRating?.trim().toUpperCase() ?? ''];
-	if (!examined || target === undefined || began === undefined || currentRating === null) {
-		return null;
-	}
-
-	return began < target && currentRating >= target ? examined : null;
 }

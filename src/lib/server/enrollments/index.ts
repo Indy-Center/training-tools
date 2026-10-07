@@ -27,7 +27,6 @@ export {
 	clearReturnedExaminers,
 	completeAudit,
 	completeExam,
-	completePromotedExams,
 	completeTraining,
 	failExam,
 	getAuditQueue,

@@ -107,21 +107,20 @@ never reopened by Jira.
 
 Every 15 minutes (`*/15 * * * *`), in this order:
 
-| Job                       | Does                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                    |
-| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)            |
-| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)              |
-| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)       |
-| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)         |
-| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                   |
-| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)         |
-| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)         |
-| exam promotions           | Marks a rating exam passed once VATUSA shows the promotion (`completePromotedExams`) |
-| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)            |
-| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)  |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)            |
-| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)           |
+| Job                       | Does                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                   |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)           |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)             |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)      |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)        |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                  |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)        |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)        |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)           |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`) |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)           |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)          |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -558,9 +557,9 @@ report is filed in VATUSA's training records in their name
   teacher ends training from the site. If the card cannot be moved the report
   still stands, and `/teach` says to ask a training admin to move it.
 - **A rating exam result** (passed / not passed) is offered only to the
-  examiner on the card, at the exam stage. Filing one **does not move the
-  card**: a pass is picked up from the promotion (below), and a card not passed
-  is moved to Needs CATP on the board.
+  examiner on the card, at the exam stage, and never to the student's own
+  teacher. Filing one **moves the card**: passed to Audit (`completeExam`), not
+  passed to Needs CATP (`failExam`).
 - **The form is checked against VATUSA's rules first** (`checkReport`), so the
   teacher hears everything wrong at once.
 - **Nothing is stored here**: the record is VATUSA's.
@@ -575,14 +574,14 @@ How a course finishes, and who moves it. The rules are pure functions in
 `$lib/course-completion.ts`; the Jira writes are in
 `$lib/server/enrollments/completion.ts`.
 
-| Step                    | Who                                                                  | What happens on the card                                                                    |
-| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Training report, ticked | the teacher on the card (`/teach/report`)                            | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
-| Claim this exam         | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
-| Promotion on VATUSA     | that examiner, on VATUSA; the cron sees it on the roster             | `RE Completed` dated; moved to Audit                                                        |
-| Not passed              | a training admin, on the TRK board                                   | moved to Needs CATP by hand                                                                 |
-| _(automatic)_           | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
-| Audit complete          | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
+| Step                        | Who                                                                  | What happens on the card                                                                    |
+| --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Training report, ticked     | the teacher on the card (`/teach/report`)                            | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
+| Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
+| Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
+| _(automatic)_               | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
+| Audit complete              | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
 TRK's status for a finished course waiting on the TA is **Audit** (Certification
 Update until 2026-10-06). The app's own name for it is still
@@ -591,13 +590,11 @@ Update until 2026-10-06). The app's own name for it is still
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
 
-**A passed exam closes itself.** The examiner files the training report, then
-fills in VATUSA's evaluation form and submits the promotion there (`/teach`
-links to the form). When the roster sync next shows the student at the rating
-the exam was for, the cron marks the exam passed (`completePromotedExams`).
-That only applies to a claimed exam whose student began the request below that
-rating (`promotionEarned`). `/teach` has no buttons for the result: any other
-exam, and any exam not passed, is moved on the TRK board by a training admin.
+**The examiner's training report ends the exam.** Filed as passed or not
+passed, it moves the card as the table says, after VATUSA has accepted the
+record. The examiner then fills in VATUSA's evaluation form and, for a pass,
+submits the promotion there; `/teach` links to the form on a claimed exam and
+again after the report. `/teach` has no buttons for the result.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira

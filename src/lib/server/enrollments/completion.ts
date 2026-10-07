@@ -7,14 +7,12 @@ import {
 	formatHold,
 	holdLabels,
 	missingEvidence,
-	promotionEarned,
 	type AfterTraining,
 	type CompletionEvidence,
 	type CredentialChange
 } from '$lib/course-completion';
 import { findCourse } from '$lib/courses';
 import { getHeldCredentials, grantCredential, setCertification } from '$lib/server/certifications';
-import { getRosterMember } from '$lib/server/roster';
 import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
@@ -244,67 +242,6 @@ export async function failExam(
 			`Rating exam marked not passed by ${by}; Training Completed cleared.`
 		);
 	});
-}
-
-export type PromotionPassResult = {
-	/** Claimed exams waiting on a result. */
-	pending: number;
-	/** Of those, how many VATUSA now shows promoted, and so marked passed. */
-	completed: number;
-};
-
-/**
- * Mark the rating exam passed for anyone VATUSA now shows at the rating it was
- * for. Run by the cron after the roster sync, so the examiner's last step is
- * submitting the promotion on VATUSA, not coming back here to press a button.
- *
- * `promotionEarned()` decides who: only a claimed exam, and only a student who
- * began the request below that rating. Everyone else is still closed by the
- * examiner on `/teach`, as is an exam that was not passed. One failing is
- * logged and the rest still run.
- */
-export async function completePromotedExams(
-	db: Database,
-	env: Partial<Env> | undefined
-): Promise<PromotionPassResult> {
-	if (!resolveJiraConfig(env)) return { pending: 0, completed: 0 };
-
-	const exams = await db
-		.select()
-		.from(enrollmentsTable)
-		.where(
-			and(
-				eq(enrollmentsTable.status, 'rating-exam'),
-				isNotNull(enrollmentsTable.reInstructor),
-				isNotNull(enrollmentsTable.jiraIssueKey),
-				isNull(enrollmentsTable.withdrawnAt)
-			)
-		)
-		.orderBy(asc(enrollmentsTable.updatedAt))
-		.limit(BATCH_SIZE);
-
-	let completed = 0;
-
-	for (const enrollment of exams) {
-		try {
-			// One lookup each: a handful of exams are open at once.
-			const member = await getRosterMember(db, enrollment.cid);
-			const rating = promotionEarned(enrollment, member?.rating ?? null);
-			if (!rating) continue;
-
-			const result = await completeExam(
-				db,
-				env,
-				enrollment,
-				`the app, on their promotion to ${rating}`
-			);
-			if (result.ok) completed += 1;
-		} catch (err) {
-			console.error('[training-tools] promotion check failed', enrollment.id, err);
-		}
-	}
-
-	return { pending: exams.length, completed };
 }
 
 /** The TA has reviewed it: the card moves to Completed, and the request closes. */

@@ -9,8 +9,7 @@ import {
 	evaluatesCourse,
 	formatHold,
 	holdLabels,
-	missingEvidence,
-	promotionEarned
+	missingEvidence
 } from './course-completion';
 import { COURSES, isEnrollableCourseCode } from './courses';
 import type { QualificationLevel } from './teachers';
@@ -312,45 +311,5 @@ describe('evaluatesCourse', () => {
 		const evaluator = levels([['S-GC', 'evaluator']]);
 		expect(canClaimExam(custom, teacher, evaluator)).toBe(false);
 		expect(canClaimExam({ ...custom, teacher: 'SW' }, teacher, evaluator)).toBe(true);
-	});
-});
-
-describe('promotionEarned', () => {
-	const exam = {
-		course: 'T-RC',
-		status: 'rating-exam',
-		reInstructor: 'SW',
-		submittedRating: 'S2'
-	};
-
-	it('names the rating once the roster shows the promotion', () => {
-		expect(promotionEarned(exam, 4)).toBe('S3');
-		expect(promotionEarned(exam, 5)).toBe('S3');
-	});
-
-	it('waits while they still hold the rating they began with', () => {
-		expect(promotionEarned(exam, 3)).toBeNull();
-		expect(promotionEarned(exam, null)).toBeNull();
-	});
-
-	// No promotion can come from the exam, so the rating says nothing about it.
-	it('leaves a request that began at or above the rating to the examiner', () => {
-		expect(promotionEarned({ ...exam, submittedRating: 'S3' }, 4)).toBeNull();
-		expect(promotionEarned({ ...exam, submittedRating: 'C1' }, 5)).toBeNull();
-	});
-
-	it('leaves a request with no usable starting rating to the examiner', () => {
-		expect(promotionEarned({ ...exam, submittedRating: null }, 4)).toBeNull();
-		expect(promotionEarned({ ...exam, submittedRating: 'SUP' }, 11)).toBeNull();
-	});
-
-	it('only acts on a claimed exam that is still at the exam', () => {
-		expect(promotionEarned({ ...exam, reInstructor: null }, 4)).toBeNull();
-		expect(promotionEarned({ ...exam, status: 'in-training' }, 4)).toBeNull();
-		expect(promotionEarned({ ...exam, status: 'certification-update' }, 4)).toBeNull();
-	});
-
-	it('has nothing to say about a course with no rating exam', () => {
-		expect(promotionEarned({ ...exam, course: 'A-GC', submittedRating: 'S1' }, 4)).toBeNull();
 	});
 });
