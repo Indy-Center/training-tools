@@ -540,7 +540,7 @@ key** when this was written.
 **File training report**, beside each student on `/teach`, opens
 `/teach/report/{enrollment id}` with the student and the instructor already
 filled in. The teacher gives the date and Zulu start, duration, position,
-where it took place, an optional score and movement count, and notes; the
+where it took place, an optional progress rating (1–5) and movement count, and notes; the
 report is filed in VATUSA's training records in their name
 (`POST /v2/user/{cid}/training/record`, `submitTrainingRecord`).
 

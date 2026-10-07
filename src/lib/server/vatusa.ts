@@ -159,7 +159,6 @@ export async function submitTrainingRecord(
 	});
 	if (record.score !== null) body.set('score', String(record.score));
 	if (record.movements !== null) body.set('movements', String(record.movements));
-	if (record.soloGranted) body.set('solo_granted', '1');
 
 	const response = await fetch(
 		`${VATUSA_API_BASE_URL}/v2/user/${encodeURIComponent(studentCid)}/training/record?${query}`,

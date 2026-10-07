@@ -29,7 +29,6 @@ const good: ReportValues = {
 	otsStatus: '0',
 	score: '',
 	movements: '',
-	soloGranted: false,
 	notes: 'Worked ground through a busy push.'
 };
 
@@ -86,17 +85,15 @@ describe('suggestedPosition and blankReport', () => {
 });
 
 describe('readReport', () => {
-	it('trims, upper-cases the position and reads the checkbox', () => {
+	it('trims, and upper-cases the position', () => {
 		const form = new Map<string, string>([
 			['position', ' ind_twr '],
-			['notes', '  fine  '],
-			['soloGranted', 'on']
+			['notes', '  fine  ']
 		]);
 		const values = readReport({ get: (name) => form.get(name) ?? null });
 		expect(values).toMatchObject({
 			position: 'IND_TWR',
 			notes: 'fine',
-			soloGranted: true,
 			date: ''
 		});
 	});
@@ -114,17 +111,16 @@ describe('checkReport', () => {
 				otsStatus: 0,
 				score: null,
 				movements: null,
-				soloGranted: false,
 				notes: good.notes
 			}
 		});
 	});
 
-	it('keeps a score, movements and a solo', () => {
-		const result = checkReport({ ...good, score: '4', movements: '32', soloGranted: true }, false);
+	it('keeps progress and movements', () => {
+		const result = checkReport({ ...good, score: '4', movements: '32' }, false);
 		expect(result).toMatchObject({
 			ok: true,
-			record: { score: 4, movements: 32, soloGranted: true }
+			record: { score: 4, movements: 32 }
 		});
 	});
 

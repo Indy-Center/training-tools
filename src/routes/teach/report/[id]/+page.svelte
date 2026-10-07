@@ -171,9 +171,9 @@
 				</select>
 			</div>
 			<div>
-				<label for="score" class={labelClasses}>Score</label>
+				<label for="score" class={labelClasses}>Progress</label>
 				<select id="score" name="score" class="mt-2 {inputClasses}">
-					<option value="" selected={values.score === ''}>Not scored</option>
+					<option value="" selected={values.score === ''}>Not given</option>
 					{#each ['1', '2', '3', '4', '5'] as score (score)}
 						<option value={score} selected={values.score === score}>{score}</option>
 					{/each}
@@ -207,16 +207,6 @@
 			>
 			<p class="mt-1 text-xs text-gray-500">The student can read this on VATUSA.</p>
 		</div>
-
-		<label class="flex items-center gap-2 text-sm text-gray-300">
-			<input
-				type="checkbox"
-				name="soloGranted"
-				checked={values.soloGranted}
-				class="rounded border-slate-600 bg-slate-900 text-sky-600 focus:ring-sky-500/50"
-			/>
-			A solo certification was granted in this session
-		</label>
 
 		<div class="flex flex-wrap items-center gap-3 border-t border-slate-700/60 pt-5">
 			<Button type="submit" disabled={sending || !data.keySet}>

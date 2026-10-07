@@ -40,10 +40,9 @@ export type TrainingRecord = {
 	duration: string;
 	location: 0 | 1 | 2;
 	otsStatus: 0 | 1 | 2 | 3;
-	/** 1 to 5, or null for unscored. */
+	/** The student's progress, 1 to 5, or null. VATUSA's API calls it `score`. */
 	score: number | null;
 	movements: number | null;
-	soloGranted: boolean;
 	notes: string;
 };
 
@@ -57,7 +56,6 @@ export type ReportValues = {
 	otsStatus: string;
 	score: string;
 	movements: string;
-	soloGranted: boolean;
 	notes: string;
 };
 
@@ -90,7 +88,6 @@ export function blankReport(course: string, now: Date): ReportValues {
 		otsStatus: '0',
 		score: '',
 		movements: '',
-		soloGranted: false,
 		notes: ''
 	};
 }
@@ -138,7 +135,6 @@ export function readReport(form: { get(name: string): unknown }): ReportValues {
 		otsStatus: text(form.get('otsStatus')),
 		score: text(form.get('score')),
 		movements: text(form.get('movements')),
-		soloGranted: form.get('soloGranted') !== null,
 		notes: text(form.get('notes'))
 	};
 }
@@ -192,7 +188,7 @@ export function checkReport(values: ReportValues, examiner: boolean): ReportResu
 	if (values.score !== '') {
 		score = Number(values.score);
 		if (!Number.isInteger(score) || score < 1 || score > 5) {
-			errors.push('The score is a whole number from 1 to 5, or left blank.');
+			errors.push('Progress is a whole number from 1 to 5, or left blank.');
 		}
 	}
 
@@ -221,7 +217,6 @@ export function checkReport(values: ReportValues, examiner: boolean): ReportResu
 			otsStatus: ots.value,
 			score,
 			movements,
-			soloGranted: values.soloGranted,
 			notes: values.notes
 		}
 	};
