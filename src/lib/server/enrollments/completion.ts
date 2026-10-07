@@ -78,7 +78,7 @@ export async function getEnrollment(db: Database, id: string): Promise<Enrollmen
  * Run one step against the card. Everything Jira can throw becomes a message
  * for the person who pressed the button; the detail goes to the log.
  */
-async function onCard(
+export async function onCard(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
@@ -118,7 +118,7 @@ async function onCard(
 }
 
 /** Who did it, on the card itself: every write here is made by one API account. */
-async function note(config: JiraConfig, issueKey: string, text: string): Promise<void> {
+export async function note(config: JiraConfig, issueKey: string, text: string): Promise<void> {
 	await commentOnIssue(config, issueKey, `${text} (through training.flyindycenter.com)`).catch(
 		(err) => console.error('[training-tools] could not comment on', issueKey, err)
 	);

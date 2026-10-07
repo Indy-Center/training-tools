@@ -157,7 +157,7 @@ export function discordSyncMode(value: string | null | undefined): DiscordSyncMo
 	return value === 'live' || value === 'dry-run' ? value : 'off';
 }
 
-/** One teacher's room as the last sync left it, or would. Stored, and shown on `/teachers`. */
+/** One teacher's room as the last sync left it, or would. Stored, and shown on `/admin`. */
 export type RoomReport = {
 	cid: string;
 	roleName: string;
@@ -196,4 +196,38 @@ export type RoomsReport = {
 	rooms: RoomReport[];
 	skipped: RoomSkip[];
 	removed: RemovalReport[];
+};
+
+/**
+ * The report as `/admin` draws it: CIDs and Discord IDs already turned into
+ * names. Here rather than under `$lib/server/` because a component uses it.
+ */
+export type RoomsPanel = {
+	mode: DiscordSyncMode;
+	at: Date;
+	canSeeMembers: boolean;
+	skipped: { name: string; reason: RoomSkip['reason'] }[];
+	/** Teachers who left: their role and channel deleted, or about to be. */
+	deleted: {
+		cid: string;
+		teacher: string;
+		role: RemovalReport['role'];
+		channel: RemovalReport['channel'];
+		errors: string[];
+	}[];
+	rooms: {
+		cid: string;
+		teacher: string;
+		roleName: string;
+		role: RoomReport['role'];
+		roleRenamedFrom: string | null;
+		channelName: string;
+		channel: RoomReport['channel'];
+		channelRenamedFrom: string | null;
+		added: string[];
+		removed: string[];
+		notInServer: string[];
+		noDiscord: string[];
+		errors: string[];
+	}[];
 };

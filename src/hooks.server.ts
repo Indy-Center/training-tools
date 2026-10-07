@@ -17,7 +17,7 @@ import { email } from '$lib/user';
  * Being public makes `/` the one page whose form actions can be reached with no
  * session, so they check for one themselves.
  *
- * `/stats` is **not** here: the waitlist is for signed-in VATSIM members.
+ * `/waitlist` is **not** here: the waitlist is for signed-in VATSIM members.
  *
  * `/api/jira/webhook` is public because Jira has no session. It is **not**
  * unauthenticated: it verifies Jira's HMAC signature before doing anything, and

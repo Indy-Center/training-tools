@@ -10,7 +10,7 @@
  */
 import type { EnrollmentStatus, NotificationPreference } from '$lib/db/schema/enrollments';
 
-/** How each contact option reads. The enroll form's radios, `/` and `/stats` all use these. */
+/** How each contact option reads. The enroll form's radios, `/` and `/waitlist` all use these. */
 export const NOTIFICATION_LABELS: Record<NotificationPreference, string> = {
 	discord: 'Discord message',
 	email: 'Email'
@@ -39,3 +39,9 @@ export const STATUS_COLORS: Record<string, StatusColor> = {
 	removed: 'gray',
 	withdrawn: 'gray'
 } satisfies Record<EnrollmentStatus, StatusColor>;
+
+/** How a contact preference reads, or a dash when none was given. */
+export function notificationLabel(preference: string | null | undefined): string {
+	if (!preference) return '—';
+	return NOTIFICATION_LABELS[preference as NotificationPreference] ?? preference;
+}

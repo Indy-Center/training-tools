@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Alert from '$lib/components/Alert.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import ChoiceCard from '$lib/components/ChoiceCard.svelte';
-	import Panel from '$lib/components/Panel.svelte';
-	import Timeline from '$lib/components/Timeline.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import Timeline from '$lib/components/controller/Timeline.svelte';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconSeal from '~icons/mdi/seal';
 	import IconArrowLeft from '~icons/mdi/arrow-left';

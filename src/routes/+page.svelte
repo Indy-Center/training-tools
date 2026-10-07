@@ -1,10 +1,10 @@
 <script lang="ts">
-	import PageHero from '$lib/components/PageHero.svelte';
-	import Panel from '$lib/components/Panel.svelte';
-	import Alert from '$lib/components/Alert.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import CopyPanel from '$lib/components/CopyPanel.svelte';
+	import PageHero from '$lib/components/ui/PageHero.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import Alert from '$lib/components/ui/Alert.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import CopyPanel from '$lib/components/content/CopyPanel.svelte';
 	import EnrollmentForm from './EnrollmentForm.svelte';
 	import RequestDetails from './RequestDetails.svelte';
 	import { loginUrl } from '$lib/identity-links';

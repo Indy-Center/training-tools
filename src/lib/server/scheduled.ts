@@ -2,6 +2,7 @@ import type { Database } from '$lib/server/db';
 import { syncRoster } from '$lib/server/roster';
 import { grantArrivalCertifications } from '$lib/server/certifications';
 import { syncTeacherRooms } from '$lib/server/discord/rooms';
+import { completePassedVatusaCourses } from '$lib/server/enrollments/waitlist';
 import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
 	announceArrivals,
@@ -144,6 +145,16 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await applyPendingCertificationUpdates(db, env);
 				return result.pending > 0 ? result : null;
+			}
+		},
+		{
+			// After the sweep, so a course someone has just been assigned on the board
+			// is checked in the same run.
+			name: 'vatusa course completions',
+			description: 'Dates the card for anyone who has passed their VATUSA written course.',
+			run: async () => {
+				const result = await completePassedVatusaCourses(db, env);
+				return result.completed > 0 ? result : null;
 			}
 		},
 		{

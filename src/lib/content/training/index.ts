@@ -106,7 +106,7 @@ export const TRAINING_COPY = {
 	waitlist: {
 		title: "You're on the waitlist",
 		body: waitlist,
-		actions: [{ label: 'See the waitlist', href: '/stats' }]
+		actions: [{ label: 'See the waitlist', href: '/waitlist' }]
 	},
 	'in-training': {
 		title: "You're in training",

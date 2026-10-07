@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Panel from '$lib/components/Panel.svelte';
-	import Badge from '$lib/components/Badge.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconMagnify from '~icons/mdi/magnify';
 	import IconChevronRight from '~icons/mdi/chevron-right';

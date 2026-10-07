@@ -52,3 +52,11 @@ export function formatAgo(value: DateInput, now: DateInput): string {
 
 	return `${count} ${unit}${count === 1 ? '' : 's'} ago`;
 }
+
+/**
+ * A date as a TRK card holds it (`YYYY-MM-DD`, no time or zone), shown the way
+ * every other date is. Read at midday UTC so no timezone can move it a day.
+ */
+export function formatCardDate(value: string, style: 'short' | 'long' = 'short'): string {
+	return formatDate(new Date(`${value}T12:00:00Z`), style);
+}

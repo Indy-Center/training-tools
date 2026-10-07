@@ -81,3 +81,14 @@ describe('teacher management', () => {
 		expect(canManageTeachers(['teachers:manage'])).toBe(false);
 	});
 });
+
+describe('canManageStudents', () => {
+	it('is for training:students:manage, and for training admins', async () => {
+		const { canManageStudents } = await import('./permissions');
+		expect(canManageStudents(['training:students:manage'])).toBe(true);
+		expect(canManageStudents(['training:admin'])).toBe(true);
+		expect(canManageStudents(['training:teachers:manage'])).toBe(false);
+		expect(canManageStudents([])).toBe(false);
+		expect(canManageStudents(null)).toBe(false);
+	});
+});

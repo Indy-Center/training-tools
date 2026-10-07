@@ -73,7 +73,8 @@ export async function applyIssueStatus(
 		return 'unknown-status';
 	}
 
-	const { status, teacher, reInstructor } = resolution.update;
+	const { status, teacher, reInstructor, vatusaAssignedOn, vatusaCompletedOn } = resolution.update;
+	const cardAvailability = resolution.update.availability;
 
 	// Compare-and-set. Two deliveries handled at once both read the row before
 	// either writes, so each write is conditional on the row still holding the
@@ -89,8 +90,18 @@ export async function applyIssueStatus(
 		if (row.withdrawnAt) return 'withdrawn-locally';
 		if (isStale(row.jiraUpdatedAt, observedAt)) return 'stale';
 
+		// The card's availability, when it has one: most cards were filed by hand
+		// and never came through our form, so the card is the only place it is.
+		// An empty card never erases what a student told us here.
+		const availability = cardAvailability ?? row.availability;
+
 		const changed =
-			row.status !== status || row.teacher !== teacher || row.reInstructor !== reInstructor;
+			row.availability !== availability ||
+			row.status !== status ||
+			row.teacher !== teacher ||
+			row.reInstructor !== reInstructor ||
+			row.vatusaAssignedOn !== vatusaAssignedOn ||
+			row.vatusaCompletedOn !== vatusaCompletedOn;
 		const jiraUpdatedAt = observedAt ?? row.jiraUpdatedAt;
 
 		const written = await db
@@ -101,6 +112,9 @@ export async function applyIssueStatus(
 							status,
 							teacher,
 							reInstructor,
+							availability,
+							vatusaAssignedOn,
+							vatusaCompletedOn,
 							jiraUpdatedAt,
 							jiraStatusSyncedAt: now,
 							updatedAt: now

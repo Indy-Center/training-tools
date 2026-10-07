@@ -145,6 +145,14 @@ export const enrollmentsTable = sqliteTable(
 		 */
 		reInstructor: text('re_instructor'),
 		/**
+		 * The VATUSA written course for this rating: the day it was assigned and
+		 * the day it was passed, as the TRK card holds them (`YYYY-MM-DD`; Jira's
+		 * date fields carry no time). Read back from the card like `teacher`.
+		 * Null until each happens, and always null for a course with none.
+		 */
+		vatusaAssignedOn: text('vatusa_assigned_on'),
+		vatusaCompletedOn: text('vatusa_completed_on'),
+		/**
 		 * The last status this request was announced at, so each arrival is
 		 * announced once — see `$lib/server/enrollments/announce.ts`. Differs from
 		 * `status` exactly when there is an arrival still to handle.

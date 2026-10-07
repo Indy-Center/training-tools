@@ -5,6 +5,7 @@ import {
 	parseJiraTimestamp,
 	RE_INSTRUCTOR_FIELD,
 	resolveStatusUpdate,
+	textareaText,
 	TEACHER_FIELD
 } from './status';
 import { ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
@@ -62,7 +63,14 @@ describe('resolveStatusUpdate', () => {
 			})
 		).toEqual({
 			action: 'update',
-			update: { status: 'in-training', teacher: 'CT', reInstructor: null }
+			update: {
+				status: 'in-training',
+				teacher: 'CT',
+				reInstructor: null,
+				availability: null,
+				vatusaAssignedOn: null,
+				vatusaCompletedOn: null
+			}
 		});
 	});
 
@@ -74,7 +82,14 @@ describe('resolveStatusUpdate', () => {
 			})
 		).toEqual({
 			action: 'update',
-			update: { status: 'waitlist', teacher: null, reInstructor: null }
+			update: {
+				status: 'waitlist',
+				teacher: null,
+				reInstructor: null,
+				availability: null,
+				vatusaAssignedOn: null,
+				vatusaCompletedOn: null
+			}
 		});
 	});
 
@@ -91,7 +106,14 @@ describe('resolveStatusUpdate', () => {
 			})
 		).toEqual({
 			action: 'update',
-			update: { status: 'rating-exam', teacher: 'CT', reInstructor: 'VATUSA' }
+			update: {
+				status: 'rating-exam',
+				teacher: 'CT',
+				reInstructor: 'VATUSA',
+				availability: null,
+				vatusaAssignedOn: null,
+				vatusaCompletedOn: null
+			}
 		});
 	});
 
@@ -149,5 +171,64 @@ describe('isStale', () => {
 	it('lets anything through when either time is unknown', () => {
 		expect(isStale(null, teacherEdit)).toBe(false);
 		expect(isStale(transition, null)).toBe(false);
+	});
+});
+
+describe('resolveStatusUpdate, VATUSA course dates', () => {
+	const issue = (assigned: unknown, completed: unknown) => ({
+		key: 'TRK-1',
+		fields: {
+			status: { name: 'Waitlist' },
+			customfield_10289: assigned as string | null,
+			customfield_10288: completed as string | null
+		}
+	});
+
+	it('reads the two dates off the card', () => {
+		const resolution = resolveStatusUpdate(issue('2026-10-01', '2026-10-05'));
+		expect(resolution).toMatchObject({
+			update: { vatusaAssignedOn: '2026-10-01', vatusaCompletedOn: '2026-10-05' }
+		});
+	});
+
+	// A date field is a plain day or nothing; anything else is not trusted.
+	it('treats a missing or malformed date as not set', () => {
+		expect(resolveStatusUpdate(issue(null, undefined))).toMatchObject({
+			update: { vatusaAssignedOn: null, vatusaCompletedOn: null }
+		});
+		expect(resolveStatusUpdate(issue('yesterday', '2026-10-05T10:00:00Z'))).toMatchObject({
+			update: { vatusaAssignedOn: null, vatusaCompletedOn: null }
+		});
+	});
+});
+
+describe('textareaText', () => {
+	const doc = (...paragraphs: unknown[][]) => ({
+		type: 'doc',
+		version: 1,
+		content: paragraphs.map((content) => ({ type: 'paragraph', content }))
+	});
+	const text = (value: string) => ({ type: 'text', text: value });
+
+	it('reads the REST API document format as lines of text', () => {
+		expect(
+			textareaText(doc([text('Weeknights after 7')], [text('Weekends '), text('any time')]))
+		).toBe('Weeknights after 7\nWeekends any time');
+	});
+
+	it('keeps a line break inside a paragraph', () => {
+		expect(textareaText(doc([text('Mon'), { type: 'hardBreak' }, text('Tue')]))).toBe('Mon\nTue');
+	});
+
+	// A webhook delivery carries the same field as a plain string.
+	it('reads a plain string as it is', () => {
+		expect(textareaText('  Any evening  ')).toBe('Any evening');
+	});
+
+	it('is null for an empty field, whatever shape it comes in', () => {
+		expect(textareaText(null)).toBeNull();
+		expect(textareaText('   ')).toBeNull();
+		expect(textareaText(doc([]))).toBeNull();
+		expect(textareaText(42)).toBeNull();
 	});
 });

@@ -17,6 +17,12 @@ declare global {
 		JIRA_API_TOKEN?: string;
 		/** Shared with the TRK webhook in Jira; signs each delivery. */
 		JIRA_WEBHOOK_SECRET?: string;
+		/**
+		 * ZID's VATUSA facility API key: assigns the written rating courses and
+		 * reads exam transcripts. Without it those two are skipped and staff do
+		 * them by hand; nothing else needs it.
+		 */
+		VATUSA_API_KEY?: string;
 	}
 
 	namespace App {

@@ -17,7 +17,7 @@ import { applyIssueStatus } from './status-sync';
  * The form files most requests, but staff also create Student Enrollment issues
  * directly — the whole backlog was moved onto the board that way on 2026-09-05,
  * before this app existed. Without a row those students are invisible here: no
- * waitlist position on `/`, missing from `/stats`, and free to submit a second
+ * waitlist position on `/`, missing from `/waitlist`, and free to submit a second
  * request for a course they are already queued for.
  *
  * This is the only code that **creates** rows from Jira. The status sweep and
@@ -235,6 +235,9 @@ async function insertImportedRow(
 			status: enrollment.status,
 			teacher: enrollment.teacher,
 			reInstructor: enrollment.reInstructor,
+			availability: enrollment.availability,
+			vatusaAssignedOn: enrollment.vatusaAssignedOn,
+			vatusaCompletedOn: enrollment.vatusaCompletedOn,
 			notificationPreference: enrollment.notificationPreference,
 			submittedName: enrollment.name,
 			jiraIssueKey: enrollment.issueKey,

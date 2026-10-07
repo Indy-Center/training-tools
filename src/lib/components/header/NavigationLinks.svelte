@@ -63,9 +63,11 @@
 								}
 							]
 						: []),
+					// One page for everyone: counts for members, and the staff sheet below
+					// them for training:students:manage.
 					{
 						label: 'Waitlist',
-						href: '/stats',
+						href: '/waitlist',
 						icon: IconChartBar
 					},
 					...(canEditCertifications(roles)

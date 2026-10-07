@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Panel from '$lib/components/Panel.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Panel from '$lib/components/ui/Panel.svelte';
 	import type { CopyBlock } from '$lib/content/training';
 	import IconOpenInNew from '~icons/mdi/open-in-new';
 

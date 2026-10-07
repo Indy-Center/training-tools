@@ -8,6 +8,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     name: Build and Deploy
+    env:
+      # Here rather than on the step, so the step's `if` can see whether it is set.
+      VATUSA_API_KEY: ${{ secrets.ENV_VATUSA_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -26,6 +29,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_API_KEY }}
           command: d1 migrations apply training-db --remote
+      # ZID's VATUSA facility key, from the organisation secret, re-set on every
+      # deploy so rotating it there is all it takes. Skipped when the secret is
+      # not shared with this repository, so its absence never blocks a deploy.
+      - name: Set VATUSA_API_KEY
+        if: env.VATUSA_API_KEY != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_KEY }}
+        run: printf '%s' "$VATUSA_API_KEY" | npx wrangler secret put VATUSA_API_KEY
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:

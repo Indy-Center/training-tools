@@ -9,26 +9,30 @@ Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net
 
 ## HTTP surface
 
-| Route                        | Auth       | Purpose                                                                |
-| ---------------------------- | ---------- | ---------------------------------------------------------------------- |
-| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation        |
-| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one   |
-| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status            |
-| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2            |
-| `GET /stats`                 | required   | Per-course waiting/in-training counts and course length                |
-| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                   |
-| `GET /certifications`        | staff      | Search the roster by CID or name                                       |
-| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                    |
-| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                            |
-| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                |
-| `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                  |
-| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                     |
-| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                           |
-| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`   |
-| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs |
-| `POST /admin`                | admin      | `?/retry` files a stuck request again                                  |
-| `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                     |
-| `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                               |
+| Route                        | Auth       | Purpose                                                                                                            |
+| ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| `GET /`                      | public     | Sign-in CTA signed out; signed in, the view for their situation                                                    |
+| `POST /`                     | required   | `?/enroll` submits an enrollment; `?/withdraw` withdraws an open one                                               |
+| `POST /api/jira/webhook`     | HMAC       | TRK "issue updated" deliveries; re-reads the issue's status                                                        |
+| `GET /enroll/tier-2`         | required   | The self-led Tier 2 course, for anyone with E-RC but not T2                                                        |
+| `GET /waitlist`              | required   | Per-course counts and your own place; for staff, everyone waiting too                                              |
+| `GET /stats`                 | required   | Redirects to `/waitlist`, which replaced it                                                                        |
+| `GET /enroll`, `/dashboard`  | required   | Redirect to `/`, which replaced both                                                                               |
+| `GET /certifications`        | staff      | Search the roster by CID or name                                                                                   |
+| `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                                                                |
+| `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                                                                        |
+| `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`, `?/changeTeacher`, `?/withdrawStudent`, `?/removeStudent` |
+| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                                                            |
+| `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                                                              |
+| `GET /teach/report/{id}`     | teacher    | A training report form for one of their students                                                                   |
+| `POST /teach/report/{id}`    | teacher    | `?/submit` files the report in VATUSA's CTRS                                                                       |
+| `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                                                                 |
+| `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                                                                       |
+| `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`                                               |
+| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs                                             |
+| `POST /admin`                | admin      | `?/retry` files a stuck request again                                                                              |
+| `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
+| `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
 
 `?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
 both gate on `loadTrainingContext()`, the same call `/` renders from.
@@ -51,7 +55,7 @@ needs no identity code change — it is one row in identity's `user_roles`. Its
 `user_id` is identity's own `users.id`, not the CID, and `granted_at` is in
 milliseconds.
 
-`/` is public only so it can render the sign-in CTA. `/stats` needs a session:
+`/` is public only so it can render the sign-in CTA. `/waitlist` needs a session:
 any signed-in VATSIM member may see the counts, plus their own position. The one
 other public path is `POST /api/jira/webhook`, which authenticates Jira by HMAC
 signature instead of a session.
@@ -103,19 +107,20 @@ never reopened by Jira.
 
 Every 15 minutes (`*/15 * * * *`), in this order:
 
-| Job                     | Does                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| roster sync             | Refreshes the VATUSA roster mirror (`syncRoster`)                              |
-| arrival certifications  | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)      |
-| teacher roster sync     | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)        |
-| jira teacher dropdowns  | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`) |
-| jira board import       | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)   |
-| enrollment reconcile    | Files enrollments that never reached Jira (`reconcileEnrollments`)             |
-| enrollment status sweep | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)   |
-| examiner cleanup        | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)   |
-| certification updates   | Applies what a finished course earns (`applyPendingCertificationUpdates`)      |
-| discord teacher rooms   | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)      |
-| announcements           | Tells evaluators and training admins what has arrived (`announceArrivals`)     |
+| Job                       | Does                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                   |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)           |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)             |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)      |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)        |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                  |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)        |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)        |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)           |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`) |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)           |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)          |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -166,12 +171,14 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_PROJECT_KEY`               | `TRK` — the Student Tracking waitlist                              |
 | `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
 | `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
+| `CTRS_SUBMIT`                    | `live` files training reports; anything else only checks them      |
 
-| Secret                | What it is                                                |
-| --------------------- | --------------------------------------------------------- |
-| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                |
-| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security       |
-| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery |
+| Secret                | What it is                                                       |
+| --------------------- | ---------------------------------------------------------------- |
+| `JIRA_USER_EMAIL`     | Atlassian account the API token belongs to                       |
+| `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security              |
+| `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery        |
+| `VATUSA_API_KEY`      | ZID's VATUSA facility key; set by the deploy from the org secret |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to
@@ -205,7 +212,15 @@ src/
 │   ├── enrollment-status.ts   status and contact-method labels, shared by every page
 │   ├── consolidation.ts       pure hours-at-rating check that gates enrollment
 │   ├── user.ts                display name + rating helpers over identity's very optional types
-│   ├── components/            Panel, CopyPanel, Button, Alert, ChoiceCard, Badge and status badges, PageHero, header/
+│   ├── components/            shared components, by what they are for:
+│   │   ├── ui/                Panel, Button, Alert, Badge, ChoiceCard, FilterChip, PageHero — no knowledge of training
+│   │   ├── forms/             ActionForm (a button that posts to a named action), ActionResult
+│   │   ├── content/           CopyPanel, for the markdown site copy
+│   │   ├── enrollment/        a request's status badge and its TRK card link
+│   │   ├── teachers/          a teacher's status badge, and the teacher dropdown
+│   │   ├── controller/        Timeline, one controller's history
+│   │   ├── admin/             DiscordRoomsPanel
+│   │   └── header/            the site header, navigation and logo
 │   ├── format.ts              date formatting, pinned to one locale
 │   ├── job-health.ts          pure "is this job healthy" rules for /admin
 │   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health)
@@ -347,7 +362,7 @@ and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules and
   identity knows, which means anyone who has signed in to an identity app.
 
 `DISCORD_SYNC` in `wrangler.jsonc` switches it: `off`, `dry-run` or `live`.
-**Dry run changes nothing** and shows on `/teachers` exactly what live would
+**Dry run changes nothing** and shows at the bottom of `/admin` exactly what live would
 do — which roles and channels would be adopted or created, and who would gain
 or lose a role. Read it before going live. `DISCORD_TRAINING_ADMIN_ROLE_ID`
 must be set for any channel to be made.
@@ -426,12 +441,12 @@ is currently sitting in. The field and option ids the app uses are in
 this app — the backlog was moved onto the board by hand on 2026-09-05 — so the
 cron's board import creates an `enrollments` row (with `importedAt` set) for any
 Student Enrollment issue no row holds, queued by its `Waitlisted` date. Those
-students then see their request on `/`, are counted on `/stats`, and cannot file
+students then see their request on `/`, are counted on `/waitlist`, and cannot file
 a duplicate. An issue with no usable CID, course or date is skipped and logged
 each run until someone fixes it on the board. The import is the only code that
 creates rows from Jira; the sweep and webhook only update existing ones.
 
-**`/stats` shows headcounts and estimates, not measured rates** (DEV-111). Each
+**`/waitlist` shows headcounts and estimates, not measured rates** (DEV-111). Each
 course's length is `estimatedWeeks` in `$lib/courses.ts` — one lesson a week,
 plus 20% on the high end — and is labelled as an estimate. There is no
 "you'll start in N weeks": nothing records when students move between stages,
@@ -441,7 +456,7 @@ so there is no throughput to base one on.
 outside the six courses. Staff put it on a card by hand; the app imports and
 shows such a request like any other, but never offers it on the form and refuses
 a POST naming it (`boardOnly` in `$lib/courses.ts`). It earns no credential, and
-`/stats` lists it only while someone is in it. **Whether it ends in a rating exam
+`/waitlist` lists it only while someone is in it. **Whether it ends in a rating exam
 is the teacher's choice**, made on `/teach` as they mark the training complete:
 to Rating Exam, or straight to Audit. Having no qualification of its own, its
 exam may be claimed by anyone who evaluates any course — still never the
@@ -463,6 +478,94 @@ has placed wrongly needs their certifications corrected before they can enroll.
 The student must accept the terms in `agreement.md` to submit. The enrollment
 records **when** and **which version** (`agreedAt`, `agreedTermsVersion`), since
 the wording will change and an acceptance date alone cannot say what was agreed.
+
+### The waitlist, for staff
+
+`/waitlist` is one page for two audiences. Every signed-in member sees their
+own place, if they are waiting, and the counts per course. Someone with
+`training:students:manage` (which `training:admin` covers) sees their own place
+and then the staff sheet in place of the counts. Staff can be on the waitlist
+themselves.
+
+**The sheet's rows are loaded only for that role, not hidden from everyone
+else.** The page is open to every member and the rows name people, so the load
+never reads them without the role; `page.server.test.ts` pins that.
+
+**The sheet lists every request staff are still working**, grouped by course in
+the order the courses are taken: on the waitlist, in training, at the rating
+exam, and needs CATP. Audit has its own page and closed requests are left out.
+Chips along the top switch a status off, and a dropdown narrows to one course.
+
+What staff do from a row:
+
+- **The VATUSA written course**, for the three courses that need one assigned
+  (A-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`). **Assign** dates
+  `VATUSA Course Assigned` on the card and assigns the course on VATUSA itself
+  through its API, in the name of the facility's TA — or the ATM when there is no
+  TA. VATUSA emails the student. S-GC has none: the basic exam is passed before
+  anyone joins a facility.
+- **Assign a teacher**, for someone on the waitlist. The dropdown lists active
+  teachers qualified to teach that course, most open slots first. Choosing one
+  sets `Teacher` and `Teacher Assigned` on the card and moves it to In
+  Training. It is refused until the written course is passed, where there is one.
+- **Change the teacher**, for someone who already has one. Only `Teacher`
+  changes; the card stays where it is.
+- **Withdraw** (the student is giving it up) or **Remove** (staff are ending
+  it). The card moves to Withdrawn or Removed, kept apart so a report can tell
+  the two; either closes the request.
+
+**Passing is picked up automatically.** The cron reads the VATUSA transcript of
+everyone whose course is assigned and not yet passed, and dates
+`VATUSA Course Completed` with the day they first scored 80% or more. **Mark
+passed** on the page is the fallback.
+
+Both dates, and **availability**, are read back from the card like `Teacher`.
+Most cards were filed by hand and never came through the form, so the card is
+the only place their availability is; an empty card never erases what a student
+typed here.
+
+The page is built from small pieces: `ManagePanel`, `SheetFilters`,
+`StudentRow` and the two cells beside it in `src/routes/waitlist/`, on shared
+components in `$lib/components/`. The grouping, filtering and counting are plain
+functions in `$lib/waitlist.ts`.
+
+`VATUSA_API_KEY` is ZID's facility key. Without it nothing is assigned on VATUSA
+and no transcript is read; the buttons still date the card. The deploy sets it
+from the `ENV_VATUSA_API_KEY` organisation secret. The VATUSA calls were written
+from its API description and public source and **had not been run with a real
+key** when this was written.
+
+### Training reports (CTRS)
+
+**File training report**, beside each student on `/teach`, opens
+`/teach/report/{enrollment id}` with the student and the instructor already
+filled in. The teacher gives the date and Zulu start, duration, position,
+where it took place, an optional progress rating (1–5) and movement count, and notes; the
+report is filed in VATUSA's training records in their name
+(`POST /v2/user/{cid}/training/record`, `submitTrainingRecord`).
+
+- **Who may file one** is `canReport` in `$lib/ctrs.ts`: the teacher or the
+  examiner on an open card, never on their own enrollment. Checked in the load
+  and again in the action.
+- **A report can end the training.** The teacher whose training it is gets a
+  tick box worded for the course (`finishChoices`): **Recommend for a rating
+  exam** where the course ends in one, **Mark the course complete** where it
+  does not, and both for Custom Training. Ticked, the report is filed first —
+  flagged on VATUSA as a recommendation (`ots_status` 3) in the first case —
+  and then the card is moved exactly as **Mark training complete** on `/teach`
+  moves it. If the card cannot be moved the report still stands, and `/teach`
+  says to use the button instead.
+- **A rating exam result** (passed / not passed) is offered only to the
+  examiner on the card, at the exam stage. Filing one **does not move the
+  card** — that is still the button on `/teach`.
+- **The form is checked against VATUSA's rules first** (`checkReport`), so the
+  teacher hears everything wrong at once.
+- **Nothing is stored here**: the record is VATUSA's.
+
+`CTRS_SUBMIT` is `test` for now: VATUSA checks the report and answers as it
+would, but saves nothing and moves no card, and the page says so. Set it to `live` once a test
+has been seen to pass. Like the academy calls, this was written from VATUSA's
+public source and **had not been run with a real key** when it was written.
 
 ### The end of a course
 
@@ -548,6 +651,9 @@ behind the scenes is seen before a student has to report it.
   fires when staff change an issue, so a quiet board is not a fault.
 - **Configuration.** Whether the Jira credentials, the webhook secret and the
   Larry binding are set — never their values.
+- **Discord roles and channels.** At the bottom: what the last Discord sync did
+  to each teacher's role and channel, or in a dry run would do. Absent until the
+  sync has run once.
 
 Recording a job's outcome is bookkeeping: if the write fails it is logged, and
 neither fails the job nor stops the next one. Training admins are told in

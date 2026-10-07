@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { User } from '@indy-center/identity';
 	import { page } from '$app/state';
-	import Logo from '../Logo.svelte';
+	import Logo from '$lib/components/header/Logo.svelte';
 	import UserProfileDropdown from './UserProfileDropdown.svelte';
 	import NavigationLinks from './NavigationLinks.svelte';
 	import ExternalLinks from './ExternalLinks.svelte';

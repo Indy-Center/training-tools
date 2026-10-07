@@ -23,6 +23,7 @@ describe('scheduledJobs', () => {
 			'enrollment status sweep',
 			'examiner cleanup',
 			'certification updates',
+			'vatusa course completions',
 			'discord teacher rooms',
 			'announcements'
 		]);
