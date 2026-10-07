@@ -63,16 +63,15 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	const byId = new Map(enrollments.map((enrollment) => [enrollment.id, enrollment]));
 	const jiraBaseUrl = platform?.env.JIRA_BASE_URL;
 
-	// Everyone at the exam stage this teacher has a part in: exams they could
-	// claim, exams they have claimed, and their own students — who are still
-	// under "Your students" too — with the reason they cannot examine them.
+	// The exams this teacher could claim or has claimed. Never their own
+	// students': another evaluator examines those, and they are still under
+	// "Your students".
 	const exams = enrollments.filter(
 		(enrollment) =>
 			enrollment.status === 'rating-exam' &&
 			enrollment.cid !== teacher.cid &&
-			(evaluatesCourse(enrollment.course, levels) ||
-				isAssignedTo(enrollment.reInstructor, teacher) ||
-				isAssignedTo(enrollment.teacher, teacher))
+			!isAssignedTo(enrollment.teacher, teacher) &&
+			(evaluatesCourse(enrollment.course, levels) || isAssignedTo(enrollment.reInstructor, teacher))
 	);
 
 	return {
@@ -106,10 +105,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 				taughtBy: enrollment.teacher,
 				examiner: enrollment.reInstructor,
 				canClaim: canClaimExam(enrollment, teacher, levels),
-				canComplete: canCompleteExam(enrollment, teacher),
-				// Shown with a greyed-out button rather than hidden, so it is clear why
-				// they cannot claim it.
-				taughtByYou: isAssignedTo(enrollment.teacher, teacher)
+				canComplete: canCompleteExam(enrollment, teacher)
 			};
 		}),
 		// Whether to show the exams panel when it is empty: only to someone who examines.

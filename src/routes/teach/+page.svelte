@@ -243,21 +243,7 @@
 											<IconOpen class="h-4 w-4" />
 										</Button>
 									{/if}
-									{#if exam.taughtByYou}
-										<!-- Not a form: the same button, greyed out, so it is plain the
-										     exam exists and why this teacher cannot take it. -->
-										<div class="mt-3 flex flex-wrap items-center gap-3">
-											<Button
-												type="button"
-												size="sm"
-												disabled
-												title="Another evaluator examines the students you taught."
-											>
-												Claim this exam
-											</Button>
-											<span class="text-xs text-gray-400">Your student</span>
-										</div>
-									{:else if exam.canClaim}
+									{#if exam.canClaim}
 										{@render step(
 											'claimExam',
 											exam.enrollmentId,
