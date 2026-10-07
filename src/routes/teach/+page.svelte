@@ -325,7 +325,9 @@
 							{qualification.name}
 							<span class="font-mono text-xs text-gray-500">({qualification.code})</span>
 						</span>
-						<span class={qualification.level ? 'text-white' : 'text-gray-500'}>
+						<span
+							class="shrink-0 text-right {qualification.level ? 'text-white' : 'text-gray-500'}"
+						>
 							{QUALIFICATION_LEVEL_LABELS[qualification.level ?? 'none']}
 						</span>
 					</li>
