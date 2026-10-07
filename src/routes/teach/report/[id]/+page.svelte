@@ -3,6 +3,7 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
+	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import {
@@ -33,6 +34,12 @@
 	$effect(() => {
 		otsStatus = values.otsStatus || '0';
 	});
+	/** Short, for the cards; `OTS_STATUSES` has the long form VATUSA's record uses. */
+	const EXAM_RESULT_LABELS: Record<number, string> = {
+		0: 'Not an exam',
+		1: 'Passed',
+		2: 'Not passed'
+	};
 	const examResult = $derived(
 		otsStatus === '1' ? 'passed' : otsStatus === '2' ? 'not-passed' : null
 	);
@@ -198,28 +205,6 @@
 					{/each}
 				</select>
 			</div>
-			{#if data.otsChoices.length > 1}
-				<!-- Only the examiner has a result to give. -->
-				<div>
-					<label for="otsStatus" class={labelClasses}>Rating exam</label>
-					<select
-						id="otsStatus"
-						name="otsStatus"
-						required
-						class="mt-2 {inputClasses}"
-						onchange={(event) => (otsStatus = event.currentTarget.value)}
-					>
-						{#each data.otsChoices as choice (choice.value)}
-							<option value={choice.value} selected={String(choice.value) === values.otsStatus}>
-								{choice.label}
-							</option>
-						{/each}
-					</select>
-					{#if examResult}
-						<p class="mt-2 text-xs text-gray-400">{EXAM_RESULT_DETAILS[examResult]}</p>
-					{/if}
-				</div>
-			{/if}
 			<div>
 				<label for="score" class={labelClasses}>Progress</label>
 				<select id="score" name="score" class="mt-2 {inputClasses}">
@@ -257,6 +242,40 @@
 			>
 			<p class="mt-1 text-xs text-gray-500">The student can read this on VATUSA.</p>
 		</div>
+
+		{#if data.otsChoices.length > 1}
+			<!-- Only the examiner has a result to give, and giving one moves the card. -->
+			<fieldset
+				class="rounded-lg border border-slate-700/60 px-4 py-3"
+				onchange={(event) => {
+					if (event.target instanceof HTMLInputElement) otsStatus = event.target.value;
+				}}
+			>
+				<legend class="px-1 text-sm font-medium text-gray-300">Rating exam result</legend>
+				<div class="grid gap-3 sm:grid-cols-3">
+					{#each data.otsChoices as choice (choice.value)}
+						<ChoiceCard
+							type="radio"
+							name="otsStatus"
+							value={String(choice.value)}
+							checked={String(choice.value) === otsStatus}
+							required
+							align="start"
+						>
+							<span class="text-sm text-white">{EXAM_RESULT_LABELS[choice.value]}</span>
+						</ChoiceCard>
+					{/each}
+				</div>
+				<p class="mt-3 text-xs text-gray-400">
+					{examResult
+						? EXAM_RESULT_DETAILS[examResult]
+						: 'An ordinary session: the card stays put.'}
+				</p>
+				{#if data.mode === 'test'}
+					<p class="mt-1 text-xs text-orange-300">In test mode the card is not moved either.</p>
+				{/if}
+			</fieldset>
+		{/if}
 
 		{#if data.finishChoices.length > 0}
 			<!-- Ends the training with this report. One box for a standard course;
