@@ -6,6 +6,7 @@ import {
 	finishChoices,
 	ctrsMode,
 	isExaminerFor,
+	notesHtml,
 	otsChoices,
 	readReport,
 	type ReportValues
@@ -124,6 +125,20 @@ describe('readReport', () => {
 	});
 });
 
+describe('notesHtml', () => {
+	it('keeps paragraphs and line breaks, however the browser sent them', () => {
+		expect(notesHtml('Taxi flow.\r\nHold short calls.\r\n\r\n\r\nNext: departures.')).toBe(
+			'<p>Taxi flow.<br>Hold short calls.</p><p>Next: departures.</p>'
+		);
+	});
+
+	it('shows what was typed, never as a tag', () => {
+		expect(notesHtml('Spacing <3 nm & closing <b>fast</b>')).toBe(
+			'<p>Spacing &lt;3 nm &amp; closing &lt;b&gt;fast&lt;/b&gt;</p>'
+		);
+	});
+});
+
 describe('checkReport', () => {
 	it('turns a good form into what VATUSA is sent', () => {
 		expect(checkReport(good, { examiner: false, finish: [] })).toEqual({
@@ -136,7 +151,7 @@ describe('checkReport', () => {
 				otsStatus: 0,
 				score: null,
 				// The lesson number leads the notes: VATUSA has no field for it.
-				notes: `[A-GC-2] ${good.notes}`
+				notes: `<p>[A-GC-2] ${good.notes}</p>`
 			},
 			finish: null,
 			examResult: null

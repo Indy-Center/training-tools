@@ -95,6 +95,7 @@ export type TrainingRecord = {
 	otsStatus: 0 | 1 | 2 | 3;
 	/** The student's progress, 1 to 5, or null. VATUSA's API calls it `score`. */
 	score: number | null;
+	/** HTML: see `notesHtml()`. */
 	notes: string;
 };
 
@@ -213,6 +214,27 @@ function clockTime(value: string): string | null {
 	return `${String(hours).padStart(2, '0')}:${match[2]}`;
 }
 
+/**
+ * Notes as VATUSA keeps them. Its own form is a rich-text editor, and it shows
+ * a record's notes as HTML, where a line break typed in plain text is only a
+ * space. So each block set apart by a blank line becomes a paragraph, each
+ * other line break a `<br>`, and anything that would read as a tag is escaped.
+ */
+export function notesHtml(notes: string): string {
+	const escaped = notes
+		.replace(/\r\n?/g, '\n')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+
+	return escaped
+		.split(/\n{2,}/)
+		.map((block) => block.trim())
+		.filter(Boolean)
+		.map((block) => `<p>${block.replace(/\n/g, '<br>')}</p>`)
+		.join('');
+}
+
 export type ReportResult =
 	| {
 			ok: true;
@@ -292,7 +314,7 @@ export function checkReport(
 			location: location.value,
 			otsStatus: finish === 'rating-exam' ? OTS_RECOMMENDED : ots.value,
 			score,
-			notes
+			notes: notesHtml(notes)
 		},
 		finish,
 		examResult: EXAM_RESULTS[ots.value] ?? null
