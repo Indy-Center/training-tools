@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import {
 	announceArrivals,
 	announcePairings,
-	applyIssueStatus,
+	applyIssueMove,
+	dateCardMove,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	syncEnrollmentIssue
@@ -83,7 +84,11 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 		let outcome: string;
 
 		if (delivery.issue) {
-			outcome = await applyIssueStatus(locals.db, delivery.issue, delivery.observedAt);
+			const applied = await applyIssueMove(locals.db, delivery.issue, delivery.observedAt);
+			outcome = applied.outcome;
+			// A card seen to change status gets the dates the move calls for. Off
+			// the response path, like everything else that calls Jira.
+			platform?.ctx?.waitUntil(dateCardMove(env, delivery.issue, applied.moved));
 		} else {
 			const result = await syncEnrollmentIssue(locals.db, env, delivery.key);
 			if (!result.ok) {
@@ -111,6 +116,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 		// examiner now, rather than at the next cron run. Off the response path:
 		// Jira is waiting on this request, and the cron is the guarantee.
 		if (outcome === 'updated') {
+			const started = Date.now();
 			platform?.ctx?.waitUntil(
 				Promise.all([
 					applyPendingCertificationUpdates(locals.db, env),
@@ -118,8 +124,21 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 				])
 					// After both: announce what the card's new place calls for, and a
 					// student and teacher who have just been paired.
-					.then(() => announceArrivals(locals.db, env))
-					.then(() => announcePairings(locals.db, env))
+					.then(async () => {
+						const arrivals = await announceArrivals(locals.db, env);
+						const pairings = await announcePairings(locals.db, env);
+						// What the cron logs for each job, for a delivery: without it a
+						// pass that never finished looks the same as one with nothing to do.
+						console.log(
+							'[training-tools] jira webhook follow-up',
+							JSON.stringify({
+								issue: delivery.key,
+								arrivals,
+								pairings,
+								ms: Date.now() - started
+							})
+						);
+					})
 					.catch((err) =>
 						console.error('[training-tools] end-of-course pass after webhook failed', err)
 					)

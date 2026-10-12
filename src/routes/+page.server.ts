@@ -12,7 +12,7 @@ import { requireSession } from '$lib/server/guards';
 import { findAssignee, getActiveTeacher } from '$lib/server/teachers';
 import { loadTrainingContext } from '$lib/server/training-flow';
 import { MOODLE_COURSE_URLS } from '$lib/config';
-import { validateEnrollment } from '$lib/enrollment';
+import { validateEnrollment, type EnrollmentErrors } from '$lib/enrollment';
 import { findCredential, highestCertification } from '$lib/certifications';
 import { TERMS_VERSION } from '$lib/content/enrollment';
 import { asksForStudentView, hasFinishedTraining, isDueTier2 } from '$lib/training-flow';
@@ -42,13 +42,22 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			consolidation: null,
 			tier2Due: false,
 			nextCourse: null,
+			courseOptions: [],
 			request: null,
 			enroll: null
 		};
 	}
 
-	const { flow, rosterMember, openEnrollment, held, consolidation, nextCourse, ratingShort } =
-		await loadTrainingContext(locals);
+	const {
+		flow,
+		rosterMember,
+		openEnrollment,
+		held,
+		consolidation,
+		nextCourse,
+		courseOptions,
+		ratingShort
+	} = await loadTrainingContext(locals);
 
 	// The teacher lookup only runs for someone who has finished, so it costs
 	// everyone else nothing.
@@ -72,8 +81,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			: null,
 		// Offered alongside the extra-courses and visitor copy; `/enroll/tier-2` gates on the same test.
 		tier2Due: rosterMember !== null && isDueTier2(held),
-		// The course the enroll view offers, and the one consolidation is holding back.
+		// The next course in their progression, and the one consolidation is holding back.
 		nextCourse,
+		// What the enroll view offers: that course, and sometimes one beside it.
+		courseOptions,
 		// Deliberately excludes jiraIssueKey and jiraSyncError: whether the issue
 		// has been filed yet is our problem, not something to worry a student with.
 		request: openEnrollment
@@ -142,7 +153,7 @@ export const actions: Actions = {
 	 */
 	enroll: async ({ locals, request, platform }) => {
 		const session = requireSession(locals);
-		const { flow, rosterMember, openEnrollment, consolidation, nextCourse, ratingShort } =
+		const { flow, rosterMember, openEnrollment, consolidation, courseOptions, ratingShort } =
 			await loadTrainingContext(locals);
 
 		// One course at a time. Guards against a double submit and against a second
@@ -171,11 +182,25 @@ export const actions: Actions = {
 		};
 		const agreed = data.get('agreed') === 'on';
 
-		// The form offers one course: the next in their progression. Taken from
-		// the context rather than trusted from the hidden field, so a hand-built POST
-		// cannot enroll in anything else — and a page left open while their
-		// certifications changed is told to reload rather than filed for the wrong one.
-		if (!nextCourse || input.course !== nextCourse) {
+		// The form offers the next course in their progression, and sometimes one
+		// beside it. Checked against the context rather than trusted from the
+		// field, so a hand-built POST cannot enroll in anything else — and a page
+		// left open while their certifications changed is told to reload rather
+		// than filed for the wrong one.
+		const course = courseOptions.find((option) => option === input.course);
+		// What they typed, to show a refused form again as they left it.
+		const typed = {
+			notificationPreference: String(input.notificationPreference ?? ''),
+			availability: String(input.availability ?? ''),
+			agreed
+		};
+		if (!course) {
+			// With a choice on offer, sending none is a box left unticked.
+			if (courseOptions.length > 1 && !input.course) {
+				const errors: EnrollmentErrors = { course: 'Choose the course you want to take.' };
+				// `agreedError` only so both refused forms have the same shape for the page.
+				return fail(400, { errors, agreedError: undefined, values: { ...typed, course: '' } });
+			}
 			return fail(409, {
 				formError:
 					'The course you can enroll in has changed. Reload this page to see your next course.'
@@ -191,17 +216,13 @@ export const actions: Actions = {
 			return fail(400, {
 				errors: validation.ok ? {} : validation.errors,
 				agreedError: agreed ? undefined : 'Please confirm you have read what we ask of you.',
-				values: {
-					notificationPreference: String(input.notificationPreference ?? ''),
-					availability: String(input.availability ?? ''),
-					agreed
-				}
+				values: { ...typed, course }
 			});
 		}
 
 		const { enrollment } = await submitEnrollment(locals.db, platform?.env, {
 			cid: session.user.cid,
-			course: nextCourse,
+			course,
 			submittedName: displayName(session.user),
 			submittedRating: ratingShort,
 			availability: validation.values.availability,

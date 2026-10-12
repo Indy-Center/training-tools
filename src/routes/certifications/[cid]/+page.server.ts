@@ -14,7 +14,8 @@ import {
 	canHold,
 	findCredential,
 	highestCertification,
-	isCertificationCode
+	isCertificationCode,
+	requirementText
 } from '$lib/certifications';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -73,9 +74,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: credential.name,
 			description: credential.description,
 			held: heldCodes.includes(credential.code),
-			// Shown as guidance, never enforced: staff correct reality, and reality
-			// is sometimes out of order. `requires` describes the training path.
-			eligible: canHold(credential.code, heldCodes)
+			// Enforced for a grant by `toggleEndorsement()`: T2-CTR only with E-RC,
+			// S-LC only with a ground certification. One already held can always
+			// be removed.
+			eligible: canHold(credential.code, heldCodes),
+			requires: requirementText(credential.code)
 		})),
 		// Certifications, roster moves and — for teachers — teaching history, in
 		// one list. See $lib/server/timeline.ts.
@@ -127,7 +130,12 @@ export const actions: Actions = {
 		}
 
 		try {
-			await toggleEndorsement(locals.db, params.cid, code, session.user.cid);
+			const outcome = await toggleEndorsement(locals.db, params.cid, code, session.user.cid);
+			if (outcome === 'not-eligible') {
+				return fail(400, {
+					formError: `${code} can only be held with ${requirementText(code)}.`
+				});
+			}
 		} catch (err) {
 			console.error('[training-tools] toggleEndorsement failed', err);
 			return fail(500, { formError: 'Could not update the endorsement.' });

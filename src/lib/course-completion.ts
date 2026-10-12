@@ -18,7 +18,7 @@
  *
  * See decisions/0021-end-of-course-flows.md
  */
-import { findCredential, highestCertification } from './certifications';
+import { canHold, findCredential, highestCertification } from './certifications';
 import { findCourse } from './courses';
 import { hasEvaluation, isAssignedTo, type QualificationLevel } from './teachers';
 
@@ -67,6 +67,8 @@ export type CredentialChange =
 				| 'already-held'
 				/** They already hold a certification above this one; never move someone down. */
 				| 'holds-higher'
+				/** An endorsement that cannot be held with what they hold now. */
+				| 'cannot-hold'
 				/** The course is not in the credential catalogue. */
 				| 'no-credential';
 	  };
@@ -77,7 +79,9 @@ export type CredentialChange =
  * A course earns the credential of the same code. A certification only ever
  * moves someone **up**: a card for S-GC arriving for someone who already holds
  * A-LC — a hand-filed issue, a late paperwork catch-up — changes nothing,
- * rather than quietly taking their higher certification away.
+ * rather than quietly taking their higher certification away. An endorsement
+ * is granted only while it can be held: an S-LC card finished by someone
+ * already at A-LC or above changes nothing either.
  */
 export function credentialChangeFor(course: string, held: readonly string[]): CredentialChange {
 	const credential = findCredential(course);
@@ -86,7 +90,9 @@ export function credentialChangeFor(course: string, held: readonly string[]): Cr
 	if (held.includes(credential.code)) return { action: 'none', reason: 'already-held' };
 
 	if (credential.kind === 'endorsement') {
-		return { action: 'grant-endorsement', code: credential.code };
+		return canHold(credential.code, held)
+			? { action: 'grant-endorsement', code: credential.code }
+			: { action: 'none', reason: 'cannot-hold' };
 	}
 
 	const currentRank = highestCertification(held)?.rank ?? 0;

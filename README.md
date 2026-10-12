@@ -284,6 +284,11 @@ Note two things that bite if you assume otherwise:
 - **S-LC is an endorsement, not a certification.** That is why the top-down
   "hold one certification" rule needs no exception, and why S-LC renders beside
   the ground certification for free.
+- **An endorsement is only held with what it `requires`.** T2-CTR needs E-RC;
+  S-LC needs S-GC or A-GC. Staff cannot grant one otherwise, and changing a
+  certification revokes any endorsement that no longer fits (S-LC on reaching
+  A-LC, either with no certification). Rows from before this rule are left as
+  they are.
 - **`rank` is the ladder; there is no `tier` field.** Tier 1 / Tier 2 are GCAP's
   terms for classifying endorsements, so the word is left to mean that.
 
@@ -478,11 +483,14 @@ One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
 
-**The form offers one course: the next in the student's progression.** It comes
-from the certifications this app holds, walking the `rank` ladder and each
-credential's `requires` — so an advanced-ground controller is sent to S-LC before
-A-LC, because A-LC requires it. It is recomputed server-side on submit, and a
-POST naming any other course is refused. (DEV-119 originally let the student
+**The form offers the next course in the student's progression, and sometimes
+one beside it.** It comes from the certifications this app holds, walking the
+`rank` ladder and each credential's `requires` — so an advanced-ground controller
+is sent to S-LC before A-LC, because A-LC requires it. Where an endorsement the
+ladder needs later is already open to them the order is theirs: a simple-ground
+controller is shown S-LC and A-GC side by side, S-LC first and selected
+(`options` in `resolvePlacement`). It is recomputed server-side on submit, and a
+POST naming any course not offered is refused. (DEV-119 originally let the student
 pick any course and flagged the difference to staff; that was reversed when `/`
 became the one student view.) Someone the app
 has placed wrongly needs their certifications corrected before they can enroll.
@@ -511,7 +519,7 @@ Chips along the top switch a status off, and a dropdown narrows to one course.
 What staff do from a row:
 
 - **The VATUSA written course**, for the three courses that need one assigned
-  (A-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`). **Assign** dates
+  (S-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`). **Assign** dates
   `VATUSA Course Assigned` on the card and assigns the course on VATUSA itself
   through its API, in the name of the facility's TA — or the ATM when there is no
   TA. VATUSA emails the student. S-GC has none: the basic exam is passed before
@@ -538,7 +546,16 @@ What staff do from a row:
   have written one on `/teachers/{cid}` (`announcePairings`, `pairing-message.ts`).
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
-  the two; either closes the request.
+  the two; either closes the request. Either way the card's `Removed` date is
+  filled in — see below.
+
+**Some dates follow the card, not the button.** `Teacher Assigned` is stamped
+when the app sees a card move into In Training, and `Removed` when it sees one
+move to Removed or Withdrawn — whether the move was made here or on the board
+(`datesForMove`, `dateCardMove`). Only an empty field is filled, so a date entered
+by hand stays. `Training Completed`, `RE Completed` and `Certificate Updated`
+are still stamped by the step that earns them, because the certification is
+held on a card that reaches Audit without them.
 
 **Passing is picked up automatically.** The cron reads the VATUSA transcript of
 everyone whose course is assigned and not yet passed, and dates
@@ -566,8 +583,10 @@ key** when this was written.
 **File training report**, beside each student on `/teach`, opens
 `/teach/report/{enrollment id}` with the student and the instructor already
 filled in. The teacher gives the date and Zulu start, duration, position,
-where it took place, an optional progress rating (1–5) and movement count, and notes; the
-report is filed in VATUSA's training records in their name
+where it took place, an optional progress rating (1–5) and movement count, a lesson
+number (put in front of the notes as `[A-GC-2]`, since VATUSA has no field for it),
+and notes (sent as HTML paragraphs, `notesHtml`, because VATUSA shows notes as HTML and
+plain line breaks would be lost); the report is filed in VATUSA's training records in their name
 (`POST /v2/user/{cid}/training/record`, `submitTrainingRecord`).
 
 - **Who may file one** is `canReport` in `$lib/ctrs.ts`: the teacher or the
@@ -648,7 +667,9 @@ depend on the workflow staying as it is.
 
 What a course earns is the credential of the same code, and a certification only
 ever moves someone **up**: a card for a course below what they already hold
-changes nothing. An endorsement (S-LC) is added beside their certification.
+changes nothing. An endorsement (S-LC) is added beside their certification, and
+only while it can be held: an S-LC card finished by someone at A-LC or above
+changes nothing.
 
 **Needs CATP** (a Corrective Action Training Plan) is reached two ways: a failed
 exam, below, or a card staff move there from In Training on the board. The

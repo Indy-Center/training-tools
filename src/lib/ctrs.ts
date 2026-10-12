@@ -81,6 +81,9 @@ export const POSITION_PATTERN =
 
 export const MAX_NOTES_LENGTH = 10_000;
 
+/** A lesson number is a short code from the Facility Teacher Guide, like `A-GC-2`. */
+export const MAX_LESSON_LENGTH = 20;
+
 /** What VATUSA is sent, already in its formats. */
 export type TrainingRecord = {
 	/** `YYYY-MM-DD HH:MM`, Zulu. */
@@ -92,6 +95,7 @@ export type TrainingRecord = {
 	otsStatus: 0 | 1 | 2 | 3;
 	/** The student's progress, 1 to 5, or null. VATUSA's API calls it `score`. */
 	score: number | null;
+	/** HTML: see `notesHtml()`. */
 	notes: string;
 };
 
@@ -106,6 +110,8 @@ export type ReportValues = {
 	/** Where the training goes if this report ends it; empty if it carries on. */
 	finish: string;
 	score: string;
+	/** The lesson number, like `A-GC-2`. */
+	lesson: string;
 	notes: string;
 };
 
@@ -125,6 +131,7 @@ export function blankReport(now: Date): ReportValues {
 		otsStatus: '0',
 		finish: '',
 		score: '',
+		lesson: '',
 		notes: ''
 	};
 }
@@ -185,6 +192,7 @@ export function readReport(form: { get(name: string): unknown }): ReportValues {
 		otsStatus: text(form.get('otsStatus')),
 		finish: text(form.get('finish')),
 		score: text(form.get('score')),
+		lesson: text(form.get('lesson')).toUpperCase(),
 		notes: text(form.get('notes'))
 	};
 }
@@ -204,6 +212,27 @@ function clockTime(value: string): string | null {
 	const minutes = Number(match[2]);
 	if (hours > 23 || minutes > 59) return null;
 	return `${String(hours).padStart(2, '0')}:${match[2]}`;
+}
+
+/**
+ * Notes as VATUSA keeps them. Its own form is a rich-text editor, and it shows
+ * a record's notes as HTML, where a line break typed in plain text is only a
+ * space. So each block set apart by a blank line becomes a paragraph, each
+ * other line break a `<br>`, and anything that would read as a tag is escaped.
+ */
+export function notesHtml(notes: string): string {
+	const escaped = notes
+		.replace(/\r\n?/g, '\n')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+
+	return escaped
+		.split(/\n{2,}/)
+		.map((block) => block.trim())
+		.filter(Boolean)
+		.map((block) => `<p>${block.replace(/\n/g, '<br>')}</p>`)
+		.join('');
 }
 
 export type ReportResult =
@@ -261,8 +290,16 @@ export function checkReport(
 		}
 	}
 
+	if (!values.lesson) errors.push('Give the lesson number, like A-GC-2.');
+	if (values.lesson.length > MAX_LESSON_LENGTH) {
+		errors.push(`Keep the lesson number to ${MAX_LESSON_LENGTH} characters, like A-GC-2.`);
+	}
+
+	// VATUSA's record has no field for the lesson, so it leads the notes.
+	const notes = `[${values.lesson}] ${values.notes}`;
+
 	if (!values.notes) errors.push('Write some notes on the session.');
-	if (values.notes.length > MAX_NOTES_LENGTH) {
+	if (notes.length > MAX_NOTES_LENGTH) {
 		errors.push(`Keep the notes under ${MAX_NOTES_LENGTH.toLocaleString('en-US')} characters.`);
 	}
 
@@ -277,7 +314,7 @@ export function checkReport(
 			location: location.value,
 			otsStatus: finish === 'rating-exam' ? OTS_RECOMMENDED : ots.value,
 			score,
-			notes: values.notes
+			notes: notesHtml(notes)
 		},
 		finish,
 		examResult: EXAM_RESULTS[ots.value] ?? null

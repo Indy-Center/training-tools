@@ -7,6 +7,8 @@ import {
 	ENDORSEMENTS,
 	RATING_GRANTS,
 	canHold,
+	endorsementsLostWith,
+	requirementText,
 	findCredential,
 	highestCertification,
 	holdsHighestCertification,
@@ -102,6 +104,33 @@ describe('credential catalogue', () => {
 	// limit, which is how the roster sync broke.
 	it('keeps the code list small enough to bind', () => {
 		expect(CREDENTIAL_CODES.length).toBeLessThan(100);
+	});
+});
+
+describe('endorsementsLostWith', () => {
+	const lost = (certification: string | null, held: string[]) =>
+		endorsementsLostWith(certification, held).map((credential) => credential.code);
+
+	it('keeps S-LC across the ground certifications, and drops it above them or with none', () => {
+		expect(lost('A-GC', ['S-GC', 'S-LC'])).toEqual([]);
+		expect(lost('A-LC', ['A-GC', 'S-LC'])).toEqual(['S-LC']);
+		expect(lost('T-RC', ['A-LC', 'S-LC'])).toEqual(['S-LC']);
+		expect(lost(null, ['S-GC', 'S-LC'])).toEqual(['S-LC']);
+	});
+
+	it('drops T2-CTR without E-RC', () => {
+		expect(lost('E-RC', ['E-RC', 'T2-CTR'])).toEqual([]);
+		expect(lost('T-RC', ['E-RC', 'T2-CTR'])).toEqual(['T2-CTR']);
+		expect(lost(null, ['E-RC', 'T2-CTR'])).toEqual(['T2-CTR']);
+	});
+});
+
+describe('requirementText', () => {
+	it('says what a credential needs', () => {
+		expect(requirementText('S-LC')).toBe('S-GC or A-GC');
+		expect(requirementText('T2-CTR')).toBe('E-RC');
+		expect(requirementText('A-LC')).toBe('A-GC and S-LC');
+		expect(requirementText('S-GC')).toBe('');
 	});
 });
 

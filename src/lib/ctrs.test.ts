@@ -6,6 +6,7 @@ import {
 	finishChoices,
 	ctrsMode,
 	isExaminerFor,
+	notesHtml,
 	otsChoices,
 	readReport,
 	type ReportValues
@@ -29,6 +30,7 @@ const good: ReportValues = {
 	otsStatus: '0',
 	finish: '',
 	score: '',
+	lesson: 'A-GC-2',
 	notes: 'Worked ground through a busy push.'
 };
 
@@ -110,14 +112,30 @@ describe('readReport', () => {
 	it('trims, and upper-cases the position', () => {
 		const form = new Map<string, string>([
 			['position', ' ind_twr '],
+			['lesson', ' a-gc-2 '],
 			['notes', '  fine  ']
 		]);
 		const values = readReport({ get: (name) => form.get(name) ?? null });
 		expect(values).toMatchObject({
 			position: 'IND_TWR',
+			lesson: 'A-GC-2',
 			notes: 'fine',
 			date: ''
 		});
+	});
+});
+
+describe('notesHtml', () => {
+	it('keeps paragraphs and line breaks, however the browser sent them', () => {
+		expect(notesHtml('Taxi flow.\r\nHold short calls.\r\n\r\n\r\nNext: departures.')).toBe(
+			'<p>Taxi flow.<br>Hold short calls.</p><p>Next: departures.</p>'
+		);
+	});
+
+	it('shows what was typed, never as a tag', () => {
+		expect(notesHtml('Spacing <3 nm & closing <b>fast</b>')).toBe(
+			'<p>Spacing &lt;3 nm &amp; closing &lt;b&gt;fast&lt;/b&gt;</p>'
+		);
 	});
 });
 
@@ -132,11 +150,22 @@ describe('checkReport', () => {
 				location: 1,
 				otsStatus: 0,
 				score: null,
-				notes: good.notes
+				// The lesson number leads the notes: VATUSA has no field for it.
+				notes: `<p>[A-GC-2] ${good.notes}</p>`
 			},
 			finish: null,
 			examResult: null
 		});
+	});
+
+	it('refuses a lesson number that is missing or too long, and notes it would push over the limit', () => {
+		const allowed = { examiner: false, finish: [] };
+		expect(checkReport({ ...good, lesson: '' }, allowed).ok).toBe(false);
+		expect(checkReport({ ...good, lesson: 'A'.repeat(21) }, allowed).ok).toBe(false);
+
+		const room = 10_000 - '[A-GC-2] '.length;
+		expect(checkReport({ ...good, notes: 'x'.repeat(room) }, allowed).ok).toBe(true);
+		expect(checkReport({ ...good, notes: 'x'.repeat(room + 1) }, allowed).ok).toBe(false);
 	});
 
 	it('keeps progress', () => {

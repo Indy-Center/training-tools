@@ -9,6 +9,7 @@
 	import {
 		EXAM_RESULT_DETAILS,
 		FINISH_LABELS,
+		MAX_LESSON_LENGTH,
 		MAX_NOTES_LENGTH,
 		SESSION_LOCATIONS,
 		type ReportValues
@@ -36,6 +37,7 @@
 		'position',
 		'location',
 		'score',
+		'lesson',
 		'notes'
 	] as const;
 	type Draft = Pick<ReportValues, (typeof DRAFT_FIELDS)[number]>;
@@ -226,14 +228,19 @@
 				/>
 			</div>
 			<div>
-				<label for="time" class={labelClasses}>Started (Zulu)</label>
+				<label for="time" class={labelClasses}>Started (Zulu, HH:MM)</label>
+				<!-- Text, not type="time": that follows the browser's locale, and shows AM/PM for most. -->
 				<input
 					id="time"
 					name="time"
-					type="time"
 					required
+					inputmode="numeric"
+					pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
+					maxlength="5"
+					placeholder="14:30"
+					title="24-hour Zulu time, like 14:30"
 					value={values.time}
-					class="mt-2 {inputClasses}"
+					class="mt-2 font-mono {inputClasses}"
 				/>
 			</div>
 			<div>
@@ -282,6 +289,19 @@
 					{/each}
 				</select>
 			</div>
+		</div>
+
+		<div class="sm:max-w-xs">
+			<label for="lesson" class={labelClasses}>Lesson number</label>
+			<input
+				id="lesson"
+				name="lesson"
+				required
+				maxlength={MAX_LESSON_LENGTH}
+				placeholder="A-GC-2"
+				value={values.lesson}
+				class="mt-2 font-mono uppercase {inputClasses}"
+			/>
 		</div>
 
 		<div>
@@ -340,7 +360,7 @@
 			<!-- Ends the training with this report. One box for a standard course;
 			     Custom Training has both endings, and a box each, only one of which holds. -->
 			<fieldset class="space-y-3 rounded-lg border border-slate-700/60 px-4 py-3">
-				<legend class="px-1 text-sm font-medium text-gray-300">This was their last session</legend>
+				<legend class="px-1 text-sm font-medium text-gray-300">Was this their last session?</legend>
 				{#each data.finishChoices as choice (choice)}
 					<label class="flex items-start gap-3 text-sm text-gray-300">
 						<input

@@ -42,7 +42,7 @@ import { certificationHeldNotice } from './notices';
  *
  * **Jira is still the authority on where a request is** (0014). So each step
  * writes to the card first — the date, then the move — and only then reads the
- * card back onto our row, through the same `applyIssueStatus()` the webhook and
+ * card back onto our row, through the same `applyIssueMove()` the webhook and
  * the sweep use. If Jira refuses, nothing here has changed and the person is
  * told why. Nothing is set locally that Jira did not agree to.
  *

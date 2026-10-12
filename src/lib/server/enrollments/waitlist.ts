@@ -351,8 +351,8 @@ export async function completeVatusaCourse(
 }
 
 /**
- * Give someone on the waitlist a teacher: the card gets `Teacher` and today as
- * `Teacher Assigned`, and moves to In Training.
+ * Give someone on the waitlist a teacher: the card gets `Teacher` and moves to
+ * In Training, which is what dates `Teacher Assigned`.
  *
  * Refused until the VATUSA written course is passed, for a course that has
  * one, and for a teacher who is on LOA, off the roster, or not qualified to
@@ -364,8 +364,7 @@ export async function assignTeacher(
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	teacherCid: string,
-	by: string,
-	now = new Date()
+	by: string
 ): Promise<FlowResult> {
 	if (enrollment.status !== 'waitlist') {
 		return { ok: false, message: 'That request is no longer on the waitlist.' };
@@ -414,10 +413,9 @@ export async function assignTeacher(
 			};
 		}
 
-		await updateIssueFields(config, issueKey, {
-			[TEACHER_FIELD]: { id: option.id },
-			[JIRA_FIELDS.teacherAssigned]: toFacilityDate(now)
-		});
+		// `Teacher Assigned` is not dated here: the move into In Training is, when
+		// the card is read back (`dateCardMove`), the same as one made on the board.
+		await updateIssueFields(config, issueKey, { [TEACHER_FIELD]: { id: option.id } });
 		await transitionIssueToStatus(config, issueKey, IN_TRAINING_STATUS);
 		await note(config, issueKey, `${label} assigned as teacher by ${by}.`);
 	});

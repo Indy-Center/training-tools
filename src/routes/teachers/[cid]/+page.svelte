@@ -9,6 +9,7 @@
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import Timeline from '$lib/components/controller/Timeline.svelte';
 	import {
+		CREDENTIAL_KIND_HEADINGS,
 		MAX_STUDENT_SLOTS,
 		STUDENT_MESSAGE_MAX_LENGTH,
 		QUALIFICATION_LEVEL_LABELS,
@@ -215,43 +216,53 @@
 
 			<form method="POST" action="?/setQualifications" use:enhance={submitting('qualifications')}>
 				<fieldset disabled={!canAdmin}>
-					<ul class="divide-y divide-slate-700/60">
-						{#each data.qualifications as qualification (qualification.code)}
-							<li class="flex flex-wrap items-center justify-between gap-3 py-2">
-								<label for="level-{qualification.code}" class="min-w-0 text-sm text-white">
-									{qualification.name}
-									<span class="font-mono text-xs text-gray-500">({qualification.code})</span>
-								</label>
-								{#if qualification.automatic}
-									<span class="text-sm text-green-300">
-										{QUALIFICATION_LEVEL_LABELS[qualification.automatic]}
-										<span class="block text-right text-xs text-gray-500">automatic</span>
-									</span>
-								{:else if canAdmin}
-									<select
-										id="level-{qualification.code}"
-										name="level:{qualification.code}"
-										class="w-52 rounded-lg border border-slate-600/50 bg-slate-900/60 py-1.5 text-sm text-white focus:border-sky-500 focus:ring-sky-500/50"
-									>
-										<option value="" selected={qualification.level === null}>
-											{QUALIFICATION_LEVEL_LABELS.none}
-										</option>
-										{#each qualification.allowed as level (level)}
-											<option value={level} selected={qualification.level === level}>
-												{QUALIFICATION_LEVEL_LABELS[level]}
-											</option>
-										{/each}
-									</select>
-								{:else}
-									<span
-										class={qualification.level ? 'text-sm text-white' : 'text-sm text-gray-500'}
-									>
-										{QUALIFICATION_LEVEL_LABELS[qualification.level ?? 'none']}
-									</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
+					{#each CREDENTIAL_KIND_HEADINGS as group (group.kind)}
+						{@const rows = data.qualifications.filter((row) => row.kind === group.kind)}
+						{#if rows.length > 0}
+							<h3
+								class="mt-5 text-xs font-medium tracking-wide uppercase first:mt-0 {group.classes}"
+							>
+								{group.title}
+							</h3>
+							<ul class="divide-y divide-slate-700/60">
+								{#each rows as qualification (qualification.code)}
+									<li class="flex flex-wrap items-center justify-between gap-3 py-2">
+										<label for="level-{qualification.code}" class="min-w-0 text-sm text-white">
+											{qualification.name}
+											<span class="font-mono text-xs text-gray-500">({qualification.code})</span>
+										</label>
+										{#if qualification.automatic}
+											<span class="text-sm text-green-300">
+												{QUALIFICATION_LEVEL_LABELS[qualification.automatic]}
+												<span class="block text-right text-xs text-gray-500">automatic</span>
+											</span>
+										{:else if canAdmin}
+											<select
+												id="level-{qualification.code}"
+												name="level:{qualification.code}"
+												class="w-52 rounded-lg border border-slate-600/50 bg-slate-900/60 py-1.5 text-sm text-white focus:border-sky-500 focus:ring-sky-500/50"
+											>
+												<option value="" selected={qualification.level === null}>
+													{QUALIFICATION_LEVEL_LABELS.none}
+												</option>
+												{#each qualification.allowed as level (level)}
+													<option value={level} selected={qualification.level === level}>
+														{QUALIFICATION_LEVEL_LABELS[level]}
+													</option>
+												{/each}
+											</select>
+										{:else}
+											<span
+												class={qualification.level ? 'text-sm text-white' : 'text-sm text-gray-500'}
+											>
+												{QUALIFICATION_LEVEL_LABELS[qualification.level ?? 'none']}
+											</span>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					{/each}
 
 					{#if canAdmin}
 						<Button type="submit" disabled={saving !== null} class="mt-4">

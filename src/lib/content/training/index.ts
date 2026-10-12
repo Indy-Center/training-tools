@@ -133,10 +133,10 @@ export const SHARED_COPY = {
 		title: 'Controller Training',
 		body: signedOut
 	},
-	/** The enrollment form's introduction, for a course with a VATUSA Academy course. */
-	enrollAcademy: {
-		title: 'Before you enroll',
-		body: ENROLLMENT_COPY.whatHappensNext + ENROLLMENT_COPY.writtenExam
+	/** Shown under the enrollment form's course, when that course has a VATUSA Academy course. */
+	academyCourse: {
+		title: 'The VATUSA Academy course',
+		body: ENROLLMENT_COPY.writtenExam
 	},
 	/** Replaces the consolidation copy when VATSIM could not give us their hours. */
 	consolidationUnknown: {

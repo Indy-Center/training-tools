@@ -11,7 +11,6 @@
 	import { displayName } from '$lib/user';
 	import { page } from '$app/state';
 	import { findCourse, formatWeeksRange } from '$lib/courses';
-	import { academyExamFor } from '$lib/vatusa-academy';
 	import { SHARED_COPY, TRAINING_COPY, TRAINING_TEXT } from '$lib/content/training';
 	import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
 	import IconAccount from '~icons/mdi/account-circle';
@@ -162,11 +161,10 @@
 				<RequestDetails {request} error={form?.formError} />
 			{:else if data.flow === 'enroll' && data.enroll}
 				<!-- Home controller, consolidated, with a course left to take. -->
-				{@const course = data.nextCourse ? findCourse(data.nextCourse) : undefined}
-				{#if course}
+				{@const courses = data.courseOptions.flatMap((code) => findCourse(code) ?? [])}
+				{#if courses.length > 0}
 					<EnrollmentForm
-						intro={academyExamFor(course.code) ? SHARED_COPY.enrollAcademy : TRAINING_COPY.enroll}
-						{course}
+						{courses}
 						controller={data.enroll.controller}
 						credentials={data.enroll.credentials}
 						{form}

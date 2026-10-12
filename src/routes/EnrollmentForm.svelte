@@ -8,7 +8,8 @@
 	import CopyPanel from '$lib/components/content/CopyPanel.svelte';
 	import { formatWeeksRange, type Course } from '$lib/courses';
 	import { ENROLLMENT_COPY } from '$lib/content/enrollment';
-	import type { CopyBlock } from '$lib/content/training';
+	import { SHARED_COPY, TRAINING_COPY } from '$lib/content/training';
+	import { academyExamFor } from '$lib/vatusa-academy';
 	import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
 	import { NOTIFICATION_PREFERENCES } from '$lib/db/schema/enrollments';
 	import IconClipboard from '~icons/mdi/clipboard-text';
@@ -16,25 +17,40 @@
 	import IconClock from '~icons/mdi/clock-outline';
 	import IconBell from '~icons/mdi/bell-outline';
 	import IconInformation from '~icons/mdi/information-outline';
+	import IconSchool from '~icons/mdi/school';
 	import IconHandshake from '~icons/mdi/handshake-outline';
 	import type { ActionData } from './$types';
 
 	type Props = {
-		/** "Before you enroll": read before anything is filled in. */
-		intro: CopyBlock;
-		/** The one course on offer: the next in their progression. */
-		course: Course;
+		/**
+		 * The courses on offer: usually the one that is next, sometimes two that
+		 * may be taken in either order. The first is selected. Never empty.
+		 */
+		courses: Course[];
 		controller: { cid: string; name: string; rating: string | null };
 		credentials: { certification: string | null; endorsements: string[] };
 		form: ActionData;
 	};
 
-	let { intro, course, controller, credentials, form }: Props = $props();
+	let { courses, controller, credentials, form }: Props = $props();
 
 	let submitting = $state(false);
 
-	let courseLength = $derived(formatWeeksRange(course.estimatedWeeks));
+	// The first course starts selected; what they chose comes back with a refused
+	// form. Assigned to as they pick between two.
+	let chosen = $derived(form?.values?.course || courses[0].code);
 </script>
+
+{#snippet courseSummary(course: Course)}
+	{@const courseLength = formatWeeksRange(course.estimatedWeeks)}
+	<span class="block text-sm font-medium text-white">{course.label}</span>
+	<span class="mt-0.5 block text-sm text-gray-400">{course.description}</span>
+	{#if courseLength}
+		<span class="mt-2 block text-sm text-gray-400">
+			Takes about <span class="text-gray-300">{courseLength}</span> once you start.
+		</span>
+	{/if}
+{/snippet}
 
 {#if form?.formError}
 	<Alert>{form.formError}</Alert>
@@ -54,7 +70,7 @@
 >
 	<!-- DEV-119: read before filling anything in, not after. The agreement stays
 	     last, right before submit. -->
-	<CopyPanel copy={intro} icon={IconInformation} />
+	<CopyPanel copy={TRAINING_COPY.enroll} icon={IconInformation} />
 
 	<Panel title="Your details" icon={IconAccount}>
 		<div class="px-4 py-5">
@@ -78,7 +94,10 @@
 		</div>
 	</Panel>
 
-	<Panel title="Your next course" icon={IconClipboard}>
+	<Panel
+		title={courses.length > 1 ? 'Choose your next course' : 'Your next course'}
+		icon={IconClipboard}
+	>
 		<div class="px-4 py-5">
 			{#if credentials.certification || credentials.endorsements.length > 0}
 				<!-- The basis for the course below. Without it, "your next course is X"
@@ -94,24 +113,50 @@
 				</div>
 			{/if}
 
-			<!-- One course, not a choice: the server enrolls them in the next one in
-			     their progression whatever this field says. -->
-			<input type="hidden" name="course" value={course.code} />
-			<div class="rounded-lg border border-sky-500/50 bg-sky-500/10 px-4 py-3">
-				<div class="text-sm font-medium text-white">{course.label}</div>
-				<p class="mt-0.5 text-sm text-gray-400">{course.description}</p>
-				{#if courseLength}
-					<p class="mt-2 text-sm text-gray-400">
-						Takes about <span class="text-gray-300">{courseLength}</span> once you start.
-					</p>
-				{/if}
-			</div>
+			{#if courses.length === 1}
+				<!-- One course, not a choice: the server accepts only what it offers,
+				     whatever this field says. -->
+				<input type="hidden" name="course" value={courses[0].code} />
+				<div class="rounded-lg border border-sky-500/50 bg-sky-500/10 px-4 py-3">
+					{@render courseSummary(courses[0])}
+				</div>
+			{:else}
+				<!-- Side by side, the first selected: the order is theirs to choose. -->
+				<p class="mb-3 text-sm text-gray-400">
+					You can take these in either order. Choose the one you want to start with.
+				</p>
+				<fieldset
+					class="grid gap-3 sm:grid-cols-2"
+					onchange={(event) => {
+						if (event.target instanceof HTMLInputElement) chosen = event.target.value;
+					}}
+				>
+					<legend class="sr-only">Your next course</legend>
+					{#each courses as course (course.code)}
+						<ChoiceCard
+							type="radio"
+							name="course"
+							value={course.code}
+							checked={chosen === course.code}
+							required
+							align="start"
+						>
+							<span class="min-w-0">{@render courseSummary(course)}</span>
+						</ChoiceCard>
+					{/each}
+				</fieldset>
+			{/if}
 
 			{#if form?.errors?.course}
 				<p class="mt-3 text-sm text-red-400">{form.errors.course}</p>
 			{/if}
 		</div>
 	</Panel>
+
+	{#if academyExamFor(chosen)}
+		<!-- Under the course it belongs to, so it follows the choice. -->
+		<CopyPanel copy={SHARED_COPY.academyCourse} icon={IconSchool} />
+	{/if}
 
 	<Panel title="Availability" icon={IconClock}>
 		<div class="px-4 py-5">
