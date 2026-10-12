@@ -6,6 +6,7 @@ import {
 	type GrantBasis
 } from '$lib/db/schema/certifications';
 import {
+	canHold,
 	endorsementsLostWith,
 	findCredential,
 	highestCertification,
@@ -194,13 +195,19 @@ export async function setCertification(
 	}
 }
 
-/** Add or remove an endorsement, leaving the certification alone. */
+/**
+ * Add or remove an endorsement, leaving the certification alone.
+ *
+ * One already held can always be removed. One they cannot hold is not granted
+ * — T2-CTR only with E-RC, S-LC only with a ground certification — and the
+ * answer says so.
+ */
 export async function toggleEndorsement(
 	db: Database,
 	cid: string,
 	code: string,
 	actorCid: string
-): Promise<'granted' | 'revoked'> {
+): Promise<'granted' | 'revoked' | 'not-eligible'> {
 	const credential = findCredential(code);
 	if (credential?.kind !== 'endorsement') {
 		throw new Error(`${code} is not an endorsement`);
@@ -216,6 +223,15 @@ export async function toggleEndorsement(
 			reason: 'Removed by training staff'
 		});
 		return 'revoked';
+	}
+
+	if (
+		!canHold(
+			credential.code,
+			held.map((row) => row.code)
+		)
+	) {
+		return 'not-eligible';
 	}
 
 	await grantCredential(db, { cid, code: credential.code, basis: 'manual', grantedBy: actorCid });

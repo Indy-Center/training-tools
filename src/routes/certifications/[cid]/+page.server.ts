@@ -74,7 +74,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: credential.name,
 			description: credential.description,
 			held: heldCodes.includes(credential.code),
-			// Enforced for a grant, here and in the action: T2-CTR only with E-RC,
+			// Enforced for a grant by `toggleEndorsement()`: T2-CTR only with E-RC,
 			// S-LC only with a ground certification. One already held can always
 			// be removed.
 			eligible: canHold(credential.code, heldCodes),
@@ -129,16 +129,13 @@ export const actions: Actions = {
 			return fail(400, { formError: `${code} is not an endorsement` });
 		}
 
-		// Removing one is always allowed; granting one they cannot hold is not.
-		const held: string[] = (await getHeldCredentials(locals.db, params.cid)).map((row) => row.code);
-		if (!held.includes(code) && !canHold(code, held)) {
-			return fail(400, {
-				formError: `${code} can only be held with ${requirementText(code)}.`
-			});
-		}
-
 		try {
-			await toggleEndorsement(locals.db, params.cid, code, session.user.cid);
+			const outcome = await toggleEndorsement(locals.db, params.cid, code, session.user.cid);
+			if (outcome === 'not-eligible') {
+				return fail(400, {
+					formError: `${code} can only be held with ${requirementText(code)}.`
+				});
+			}
 		} catch (err) {
 			console.error('[training-tools] toggleEndorsement failed', err);
 			return fail(500, { formError: 'Could not update the endorsement.' });

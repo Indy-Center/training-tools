@@ -197,9 +197,7 @@ export function endorsementsLostWith(
 	certification: string | null,
 	held: readonly string[]
 ): CredentialRecord[] {
-	const endorsements = held
-		.map((code) => findCredential(code))
-		.filter((credential) => credential?.kind === 'endorsement') as CredentialRecord[];
+	const endorsements = ENDORSEMENTS.filter((endorsement) => held.includes(endorsement.code));
 	const after = [...(certification ? [certification] : []), ...endorsements.map((e) => e.code)];
 
 	return endorsements.filter((endorsement) => !canHold(endorsement.code, after));
