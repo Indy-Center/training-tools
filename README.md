@@ -284,6 +284,11 @@ Note two things that bite if you assume otherwise:
 - **S-LC is an endorsement, not a certification.** That is why the top-down
   "hold one certification" rule needs no exception, and why S-LC renders beside
   the ground certification for free.
+- **An endorsement is only held with what it `requires`.** T2-CTR needs E-RC;
+  S-LC needs S-GC or A-GC. Staff cannot grant one otherwise, and changing a
+  certification revokes any endorsement that no longer fits (S-LC on reaching
+  A-LC, either with no certification). Rows from before this rule are left as
+  they are.
 - **`rank` is the ladder; there is no `tier` field.** Tier 1 / Tier 2 are GCAP's
   terms for classifying endorsements, so the word is left to mean that.
 

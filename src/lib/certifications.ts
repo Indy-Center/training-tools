@@ -189,6 +189,23 @@ export function canHold(code: string, held: readonly string[]): boolean {
 }
 
 /**
+ * The endorsements in `held` that cannot be kept with `certification` (null for
+ * none): S-LC once someone holds A-LC or above, or nothing at all; T2-CTR
+ * without E-RC.
+ */
+export function endorsementsLostWith(
+	certification: string | null,
+	held: readonly string[]
+): CredentialRecord[] {
+	const endorsements = held
+		.map((code) => findCredential(code))
+		.filter((credential) => credential?.kind === 'endorsement') as CredentialRecord[];
+	const after = [...(certification ? [certification] : []), ...endorsements.map((e) => e.code)];
+
+	return endorsements.filter((endorsement) => !canHold(endorsement.code, after));
+}
+
+/**
  * What `code` needs, in words: "S-GC or A-GC", "A-GC and S-LC". Empty when it
  * needs nothing, or is not a credential.
  */

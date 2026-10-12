@@ -5,7 +5,12 @@ import {
 	type Certification,
 	type GrantBasis
 } from '$lib/db/schema/certifications';
-import { findCredential, highestCertification, type CredentialCode } from '$lib/certifications';
+import {
+	endorsementsLostWith,
+	findCredential,
+	highestCertification,
+	type CredentialCode
+} from '$lib/certifications';
 
 export { grantArrivalCertifications, type ArrivalGrantResult } from './arrival';
 
@@ -130,9 +135,11 @@ export async function revokeCredential(db: Database, input: RevokeInput): Promis
  * Move a controller to a given certification, or to none.
  *
  * The top-down model means one certification at a time, so this revokes
- * whatever is held before granting. Endorsements are untouched — they sit
- * alongside a certification rather than being superseded by it, which is why
- * S-LC survives a change of ground certification.
+ * whatever is held before granting. Endorsements sit alongside a certification
+ * rather than being superseded by it, so one is kept while it can still be
+ * held with the new certification — S-LC survives a change of ground
+ * certification — and revoked when it cannot: S-LC on reaching A-LC, T2-CTR on
+ * leaving E-RC, either with no certification at all.
  *
  * `actorCid` is null when nobody did this by hand — the end-of-course flow —
  * and `grant` then says how the new certification came about.
@@ -158,20 +165,33 @@ export async function setCertification(
 		});
 	}
 
-	if (!code) return;
+	if (code) {
+		const credential = findCredential(code);
+		if (credential?.kind !== 'certification') {
+			throw new Error(`${code} is not a certification`);
+		}
 
-	const credential = findCredential(code);
-	if (credential?.kind !== 'certification') {
-		throw new Error(`${code} is not a certification`);
+		await grantCredential(db, {
+			cid,
+			code,
+			basis: grant.basis,
+			note: grant.note ?? null,
+			grantedBy: actorCid
+		});
 	}
 
-	await grantCredential(db, {
-		cid,
+	const lost = endorsementsLostWith(
 		code,
-		basis: grant.basis,
-		note: grant.note ?? null,
-		grantedBy: actorCid
-	});
+		held.map((row) => row.code)
+	);
+	for (const endorsement of lost) {
+		await revokeCredential(db, {
+			cid,
+			code: endorsement.code,
+			revokedBy: actorCid,
+			reason: code ? `Cannot be held with ${code}` : 'Cannot be held without a certification'
+		});
+	}
 }
 
 /** Add or remove an endorsement, leaving the certification alone. */
