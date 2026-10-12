@@ -23,6 +23,12 @@
 	function slotsLabel(slots: { total: number | null; used: number }) {
 		return slots.total === null ? `${slots.used} / —` : `${slots.used} / ${slots.total}`;
 	}
+
+	/** Grey with nobody assigned, or no slots set to compare with; green within their slots, red over them. */
+	function slotsClasses(slots: { total: number | null; used: number }) {
+		if (slots.used === 0 || slots.total === null) return 'text-gray-400';
+		return slots.used > slots.total ? 'text-red-400' : 'text-green-400';
+	}
 </script>
 
 <svelte:head>
@@ -94,7 +100,7 @@
 						<td class="px-4 py-3">
 							<TeacherStatusBadge status={teacher.status} />
 						</td>
-						<td class="px-4 py-3 text-center font-mono text-white">
+						<td class="px-4 py-3 text-center font-mono {slotsClasses(teacher.slots)}">
 							{slotsLabel(teacher.slots)}
 							{#if teacher.status === 'loa' && teacher.slots.total !== null}
 								<span class="block text-xs text-orange-400">not open</span>
