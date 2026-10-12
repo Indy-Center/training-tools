@@ -25,8 +25,8 @@ export type TrainingContext = {
 	 */
 	nextCourse: CourseCode | null;
 	/**
-	 * Every course the enroll view offers and the enroll action accepts:
-	 * `nextCourse` first, and usually alone. See `resolvePlacement()`.
+	 * Every course the enroll view offers and the enroll action accepts, the
+	 * one it selects first: usually `nextCourse` alone. See `resolvePlacement()`.
 	 */
 	courseOptions: CourseCode[];
 	/** Their rating as the facility records it, else as VATSIM told identity. */

@@ -65,8 +65,8 @@ describe('resolvePlacement', () => {
 		expect(placement.reason).toContain('A-LC');
 	});
 
-	it('offers a simple-ground controller advanced ground or simple local, in either order', () => {
-		expect(resolvePlacement({ held: ['S-GC'] }).options).toEqual(['A-GC', 'S-LC']);
+	it('offers a simple-ground controller simple local or advanced ground, simple local first', () => {
+		expect(resolvePlacement({ held: ['S-GC'] }).options).toEqual(['S-LC', 'A-GC']);
 		// Whichever they took first, the other is next, and then advanced local.
 		expect(resolvePlacement({ held: ['S-GC', 'S-LC'] }).options).toEqual(['A-GC']);
 		expect(resolvePlacement({ held: ['A-GC'] }).options).toEqual(['S-LC']);

@@ -488,7 +488,7 @@ one beside it.** It comes from the certifications this app holds, walking the
 `rank` ladder and each credential's `requires` — so an advanced-ground controller
 is sent to S-LC before A-LC, because A-LC requires it. Where an endorsement the
 ladder needs later is already open to them the order is theirs: a simple-ground
-controller is shown A-GC and S-LC side by side, neither picked for them
+controller is shown S-LC and A-GC side by side, S-LC first and selected
 (`options` in `resolvePlacement`). It is recomputed server-side on submit, and a
 POST naming any course not offered is refused. (DEV-119 originally let the student
 pick any course and flagged the difference to staff; that was reversed when `/`

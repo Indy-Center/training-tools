@@ -17,13 +17,14 @@
 	import IconClock from '~icons/mdi/clock-outline';
 	import IconBell from '~icons/mdi/bell-outline';
 	import IconInformation from '~icons/mdi/information-outline';
+	import IconSchool from '~icons/mdi/school';
 	import IconHandshake from '~icons/mdi/handshake-outline';
 	import type { ActionData } from './$types';
 
 	type Props = {
 		/**
-		 * The courses on offer: the next in their progression, and sometimes one
-		 * beside it that may be taken first. Never empty.
+		 * The courses on offer: usually the one that is next, sometimes two that
+		 * may be taken in either order. The first is selected. Never empty.
 		 */
 		courses: Course[];
 		controller: { cid: string; name: string; rating: string | null };
@@ -35,18 +36,9 @@
 
 	let submitting = $state(false);
 
-	// With one course there is nothing to pick. With two, neither is picked for
-	// them; what they chose comes back with a refused form.
+	// The first course starts selected; what they chose comes back with a refused form.
 	let picked = $state<string | null>(null);
-	const chosen = $derived(
-		picked ?? form?.values?.course ?? (courses.length === 1 ? courses[0].code : '')
-	);
-
-	// "Before you enroll": read before anything is filled in. A course with a
-	// VATUSA Academy course says so, so it follows the choice.
-	const intro = $derived(
-		chosen && academyExamFor(chosen) ? SHARED_COPY.enrollAcademy : TRAINING_COPY.enroll
-	);
+	const chosen = $derived(picked ?? (form?.values?.course || courses[0].code));
 </script>
 
 {#if form?.formError}
@@ -67,7 +59,7 @@
 >
 	<!-- DEV-119: read before filling anything in, not after. The agreement stays
 	     last, right before submit. -->
-	<CopyPanel copy={intro} icon={IconInformation} />
+	<CopyPanel copy={TRAINING_COPY.enroll} icon={IconInformation} />
 
 	<Panel title="Your details" icon={IconAccount}>
 		<div class="px-4 py-5">
@@ -126,7 +118,7 @@
 					{/if}
 				</div>
 			{:else}
-				<!-- Side by side and neither picked: the order is theirs to choose. -->
+				<!-- Side by side, the first selected: the order is theirs to choose. -->
 				<p class="mb-3 text-sm text-gray-400">
 					You can take these in either order. Choose the one you want to start with.
 				</p>
@@ -155,12 +147,6 @@
 										Takes about <span class="text-gray-300">{courseLength}</span> once you start.
 									</span>
 								{/if}
-								{#if academyExamFor(course.code)}
-									<span class="mt-2 block text-sm text-gray-400">
-										Has a VATUSA Academy course to complete first. Choosing it shows the details at
-										the top of this page.
-									</span>
-								{/if}
 							</span>
 						</ChoiceCard>
 					{/each}
@@ -172,6 +158,11 @@
 			{/if}
 		</div>
 	</Panel>
+
+	{#if academyExamFor(chosen)}
+		<!-- Under the course it belongs to, so it follows the choice. -->
+		<CopyPanel copy={SHARED_COPY.academyCourse} icon={IconSchool} />
+	{/if}
 
 	<Panel title="Availability" icon={IconClock}>
 		<div class="px-4 py-5">

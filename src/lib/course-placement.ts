@@ -31,9 +31,10 @@ export type Placement = {
 	/** One line explaining the suggestion, shown to the student. */
 	reason: string;
 	/**
-	 * Every course they may enroll in now, the suggestion first. More than one
-	 * when an endorsement the ladder will need later is already open to them: a
-	 * simple-ground controller may take S-LC before A-GC or after it.
+	 * Every course they may enroll in now, the one the form selects first. More
+	 * than one when an endorsement the ladder will need later is already open to
+	 * them: a simple-ground controller may take S-LC before A-GC or after it.
+	 * The endorsement leads, as the training staff's preferred order.
 	 */
 	options: CourseCode[];
 };
@@ -110,7 +111,7 @@ export function resolvePlacement(input: PlacementInput): Placement {
 
 	return {
 		...placement,
-		options: [...new Set([placement.suggested, ...endorsementsOpenEarly(input.held)])]
+		options: [...new Set([...endorsementsOpenEarly(input.held), placement.suggested])]
 	};
 }
 
