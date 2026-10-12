@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	isStale,
 	mapJiraStatus,
+	needsRemovedDate,
 	parseJiraTimestamp,
 	RE_INSTRUCTOR_FIELD,
 	resolveStatusUpdate,
@@ -131,6 +132,25 @@ describe('resolveStatusUpdate', () => {
 			action: 'unknown-status',
 			statusName: null
 		});
+	});
+});
+
+describe('needsRemovedDate', () => {
+	const card = (status: string, removed?: string | null) => ({
+		key: 'TRK-1',
+		fields: { status: { name: status }, customfield_10251: removed }
+	});
+
+	it('wants a date on a card at Removed or Withdrawn that has none', () => {
+		expect(needsRemovedDate(card('Removed'))).toBe(true);
+		expect(needsRemovedDate(card('Withdrawn', null))).toBe(true);
+	});
+
+	it('leaves a date that is already there, and every other status, alone', () => {
+		expect(needsRemovedDate(card('Removed', '2026-10-01'))).toBe(false);
+		for (const status of ['Waitlist', 'In Training', 'Audit', 'Completed', 'Something new']) {
+			expect(needsRemovedDate(card(status))).toBe(false);
+		}
 	});
 });
 

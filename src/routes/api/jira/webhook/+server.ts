@@ -3,6 +3,7 @@ import {
 	announceArrivals,
 	announcePairings,
 	applyIssueStatus,
+	dateRemovedCard,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	syncEnrollmentIssue
@@ -84,6 +85,12 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 
 		if (delivery.issue) {
 			outcome = await applyIssueStatus(locals.db, delivery.issue, delivery.observedAt);
+			// A card that has just reached Removed or Withdrawn gets its date. Not
+			// from an out-of-order delivery, which may describe a card since moved
+			// back; and off the response path, like everything else that calls Jira.
+			if (outcome !== 'stale') {
+				platform?.ctx?.waitUntil(dateRemovedCard(env, delivery.issue));
+			}
 		} else {
 			const result = await syncEnrollmentIssue(locals.db, env, delivery.key);
 			if (!result.ok) {

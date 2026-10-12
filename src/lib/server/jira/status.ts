@@ -24,6 +24,7 @@ export const STATUS_FIELDS = [
 	JIRA_FIELDS.availability,
 	JIRA_FIELDS.vatusaAssigned,
 	JIRA_FIELDS.vatusaCompleted,
+	JIRA_FIELDS.removed,
 	'updated'
 ] as const;
 
@@ -53,6 +54,18 @@ export function mapJiraStatus(name: string | null | undefined): EnrollmentStatus
 	return JIRA_STATUS_MAP[name?.trim().toLowerCase() ?? ''] ?? null;
 }
 
+/**
+ * Whether a card has left the board without finishing — Removed by staff, or
+ * Withdrawn by the student — and its `Removed` date is still empty. Either
+ * way it was moved, here or on the board, the date is ours to fill in.
+ */
+export function needsRemovedDate(issue: JiraStatusIssue): boolean {
+	const status = mapJiraStatus(issue.fields?.status?.name);
+	return (
+		(status === 'removed' || status === 'withdrawn') && !issue.fields?.[JIRA_FIELDS.removed]?.trim()
+	);
+}
+
 /** The slice of a Jira issue we read. Everything is optional because Jira's JSON is not ours. */
 export type JiraStatusIssue = {
 	key: string;
@@ -65,6 +78,7 @@ export type JiraStatusIssue = {
 		/** Date only, "YYYY-MM-DD". */
 		[JIRA_FIELDS.vatusaAssigned]?: string | null;
 		[JIRA_FIELDS.vatusaCompleted]?: string | null;
+		[JIRA_FIELDS.removed]?: string | null;
 		/** Jira's last-updated time, e.g. "2026-09-23T10:32:53.283-0400". */
 		updated?: string | null;
 	} | null;

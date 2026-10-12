@@ -6,8 +6,7 @@
  * will not break us, but deleting and recreating one will.
  *
  * `Teacher` and `RE Instructor` are in `./status.ts`, beside the code that reads
- * them back. The full inventory, including the fields only training staff write
- * (Teacher Assigned, Removed), is in research/jira-student-tracking.md.
+ * them back. The full inventory is in research/jira-student-tracking.md.
  */
 export const JIRA_FIELDS = {
 	/** Select. Options are the `jiraOptionId` values in $lib/courses.ts. */
@@ -33,7 +32,9 @@ export const JIRA_FIELDS = {
 	/** Date. When the VATUSA written course for this rating was assigned. */
 	vatusaAssigned: 'customfield_10289',
 	/** Date. When they passed it. */
-	vatusaCompleted: 'customfield_10288'
+	vatusaCompleted: 'customfield_10288',
+	/** Date. Stamped when the card is seen at Removed or Withdrawn without one. */
+	removed: 'customfield_10251'
 } as const;
 
 /**

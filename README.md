@@ -546,7 +546,9 @@ What staff do from a row:
   have written one on `/teachers/{cid}` (`announcePairings`, `pairing-message.ts`).
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
-  the two; either closes the request.
+  the two; either closes the request. Either way the card's `Removed` date is
+  filled in the next time the app reads it there without one (`dateRemovedCard`)
+  — so a student's own withdrawal and a card dragged on the board are dated too.
 
 **Passing is picked up automatically.** The cron reads the VATUSA transcript of
 everyone whose course is assigned and not yet passed, and dates

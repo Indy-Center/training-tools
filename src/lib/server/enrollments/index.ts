@@ -39,6 +39,7 @@ export {
 } from './completion';
 export {
 	applyIssueStatus,
+	dateRemovedCard,
 	sweepEnrollmentStatuses,
 	syncEnrollmentIssue,
 	type SweepResult,

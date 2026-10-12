@@ -4,8 +4,11 @@ import { enrollmentsTable } from '$lib/db/schema/enrollments';
 import { syncStateTable } from '$lib/db/schema/sync-state';
 import { resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { fetchEnrollmentIssue, searchEnrollmentIssues } from '$lib/server/jira/issues';
+import { JIRA_FIELDS } from '$lib/server/jira/fields';
+import { toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import {
 	isStale,
+	needsRemovedDate,
 	parseJiraTimestamp,
 	resolveStatusUpdate,
 	type JiraStatusIssue
@@ -140,6 +143,37 @@ export async function applyIssueStatus(
 	return 'stale';
 }
 
+/**
+ * Date a card that has reached Removed or Withdrawn, if it has no `Removed`
+ * date yet.
+ *
+ * Keyed on the card as it was just read, like the other passes: it does not
+ * matter whether the student withdrew here, staff removed them from
+ * `/waitlist`, or someone dragged the card on the board. Called wherever a card
+ * is read — the webhook and the sweep — so a move is dated within seconds, and
+ * one the webhook missed within fifteen minutes. Never throws: a card left
+ * undated is tried again the next time it is read.
+ */
+export async function dateRemovedCard(
+	env: Partial<Env> | undefined,
+	issue: JiraStatusIssue,
+	now = new Date()
+): Promise<boolean> {
+	if (!needsRemovedDate(issue)) return false;
+
+	const config = resolveJiraConfig(env);
+	if (!config) return false;
+
+	try {
+		await updateIssueFields(config, issue.key, { [JIRA_FIELDS.removed]: toFacilityDate(now) });
+		console.log('[training-tools] dated Removed on', issue.key);
+		return true;
+	} catch (err) {
+		console.error('[training-tools] could not date Removed on', issue.key, err);
+		return false;
+	}
+}
+
 /** Attempts before a contended write gives up and leaves it to the sweep. */
 const MAX_WRITE_ATTEMPTS = 3;
 
@@ -165,10 +199,10 @@ export async function syncEnrollmentIssue(
 	const issue = await fetchEnrollmentIssue(config, issueKey);
 	if (!issue) return { ok: true, outcome: 'issue-gone' };
 
-	return {
-		ok: true,
-		outcome: await applyIssueStatus(db, issue, parseJiraTimestamp(issue.fields?.updated))
-	};
+	const outcome = await applyIssueStatus(db, issue, parseJiraTimestamp(issue.fields?.updated));
+	await dateRemovedCard(env, issue);
+
+	return { ok: true, outcome };
 }
 
 /** `sync_state` key for the sweep's cursor. */
@@ -242,6 +276,7 @@ export async function sweepEnrollmentStatuses(
 	for (const issue of issues) {
 		const observedAt = parseJiraTimestamp(issue.fields?.updated);
 		if ((await applyIssueStatus(db, issue, observedAt, now)) === 'updated') updated += 1;
+		await dateRemovedCard(env, issue, now);
 	}
 
 	if (complete) await writeCursor(db, now);
