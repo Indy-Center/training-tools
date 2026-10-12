@@ -360,7 +360,7 @@
 			<!-- Ends the training with this report. One box for a standard course;
 			     Custom Training has both endings, and a box each, only one of which holds. -->
 			<fieldset class="space-y-3 rounded-lg border border-slate-700/60 px-4 py-3">
-				<legend class="px-1 text-sm font-medium text-gray-300">This was their last session</legend>
+				<legend class="px-1 text-sm font-medium text-gray-300">Was this their last session?</legend>
 				{#each data.finishChoices as choice (choice)}
 					<label class="flex items-start gap-3 text-sm text-gray-300">
 						<input
