@@ -20,11 +20,15 @@ export type TrainingContext = {
 	/** Only looked up when it decides the branch; null otherwise. */
 	consolidation: Consolidation | null;
 	/**
-	 * The next course in their progression: what the enroll view offers, what
-	 * the enroll action files, and what consolidation is holding back. Null at
-	 * the top of the ladder.
+	 * The next course in their progression, and what consolidation is holding
+	 * back. Null at the top of the ladder.
 	 */
 	nextCourse: CourseCode | null;
+	/**
+	 * Every course the enroll view offers and the enroll action accepts:
+	 * `nextCourse` first, and usually alone. See `resolvePlacement()`.
+	 */
+	courseOptions: CourseCode[];
 	/** Their rating as the facility records it, else as VATSIM told identity. */
 	ratingShort: string | null;
 };
@@ -72,7 +76,7 @@ export async function loadTrainingContext(locals: App.Locals): Promise<TrainingC
 		held
 	};
 
-	const nextCourse = resolvePlacement({ held }).suggested;
+	const { suggested: nextCourse, options: courseOptions } = resolvePlacement({ held });
 
 	let flow = resolveTrainingFlow(input);
 	let consolidation: Consolidation | null = null;
@@ -89,6 +93,7 @@ export async function loadTrainingContext(locals: App.Locals): Promise<TrainingC
 		held,
 		consolidation,
 		nextCourse,
+		courseOptions,
 		ratingShort
 	};
 }

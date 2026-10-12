@@ -4,10 +4,10 @@
  * Pure, like `$lib/training-flow.ts` and `$lib/certification-grant.ts`, so the
  * placement rules are testable without a database or a session.
  *
- * **Suggest and confirm, never restrict.** The student can still pick any
- * course; a suggestion that disagrees with their choice is information for the
- * training staff, not a barrier. The app holds an inferred picture of what
- * someone can do, and staff hold the real one.
+ * The enroll form offers `options` and nothing else: usually the one course
+ * that is next, and two where the order is the student's to choose. (DEV-119
+ * first let the student pick any course and flagged the difference to staff;
+ * that was reversed when `/` became the one student view.)
  *
  * See DEV-119, which supersedes DEV-114.
  */
@@ -30,6 +30,12 @@ export type Placement = {
 	suggested: CourseCode | null;
 	/** One line explaining the suggestion, shown to the student. */
 	reason: string;
+	/**
+	 * Every course they may enroll in now, the suggestion first. More than one
+	 * when an endorsement the ladder will need later is already open to them: a
+	 * simple-ground controller may take S-LC before A-GC or after it.
+	 */
+	options: CourseCode[];
 };
 
 /**
@@ -72,7 +78,43 @@ function nextCredential(held: readonly string[]) {
 	);
 }
 
+/**
+ * Endorsements they could take now instead of the next certification: ones
+ * they can already hold, that a certification further up will require. That is
+ * S-LC for a ground-certified controller, because A-LC requires it.
+ */
+function endorsementsOpenEarly(held: readonly string[]): CourseCode[] {
+	const currentRank = highestCertification(held)?.rank ?? 0;
+	const neededLater = new Set<string>(
+		CERTIFICATIONS.filter((certification) => (certification.rank ?? 0) > currentRank).flatMap(
+			(certification) =>
+				certification.requires.flatMap((requirement) =>
+					typeof requirement === 'string' ? [requirement] : []
+				)
+		)
+	);
+
+	return ENDORSEMENTS.filter(
+		(endorsement) =>
+			neededLater.has(endorsement.code) &&
+			!held.includes(endorsement.code) &&
+			canHold(endorsement.code, held)
+	).flatMap((endorsement) =>
+		endorsement.courseCode && isCourseCode(endorsement.courseCode) ? [endorsement.courseCode] : []
+	);
+}
+
 export function resolvePlacement(input: PlacementInput): Placement {
+	const placement = suggestPlacement(input);
+	if (!placement.suggested) return { ...placement, options: [] };
+
+	return {
+		...placement,
+		options: [...new Set([placement.suggested, ...endorsementsOpenEarly(input.held)])]
+	};
+}
+
+function suggestPlacement(input: PlacementInput): Omit<Placement, 'options'> {
 	const current = highestCertification(input.held);
 	const next = nextCredential(input.held);
 

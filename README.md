@@ -483,11 +483,14 @@ One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
 
-**The form offers one course: the next in the student's progression.** It comes
-from the certifications this app holds, walking the `rank` ladder and each
-credential's `requires` — so an advanced-ground controller is sent to S-LC before
-A-LC, because A-LC requires it. It is recomputed server-side on submit, and a
-POST naming any other course is refused. (DEV-119 originally let the student
+**The form offers the next course in the student's progression, and sometimes
+one beside it.** It comes from the certifications this app holds, walking the
+`rank` ladder and each credential's `requires` — so an advanced-ground controller
+is sent to S-LC before A-LC, because A-LC requires it. Where an endorsement the
+ladder needs later is already open to them the order is theirs: a simple-ground
+controller is shown A-GC and S-LC side by side, neither picked for them
+(`options` in `resolvePlacement`). It is recomputed server-side on submit, and a
+POST naming any course not offered is refused. (DEV-119 originally let the student
 pick any course and flagged the difference to staff; that was reversed when `/`
 became the one student view.) Someone the app
 has placed wrongly needs their certifications corrected before they can enroll.
