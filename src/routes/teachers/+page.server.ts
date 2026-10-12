@@ -42,6 +42,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			roles: teacher.roles,
 			status: teacher.status,
 			initials: teacher.initials,
+			availability: teacher.availability,
 			onRoster: teacher.removedAt === null,
 			removedAt: teacher.removedAt,
 			assigned: assignments.students.length,

@@ -135,6 +135,12 @@
 								<span>{teacher.ratingShort}</span>
 								<span>{teacher.roles.join('+')}</span>
 							</div>
+							{#if teacher.availability}
+								<!-- When they can teach, in their own words, for whoever is pairing students. -->
+								<p class="mt-1 max-w-xs text-xs whitespace-pre-line text-gray-400">
+									{teacher.availability}
+								</p>
+							{/if}
 						</td>
 						<td class="px-4 py-3">
 							<TeacherStatusBadge status={teacher.status} />
