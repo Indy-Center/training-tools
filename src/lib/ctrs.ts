@@ -81,6 +81,9 @@ export const POSITION_PATTERN =
 
 export const MAX_NOTES_LENGTH = 10_000;
 
+/** A lesson number is a short code from the Facility Teacher Guide, like `A-GC-2`. */
+export const MAX_LESSON_LENGTH = 20;
+
 /** What VATUSA is sent, already in its formats. */
 export type TrainingRecord = {
 	/** `YYYY-MM-DD HH:MM`, Zulu. */
@@ -106,6 +109,8 @@ export type ReportValues = {
 	/** Where the training goes if this report ends it; empty if it carries on. */
 	finish: string;
 	score: string;
+	/** The lesson number, like `A-GC-2`. */
+	lesson: string;
 	notes: string;
 };
 
@@ -125,6 +130,7 @@ export function blankReport(now: Date): ReportValues {
 		otsStatus: '0',
 		finish: '',
 		score: '',
+		lesson: '',
 		notes: ''
 	};
 }
@@ -185,6 +191,7 @@ export function readReport(form: { get(name: string): unknown }): ReportValues {
 		otsStatus: text(form.get('otsStatus')),
 		finish: text(form.get('finish')),
 		score: text(form.get('score')),
+		lesson: text(form.get('lesson')).toUpperCase(),
 		notes: text(form.get('notes'))
 	};
 }
@@ -261,8 +268,16 @@ export function checkReport(
 		}
 	}
 
+	if (!values.lesson) errors.push('Give the lesson number, like A-GC-2.');
+	if (values.lesson.length > MAX_LESSON_LENGTH) {
+		errors.push(`Keep the lesson number to ${MAX_LESSON_LENGTH} characters, like A-GC-2.`);
+	}
+
+	// VATUSA's record has no field for the lesson, so it leads the notes.
+	const notes = `[${values.lesson}] ${values.notes}`;
+
 	if (!values.notes) errors.push('Write some notes on the session.');
-	if (values.notes.length > MAX_NOTES_LENGTH) {
+	if (notes.length > MAX_NOTES_LENGTH) {
 		errors.push(`Keep the notes under ${MAX_NOTES_LENGTH.toLocaleString('en-US')} characters.`);
 	}
 
@@ -277,7 +292,7 @@ export function checkReport(
 			location: location.value,
 			otsStatus: finish === 'rating-exam' ? OTS_RECOMMENDED : ots.value,
 			score,
-			notes: values.notes
+			notes
 		},
 		finish,
 		examResult: EXAM_RESULTS[ots.value] ?? null

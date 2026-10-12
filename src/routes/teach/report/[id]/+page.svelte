@@ -9,6 +9,7 @@
 	import {
 		EXAM_RESULT_DETAILS,
 		FINISH_LABELS,
+		MAX_LESSON_LENGTH,
 		MAX_NOTES_LENGTH,
 		SESSION_LOCATIONS,
 		type ReportValues
@@ -36,6 +37,7 @@
 		'position',
 		'location',
 		'score',
+		'lesson',
 		'notes'
 	] as const;
 	type Draft = Pick<ReportValues, (typeof DRAFT_FIELDS)[number]>;
@@ -287,6 +289,19 @@
 					{/each}
 				</select>
 			</div>
+		</div>
+
+		<div class="sm:max-w-xs">
+			<label for="lesson" class={labelClasses}>Lesson number</label>
+			<input
+				id="lesson"
+				name="lesson"
+				required
+				maxlength={MAX_LESSON_LENGTH}
+				placeholder="A-GC-2"
+				value={values.lesson}
+				class="mt-2 font-mono uppercase {inputClasses}"
+			/>
 		</div>
 
 		<div>

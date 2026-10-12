@@ -29,6 +29,7 @@ const good: ReportValues = {
 	otsStatus: '0',
 	finish: '',
 	score: '',
+	lesson: 'A-GC-2',
 	notes: 'Worked ground through a busy push.'
 };
 
@@ -110,11 +111,13 @@ describe('readReport', () => {
 	it('trims, and upper-cases the position', () => {
 		const form = new Map<string, string>([
 			['position', ' ind_twr '],
+			['lesson', ' a-gc-2 '],
 			['notes', '  fine  ']
 		]);
 		const values = readReport({ get: (name) => form.get(name) ?? null });
 		expect(values).toMatchObject({
 			position: 'IND_TWR',
+			lesson: 'A-GC-2',
 			notes: 'fine',
 			date: ''
 		});
@@ -132,11 +135,22 @@ describe('checkReport', () => {
 				location: 1,
 				otsStatus: 0,
 				score: null,
-				notes: good.notes
+				// The lesson number leads the notes: VATUSA has no field for it.
+				notes: `[A-GC-2] ${good.notes}`
 			},
 			finish: null,
 			examResult: null
 		});
+	});
+
+	it('refuses a lesson number that is missing or too long, and notes it would push over the limit', () => {
+		const allowed = { examiner: false, finish: [] };
+		expect(checkReport({ ...good, lesson: '' }, allowed).ok).toBe(false);
+		expect(checkReport({ ...good, lesson: 'A'.repeat(21) }, allowed).ok).toBe(false);
+
+		const room = 10_000 - '[A-GC-2] '.length;
+		expect(checkReport({ ...good, notes: 'x'.repeat(room) }, allowed).ok).toBe(true);
+		expect(checkReport({ ...good, notes: 'x'.repeat(room + 1) }, allowed).ok).toBe(false);
 	});
 
 	it('keeps progress', () => {

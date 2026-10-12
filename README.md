@@ -566,8 +566,9 @@ key** when this was written.
 **File training report**, beside each student on `/teach`, opens
 `/teach/report/{enrollment id}` with the student and the instructor already
 filled in. The teacher gives the date and Zulu start, duration, position,
-where it took place, an optional progress rating (1–5) and movement count, and notes; the
-report is filed in VATUSA's training records in their name
+where it took place, an optional progress rating (1–5) and movement count, a lesson
+number (put in front of the notes as `[A-GC-2]`, since VATUSA has no field for it),
+and notes; the report is filed in VATUSA's training records in their name
 (`POST /v2/user/{cid}/training/record`, `submitTrainingRecord`).
 
 - **Who may file one** is `canReport` in `$lib/ctrs.ts`: the teacher or the
