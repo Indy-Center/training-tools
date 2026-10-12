@@ -226,14 +226,19 @@
 				/>
 			</div>
 			<div>
-				<label for="time" class={labelClasses}>Started (Zulu)</label>
+				<label for="time" class={labelClasses}>Started (Zulu, HH:MM)</label>
+				<!-- Text, not type="time": that follows the browser's locale, and shows AM/PM for most. -->
 				<input
 					id="time"
 					name="time"
-					type="time"
 					required
+					inputmode="numeric"
+					pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
+					maxlength="5"
+					placeholder="14:30"
+					title="24-hour Zulu time, like 14:30"
 					value={values.time}
-					class="mt-2 {inputClasses}"
+					class="mt-2 font-mono {inputClasses}"
 				/>
 			</div>
 			<div>
