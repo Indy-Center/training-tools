@@ -547,8 +547,15 @@ What staff do from a row:
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
   the two; either closes the request. Either way the card's `Removed` date is
-  filled in the next time the app reads it there without one (`dateRemovedCard`)
-  — so a student's own withdrawal and a card dragged on the board are dated too.
+  filled in — see below.
+
+**Some dates follow the card, not the button.** `Teacher Assigned` is stamped
+when the app sees a card move into In Training, and `Removed` when it sees one
+move to Removed or Withdrawn — whether the move was made here or on the board
+(`datesForMove`, `dateCardMove`). Only an empty field is filled, so a date entered
+by hand stays. `Training Completed`, `RE Completed` and `Certificate Updated`
+are still stamped by the step that earns them, because the certification is
+held on a card that reaches Audit without them.
 
 **Passing is picked up automatically.** The cron reads the VATUSA transcript of
 everyone whose course is assigned and not yet passed, and dates

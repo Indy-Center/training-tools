@@ -7,10 +7,11 @@ import { fetchEnrollmentIssue, searchEnrollmentIssues } from '$lib/server/jira/i
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import {
+	datesForMove,
 	isStale,
-	needsRemovedDate,
 	parseJiraTimestamp,
 	resolveStatusUpdate,
+	type CardMove,
 	type JiraStatusIssue
 } from '$lib/server/jira/status';
 
@@ -66,6 +67,24 @@ export async function applyIssueStatus(
 	observedAt: Date | null,
 	now = new Date()
 ): Promise<ApplyOutcome> {
+	return (await applyIssueMove(db, issue, observedAt, now)).outcome;
+}
+
+/**
+ * `applyIssueStatus()`, also saying whether the card was seen to change status.
+ *
+ * `moved` is set for the one write that took our row from one status to
+ * another — so each move is reported once, however many deliveries and sweeps
+ * describe it. It is what the card's dates are stamped from: see
+ * `dateCardMove()`.
+ */
+export async function applyIssueMove(
+	db: Database,
+	issue: JiraStatusIssue,
+	observedAt: Date | null,
+	now = new Date()
+): Promise<{ outcome: ApplyOutcome; moved: CardMove | null }> {
+	const settled = (outcome: ApplyOutcome) => ({ outcome, moved: null });
 	const resolution = resolveStatusUpdate(issue);
 
 	if (resolution.action === 'unknown-status') {
@@ -73,7 +92,7 @@ export async function applyIssueStatus(
 			'[training-tools] unrecognised TRK status',
 			JSON.stringify({ issue: issue.key, status: resolution.statusName })
 		);
-		return 'unknown-status';
+		return settled('unknown-status');
 	}
 
 	const { status, teacher, reInstructor, vatusaAssignedOn, vatusaCompletedOn } = resolution.update;
@@ -89,9 +108,9 @@ export async function applyIssueStatus(
 			where: eq(enrollmentsTable.jiraIssueKey, issue.key)
 		});
 
-		if (!row) return 'no-row';
-		if (row.withdrawnAt) return 'withdrawn-locally';
-		if (isStale(row.jiraUpdatedAt, observedAt)) return 'stale';
+		if (!row) return settled('no-row');
+		if (row.withdrawnAt) return settled('withdrawn-locally');
+		if (isStale(row.jiraUpdatedAt, observedAt)) return settled('stale');
 
 		// The card's availability, when it has one: most cards were filed by hand
 		// and never came through our form, so the card is the only place it is.
@@ -134,43 +153,50 @@ export async function applyIssueStatus(
 			)
 			.returning({ id: enrollmentsTable.id });
 
-		if (written.length > 0) return changed ? 'updated' : 'unchanged';
+		if (written.length > 0) {
+			return {
+				outcome: changed ? 'updated' : 'unchanged',
+				moved: row.status !== status ? { from: row.status, to: status } : null
+			};
+		}
 	}
 
 	// Still contended after every attempt. Leave it: the next sweep re-reads the
 	// issue and applies whatever is newest.
 	console.warn('[training-tools] enrollment status write kept losing a race', issue.key);
-	return 'stale';
+	return settled('stale');
 }
 
 /**
- * Date a card that has reached Removed or Withdrawn, if it has no `Removed`
- * date yet.
+ * Stamp the dates a card's move calls for (`datesForMove()`), with the day it
+ * was seen.
  *
- * Keyed on the card as it was just read, like the other passes: it does not
- * matter whether the student withdrew here, staff removed them from
- * `/waitlist`, or someone dragged the card on the board. Called wherever a card
- * is read — the webhook and the sweep — so a move is dated within seconds, and
- * one the webhook missed within fifteen minutes. Never throws: a card left
- * undated is tried again the next time it is read.
+ * Driven by the move, not by what made it: a step taken here, a card dragged on
+ * the board and a transition made by a script are dated alike. Called wherever
+ * a card is read — the webhook, the sweep, and the read-back after a step here
+ * — so a move is dated within seconds, and one the webhook missed within
+ * fifteen minutes. Never throws: a date that could not be written is logged,
+ * and is not a reason to fail the read that found the move.
  */
-export async function dateRemovedCard(
+export async function dateCardMove(
 	env: Partial<Env> | undefined,
 	issue: JiraStatusIssue,
+	moved: CardMove | null,
 	now = new Date()
-): Promise<boolean> {
-	if (!needsRemovedDate(issue)) return false;
+): Promise<void> {
+	const fields = moved ? datesForMove(moved, issue) : [];
+	if (fields.length === 0) return;
 
 	const config = resolveJiraConfig(env);
-	if (!config) return false;
+	if (!config) return;
 
+	const what = JSON.stringify({ issue: issue.key, ...moved, fields });
 	try {
-		await updateIssueFields(config, issue.key, { [JIRA_FIELDS.removed]: toFacilityDate(now) });
-		console.log('[training-tools] dated Removed on', issue.key);
-		return true;
+		const today = toFacilityDate(now);
+		await updateIssueFields(config, issue.key, Object.fromEntries(fields.map((f) => [f, today])));
+		console.log('[training-tools] dated card', what);
 	} catch (err) {
-		console.error('[training-tools] could not date Removed on', issue.key, err);
-		return false;
+		console.error('[training-tools] could not date card', what, err);
 	}
 }
 
@@ -199,8 +225,12 @@ export async function syncEnrollmentIssue(
 	const issue = await fetchEnrollmentIssue(config, issueKey);
 	if (!issue) return { ok: true, outcome: 'issue-gone' };
 
-	const outcome = await applyIssueStatus(db, issue, parseJiraTimestamp(issue.fields?.updated));
-	await dateRemovedCard(env, issue);
+	const { outcome, moved } = await applyIssueMove(
+		db,
+		issue,
+		parseJiraTimestamp(issue.fields?.updated)
+	);
+	await dateCardMove(env, issue, moved);
 
 	return { ok: true, outcome };
 }
@@ -275,8 +305,9 @@ export async function sweepEnrollmentStatuses(
 	let updated = 0;
 	for (const issue of issues) {
 		const observedAt = parseJiraTimestamp(issue.fields?.updated);
-		if ((await applyIssueStatus(db, issue, observedAt, now)) === 'updated') updated += 1;
-		await dateRemovedCard(env, issue, now);
+		const { outcome, moved } = await applyIssueMove(db, issue, observedAt, now);
+		if (outcome === 'updated') updated += 1;
+		await dateCardMove(env, issue, moved, now);
 	}
 
 	if (complete) await writeCursor(db, now);

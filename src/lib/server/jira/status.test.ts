@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	isStale,
 	mapJiraStatus,
-	needsRemovedDate,
+	datesForMove,
 	parseJiraTimestamp,
 	RE_INSTRUCTOR_FIELD,
 	resolveStatusUpdate,
@@ -135,22 +135,39 @@ describe('resolveStatusUpdate', () => {
 	});
 });
 
-describe('needsRemovedDate', () => {
-	const card = (status: string, removed?: string | null) => ({
-		key: 'TRK-1',
-		fields: { status: { name: status }, customfield_10251: removed }
+describe('datesForMove', () => {
+	const TEACHER_ASSIGNED = 'customfield_10247';
+	const REMOVED = 'customfield_10251';
+	const card = (fields: Record<string, string | null> = {}) => ({ key: 'TRK-1', fields });
+
+	it('dates Teacher Assigned on a move into In Training', () => {
+		expect(datesForMove({ from: 'waitlist', to: 'in-training' }, card())).toEqual([
+			TEACHER_ASSIGNED
+		]);
 	});
 
-	it('wants a date on a card at Removed or Withdrawn that has none', () => {
-		expect(needsRemovedDate(card('Removed'))).toBe(true);
-		expect(needsRemovedDate(card('Withdrawn', null))).toBe(true);
+	it('dates Removed on a move to Removed or Withdrawn, from anywhere', () => {
+		expect(datesForMove({ from: 'waitlist', to: 'removed' }, card())).toEqual([REMOVED]);
+		expect(datesForMove({ from: 'in-training', to: 'withdrawn' }, card())).toEqual([REMOVED]);
 	});
 
-	it('leaves a date that is already there, and every other status, alone', () => {
-		expect(needsRemovedDate(card('Removed', '2026-10-01'))).toBe(false);
-		for (const status of ['Waitlist', 'In Training', 'Audit', 'Completed', 'Something new']) {
-			expect(needsRemovedDate(card(status))).toBe(false);
-		}
+	// A date entered by hand, or the first assignment before a card came back
+	// from Needs CATP, stays as it is.
+	it('never overwrites a date the card already has', () => {
+		expect(
+			datesForMove(
+				{ from: 'needs-catp', to: 'in-training' },
+				card({ [TEACHER_ASSIGNED]: '2026-09-01' })
+			)
+		).toEqual([]);
+		expect(
+			datesForMove({ from: 'waitlist', to: 'removed' }, card({ [REMOVED]: '2026-10-01' }))
+		).toEqual([]);
+	});
+
+	it('dates nothing on any other move', () => {
+		expect(datesForMove({ from: 'in-training', to: 'rating-exam' }, card())).toEqual([]);
+		expect(datesForMove({ from: 'certification-update', to: 'completed' }, card())).toEqual([]);
 	});
 });
 

@@ -2,8 +2,8 @@ import { json } from '@sveltejs/kit';
 import {
 	announceArrivals,
 	announcePairings,
-	applyIssueStatus,
-	dateRemovedCard,
+	applyIssueMove,
+	dateCardMove,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	syncEnrollmentIssue
@@ -84,13 +84,11 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 		let outcome: string;
 
 		if (delivery.issue) {
-			outcome = await applyIssueStatus(locals.db, delivery.issue, delivery.observedAt);
-			// A card that has just reached Removed or Withdrawn gets its date. Not
-			// from an out-of-order delivery, which may describe a card since moved
-			// back; and off the response path, like everything else that calls Jira.
-			if (outcome !== 'stale') {
-				platform?.ctx?.waitUntil(dateRemovedCard(env, delivery.issue));
-			}
+			const applied = await applyIssueMove(locals.db, delivery.issue, delivery.observedAt);
+			outcome = applied.outcome;
+			// A card seen to change status gets the dates the move calls for. Off
+			// the response path, like everything else that calls Jira.
+			platform?.ctx?.waitUntil(dateCardMove(env, delivery.issue, applied.moved));
 		} else {
 			const result = await syncEnrollmentIssue(locals.db, env, delivery.key);
 			if (!result.ok) {

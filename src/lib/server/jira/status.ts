@@ -24,6 +24,7 @@ export const STATUS_FIELDS = [
 	JIRA_FIELDS.availability,
 	JIRA_FIELDS.vatusaAssigned,
 	JIRA_FIELDS.vatusaCompleted,
+	JIRA_FIELDS.teacherAssigned,
 	JIRA_FIELDS.removed,
 	'updated'
 ] as const;
@@ -54,16 +55,34 @@ export function mapJiraStatus(name: string | null | undefined): EnrollmentStatus
 	return JIRA_STATUS_MAP[name?.trim().toLowerCase() ?? ''] ?? null;
 }
 
+/** A card seen to change status: where our row had it, and where the card is now. */
+export type CardMove = { from: EnrollmentStatus; to: EnrollmentStatus };
+
 /**
- * Whether a card has left the board without finishing — Removed by staff, or
- * Withdrawn by the student — and its `Removed` date is still empty. Either
- * way it was moved, here or on the board, the date is ours to fill in.
+ * The date fields a move calls for, as field ids to stamp with the day it was
+ * seen.
+ *
+ * Driven by the move alone — not by who made it or how: a step taken in this
+ * app and a card dragged on the board are dated the same way. Only a field the
+ * card still has empty, so a date staff entered by hand, or the first of two
+ * arrivals at the same status, is never overwritten.
+ *
+ * - into In Training: `Teacher Assigned`
+ * - to Removed or Withdrawn: `Removed`
  */
-export function needsRemovedDate(issue: JiraStatusIssue): boolean {
-	const status = mapJiraStatus(issue.fields?.status?.name);
-	return (
-		(status === 'removed' || status === 'withdrawn') && !issue.fields?.[JIRA_FIELDS.removed]?.trim()
-	);
+export function datesForMove(move: CardMove, issue: JiraStatusIssue): string[] {
+	const empty = (field: 'teacherAssigned' | 'removed') =>
+		!issue.fields?.[JIRA_FIELDS[field]]?.trim();
+	const fields: string[] = [];
+
+	if (move.to === 'in-training' && empty('teacherAssigned')) {
+		fields.push(JIRA_FIELDS.teacherAssigned);
+	}
+	if ((move.to === 'removed' || move.to === 'withdrawn') && empty('removed')) {
+		fields.push(JIRA_FIELDS.removed);
+	}
+
+	return fields;
 }
 
 /** The slice of a Jira issue we read. Everything is optional because Jira's JSON is not ours. */
@@ -78,6 +97,7 @@ export type JiraStatusIssue = {
 		/** Date only, "YYYY-MM-DD". */
 		[JIRA_FIELDS.vatusaAssigned]?: string | null;
 		[JIRA_FIELDS.vatusaCompleted]?: string | null;
+		[JIRA_FIELDS.teacherAssigned]?: string | null;
 		[JIRA_FIELDS.removed]?: string | null;
 		/** Jira's last-updated time, e.g. "2026-09-23T10:32:53.283-0400". */
 		updated?: string | null;

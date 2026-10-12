@@ -27,13 +27,13 @@ export const JIRA_FIELDS = {
 	certificateUpdated: 'customfield_10249',
 	/** Date. Stamped when the examiner marks the rating exam complete. */
 	reCompleted: 'customfield_10253',
-	/** Date. Stamped when a teacher is assigned from `/waitlist`. */
+	/** Date. Stamped when the card is seen to move into In Training. */
 	teacherAssigned: 'customfield_10247',
 	/** Date. When the VATUSA written course for this rating was assigned. */
 	vatusaAssigned: 'customfield_10289',
 	/** Date. When they passed it. */
 	vatusaCompleted: 'customfield_10288',
-	/** Date. Stamped when the card is seen at Removed or Withdrawn without one. */
+	/** Date. Stamped when the card is seen to move to Removed or Withdrawn. */
 	removed: 'customfield_10251'
 } as const;
 
