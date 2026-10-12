@@ -511,7 +511,7 @@ Chips along the top switch a status off, and a dropdown narrows to one course.
 What staff do from a row:
 
 - **The VATUSA written course**, for the three courses that need one assigned
-  (A-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`). **Assign** dates
+  (S-LC → S2, T-RC → S3, E-RC → C1; `$lib/vatusa-academy.ts`). **Assign** dates
   `VATUSA Course Assigned` on the card and assigns the course on VATUSA itself
   through its API, in the name of the facility's TA — or the ATM when there is no
   TA. VATUSA emails the student. S-GC has none: the basic exam is passed before

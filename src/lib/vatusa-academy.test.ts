@@ -1,28 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { COURSES } from './courses';
-import { hasEvaluation } from './teachers';
 import { academyExamFor, firstPass, pickAcademyAssigner, teacherGate } from './vatusa-academy';
 
 const at = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
 
 describe('academyExamFor', () => {
 	it('gives the S2, S3 and C1 courses their written exam', () => {
-		expect(academyExamFor('A-LC')).toBe('S2');
+		expect(academyExamFor('S-LC')).toBe('S2');
 		expect(academyExamFor('T-RC')).toBe('S3');
 		expect(academyExamFor('E-RC')).toBe('C1');
 	});
 
 	// The basic exam is passed before anyone joins a facility, so S-GC has
-	// nothing for us to assign even though it ends in a rating exam.
-	it('has none for S-GC, or for a course with no rating exam', () => {
-		for (const course of ['S-GC', 'A-GC', 'S-LC', 'CUSTOM']) {
+	// nothing for us to assign even though it ends in a rating exam. The S2
+	// course is sat before S-LC, so A-LC, which requires S-LC, has none either.
+	it('has none for S-GC, A-GC, A-LC or Custom Training', () => {
+		for (const course of ['S-GC', 'A-GC', 'A-LC', 'CUSTOM']) {
 			expect(academyExamFor(course)).toBeNull();
-		}
-	});
-
-	it('never asks for one on a course that has no rating exam', () => {
-		for (const course of COURSES) {
-			if (academyExamFor(course.code)) expect(hasEvaluation(course.code)).toBe(true);
 		}
 	});
 });
@@ -79,11 +72,11 @@ describe('teacherGate', () => {
 
 	// Passed somewhere else before we ever assigned it: still passed.
 	it('opens on a completion with no assignment', () => {
-		expect(teacherGate(request('A-LC', null, '2026-10-05'))).toEqual({ open: true });
+		expect(teacherGate(request('S-LC', null, '2026-10-05'))).toEqual({ open: true });
 	});
 
 	it('never holds a course with no written exam to assign', () => {
-		for (const course of ['S-GC', 'A-GC', 'S-LC', 'CUSTOM']) {
+		for (const course of ['S-GC', 'A-GC', 'A-LC', 'CUSTOM']) {
 			expect(teacherGate(request(course, null, null))).toEqual({ open: true });
 		}
 	});

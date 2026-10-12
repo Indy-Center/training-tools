@@ -18,12 +18,15 @@ export type AcademyExam = 'BASIC' | 'S2' | 'S3' | 'C1';
 
 /**
  * Which written exam each of our courses needs before training starts. A
- * course not listed has none to assign: A-GC and S-LC earn no rating, Custom
- * Training is whatever staff make it, and S-GC's basic exam is already passed
- * by the time anyone is on our roster.
+ * course not listed has none to assign: A-GC earns no rating, Custom Training
+ * is whatever staff make it, and S-GC's basic exam is already passed by the
+ * time anyone is on our roster.
+ *
+ * The S2 course goes with S-LC, the first tower course, not with A-LC, which
+ * ends in the S2 rating exam: A-LC requires S-LC, so it is passed by then.
  */
 const COURSE_EXAMS: Readonly<Record<string, AcademyExam>> = {
-	'A-LC': 'S2',
+	'S-LC': 'S2',
 	'T-RC': 'S3',
 	'E-RC': 'C1'
 };
