@@ -41,7 +41,6 @@ export {
 } from './completion';
 export {
 	applyIssueMove,
-	applyIssueStatus,
 	dateCardMove,
 	sweepEnrollmentStatuses,
 	syncEnrollmentIssue,
@@ -419,19 +418,18 @@ export async function withdrawEnrollment(
 
 		try {
 			await transitionIssueToStatus(config, withdrawn.jiraIssueKey, WITHDRAWN_STATUS);
-		} catch (err) {
-			console.error('[training-tools] jira withdrawal transition failed', id, err);
-		}
 
-		// Every other move is dated when the card is read back. This one is not
-		// seen that way: the row above was closed first, so by the time Jira
-		// reports the card at Withdrawn there is no change left to notice.
-		try {
+			// Every other move is dated when the card is read back. This one is
+			// not seen that way: the row above was closed first, so by the time
+			// Jira reports the card at Withdrawn there is no change left to notice.
+			// Only once the card has moved, so one that stayed put is not dated.
 			await updateIssueFields(config, withdrawn.jiraIssueKey, {
 				[JIRA_FIELDS.removed]: toFacilityDate(now)
-			});
+			}).catch((err) =>
+				console.error('[training-tools] could not date Removed on withdrawal', id, err)
+			);
 		} catch (err) {
-			console.error('[training-tools] could not date Removed on withdrawal', id, err);
+			console.error('[training-tools] jira withdrawal transition failed', id, err);
 		}
 	}
 

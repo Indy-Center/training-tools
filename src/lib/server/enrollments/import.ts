@@ -9,7 +9,7 @@ import { notify } from '$lib/server/notify';
 import { resolveJiraConfig } from '$lib/server/jira/client';
 import { listBoardIssues } from '$lib/server/jira/issues';
 import { parseBoardIssue, type BoardEnrollment } from '$lib/server/jira/board-issue';
-import { applyIssueStatus } from './status-sync';
+import { applyIssueMove } from './status-sync';
 
 /**
  * Brings TRK issues filed by hand on the board into `enrollments`.
@@ -137,8 +137,9 @@ export async function importBoardIssues(
 
 		if (await adoptUnfiledRow(db, parsed.enrollment, now)) {
 			// The row predates the issue, so its status is still our `waitlist`.
-			// Bring it up to what the board says, through the one writer.
-			await applyIssueStatus(db, issue, parsed.enrollment.updatedAt, now);
+			// Bring it up to what the board says, through the one writer. Catching
+			// up is not a move anyone has just made, so it is not dated.
+			await applyIssueMove(db, issue, parsed.enrollment.updatedAt, now);
 			result.adopted += 1;
 		} else if (await insertImportedRow(db, parsed.enrollment, now)) {
 			result.imported += 1;

@@ -26,7 +26,7 @@ import {
  * - The Jira webhook applies the delivered issue directly, so a student sees
  *   "In training" within seconds rather than minutes.
  *
- * Both end in `applyIssueStatus()`, which orders every write by when that state
+ * Both end in `applyIssueMove()`, which orders every write by when that state
  * was true in Jira, so the two can arrive in any order. See
  * decisions/0014-enrollment-status-from-jira.md
  */
@@ -60,18 +60,6 @@ export type ApplyOutcome =
  * `withdrawnAt` first and moves the Jira issue second; if that transition
  * failed, Jira still says Waitlist, and trusting it would put back into the
  * queue someone who asked to leave it.
- */
-export async function applyIssueStatus(
-	db: Database,
-	issue: JiraStatusIssue,
-	observedAt: Date | null,
-	now = new Date()
-): Promise<ApplyOutcome> {
-	return (await applyIssueMove(db, issue, observedAt, now)).outcome;
-}
-
-/**
- * `applyIssueStatus()`, also saying whether the card was seen to change status.
  *
  * `moved` is set for the one write that took our row from one status to
  * another — so each move is reported once, however many deliveries and sweeps
