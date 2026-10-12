@@ -202,7 +202,8 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 				'Tells evaluators about exams to claim, and the TA about audits and failed exams.',
 			run: async () => {
 				const result = await announceArrivals(db, env);
-				return result.announced > 0 ? result : null;
+				const { updated, deleted } = result.examPosts;
+				return result.announced + updated + deleted > 0 ? result : null;
 			}
 		}
 	];

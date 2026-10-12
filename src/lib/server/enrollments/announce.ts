@@ -39,6 +39,8 @@ export type AnnounceResult = {
 	pending: number;
 	/** Of those, how many were sent a notice. The rest needed none. */
 	announced: number;
+	/** Rating exam posts changed to say where the exam stands now, and removed because it is over. */
+	examPosts: { updated: number; deleted: number };
 };
 
 /** Guards against a backlog after an outage; normally a pass finds one or two. */
@@ -227,9 +229,9 @@ export async function announceArrivals(
 		announced += 1;
 	}
 
-	await updateExamPosts(db, env, people);
+	const examPosts = await updateExamPosts(db, env, people);
 
-	return { pending: pending.length, announced };
+	return { pending: pending.length, announced, examPosts };
 }
 
 /**
@@ -245,7 +247,9 @@ async function updateExamPosts(
 	db: Database,
 	env: Partial<Env> | undefined,
 	people: People | null
-): Promise<void> {
+): Promise<AnnounceResult['examPosts']> {
+	const changed = { updated: 0, deleted: 0 };
+
 	const posts = await db
 		.select()
 		.from(enrollmentsTable)
@@ -304,6 +308,10 @@ async function updateExamPosts(
 				.update(enrollmentsTable)
 				.set({ examMessageId: messageId, examMessageStatus: shown })
 				.where(eq(enrollmentsTable.id, enrollment.id));
+		} else if (outcome === 'sent') {
+			changed[status === null ? 'deleted' : 'updated'] += 1;
 		}
 	}
+
+	return changed;
 }
