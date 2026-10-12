@@ -9,6 +9,7 @@ import {
 	listTeachers
 } from '$lib/server/teachers';
 import { describeDrift } from '$lib/server/teachers/notices';
+import { CREDENTIAL_KINDS } from '$lib/certifications';
 import { QUALIFICATION_CREDENTIALS, slotSummary } from '$lib/teachers';
 import type { PageServerLoad } from './$types';
 
@@ -61,7 +62,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const current = rows.filter((row) => row.onRoster).sort((a, b) => a.name.localeCompare(b.name));
 
 	return {
-		credentials: QUALIFICATION_CREDENTIALS.map((credential) => credential.code),
+		// Certifications first, then endorsements, so the table can head each group.
+		credentials: CREDENTIAL_KINDS.flatMap((kind) =>
+			QUALIFICATION_CREDENTIALS.filter((credential) => credential.kind === kind).map(
+				(credential) => ({ code: credential.code, kind })
+			)
+		),
 		current,
 		former: rows
 			.filter((row) => !row.onRoster)

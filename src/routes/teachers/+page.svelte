@@ -20,6 +20,22 @@
 		evaluator: 'bg-green-500/10 text-green-300'
 	};
 
+	/** The two kinds of credential a teacher can be qualified for, as the table heads them. */
+	const KIND_HEADINGS = [
+		{ kind: 'certification', title: 'Certifications', classes: 'text-sky-300' },
+		{ kind: 'endorsement', title: 'Endorsements', classes: 'text-purple-300' }
+	] as const;
+
+	/** A rule down the table where the endorsements begin. */
+	const GROUP_EDGE = 'border-l border-slate-700/60';
+
+	function groupEdge(index: number) {
+		const credential = data.credentials[index];
+		return credential.kind === 'endorsement' && data.credentials[index - 1]?.kind !== 'endorsement'
+			? GROUP_EDGE
+			: '';
+	}
+
 	function slotsLabel(slots: { total: number | null; used: number }) {
 		return slots.total === null ? `${slots.used} / —` : `${slots.used} / ${slots.total}`;
 	}
@@ -72,14 +88,37 @@
 	<div class="overflow-x-auto">
 		<table class="w-full text-left text-sm">
 			<thead class="border-b border-slate-700/60 text-xs text-gray-400 uppercase">
+				<!-- Which columns are certifications and which endorsements. -->
+				<tr>
+					<th colspan="3"></th>
+					{#each KIND_HEADINGS as heading (heading.kind)}
+						{@const count = data.credentials.filter((c) => c.kind === heading.kind).length}
+						{#if count > 0}
+							<th
+								colspan={count}
+								class="px-2 pt-3 text-center font-medium {heading.classes} {heading.kind ===
+								'endorsement'
+									? GROUP_EDGE
+									: ''}"
+							>
+								{heading.title}
+							</th>
+						{/if}
+					{/each}
+				</tr>
 				<tr>
 					<th class="px-4 py-3 font-medium">Teacher</th>
 					<th class="px-4 py-3 font-medium">Status</th>
 					<th class="px-4 py-3 text-center font-medium" title="In training / slots set"
 						>Students / Slots</th
 					>
-					{#each data.credentials as code (code)}
-						<th class="px-2 py-3 text-center font-mono font-medium">{code}</th>
+					{#each data.credentials as credential, index (credential.code)}
+						<th
+							class="px-2 py-3 text-center font-mono font-medium {groupEdge(index)}"
+							title={credential.kind === 'endorsement' ? 'Endorsement' : 'Certification'}
+						>
+							{credential.code}
+						</th>
 					{/each}
 				</tr>
 			</thead>
@@ -106,9 +145,9 @@
 								<span class="block text-xs text-orange-400">not open</span>
 							{/if}
 						</td>
-						{#each data.credentials as code (code)}
-							{@const level = teacher.levels[code]}
-							<td class="px-2 py-3 text-center">
+						{#each data.credentials as credential, index (credential.code)}
+							{@const level = teacher.levels[credential.code]}
+							<td class="px-2 py-3 text-center {groupEdge(index)}">
 								{#if level}
 									<span
 										class="rounded px-1.5 py-0.5 font-mono text-xs {LEVEL_CLASSES[level]}"
