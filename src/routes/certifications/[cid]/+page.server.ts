@@ -14,7 +14,8 @@ import {
 	canHold,
 	findCredential,
 	highestCertification,
-	isCertificationCode
+	isCertificationCode,
+	requirementText
 } from '$lib/certifications';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -73,9 +74,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: credential.name,
 			description: credential.description,
 			held: heldCodes.includes(credential.code),
-			// Shown as guidance, never enforced: staff correct reality, and reality
-			// is sometimes out of order. `requires` describes the training path.
-			eligible: canHold(credential.code, heldCodes)
+			// Enforced for a grant, here and in the action: T2-CTR only with E-RC,
+			// S-LC only with a ground certification. One already held can always
+			// be removed.
+			eligible: canHold(credential.code, heldCodes),
+			requires: requirementText(credential.code)
 		})),
 		// Certifications, roster moves and — for teachers — teaching history, in
 		// one list. See $lib/server/timeline.ts.
@@ -124,6 +127,14 @@ export const actions: Actions = {
 
 		if (findCredential(code)?.kind !== 'endorsement') {
 			return fail(400, { formError: `${code} is not an endorsement` });
+		}
+
+		// Removing one is always allowed; granting one they cannot hold is not.
+		const held: string[] = (await getHeldCredentials(locals.db, params.cid)).map((row) => row.code);
+		if (!held.includes(code) && !canHold(code, held)) {
+			return fail(400, {
+				formError: `${code} can only be held with ${requirementText(code)}.`
+			});
 		}
 
 		try {

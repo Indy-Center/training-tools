@@ -7,6 +7,7 @@ import {
 	ENDORSEMENTS,
 	RATING_GRANTS,
 	canHold,
+	requirementText,
 	findCredential,
 	highestCertification,
 	holdsHighestCertification,
@@ -102,6 +103,15 @@ describe('credential catalogue', () => {
 	// limit, which is how the roster sync broke.
 	it('keeps the code list small enough to bind', () => {
 		expect(CREDENTIAL_CODES.length).toBeLessThan(100);
+	});
+});
+
+describe('requirementText', () => {
+	it('says what a credential needs', () => {
+		expect(requirementText('S-LC')).toBe('S-GC or A-GC');
+		expect(requirementText('T2-CTR')).toBe('E-RC');
+		expect(requirementText('A-LC')).toBe('A-GC and S-LC');
+		expect(requirementText('S-GC')).toBe('');
 	});
 });
 

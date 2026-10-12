@@ -133,8 +133,7 @@
 
 			<div class="space-y-3">
 				{#each data.endorsements as endorsement (endorsement.code)}
-					<!-- One whose prerequisites are not met is greyed, not blocked: staff
-					     record what is true, and the training path is not always walked in order. -->
+					<!-- One they cannot hold is greyed and cannot be granted. The action refuses it too. -->
 					<form
 						method="POST"
 						action="?/toggleEndorsement"
@@ -155,7 +154,10 @@
 						</span>
 						<button
 							type="submit"
-							disabled={saving}
+							disabled={saving || (!endorsement.held && !endorsement.eligible)}
+							title={!endorsement.held && !endorsement.eligible
+								? `Can only be held with ${endorsement.requires}`
+								: undefined}
 							class="shrink-0 cursor-pointer rounded-lg border border-slate-600/50 px-4 py-2 text-xs font-medium text-gray-300 transition-colors duration-200 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
 						>
 							{endorsement.held ? 'Remove' : 'Grant'}
