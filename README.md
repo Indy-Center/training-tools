@@ -7,6 +7,67 @@ waitlist; instructors and training staff manage that process.
 
 Part of [DEV-99 — Controller Training Platform](https://zidartcc.atlassian.net/browse/DEV-99).
 
+## For other facilities
+
+This was built for Indy Center (ZID), but most of it is the same problem every
+VATUSA facility has: a waitlist, teachers with limited slots, a ladder of
+certifications, written courses and rating exams, and a lot of people to keep
+told. If you are thinking about running something like it, **we are glad to
+help** — to walk you through it, to answer questions about why a thing is the
+way it is, or to work with you on adapting it. Open an issue on this
+repository, or reach the Indy Center staff through
+[flyindycenter.com](https://flyindycenter.com).
+
+**What it does**
+
+- **One page per controller.** Signed in, `/` shows the one thing that applies
+  to them: enroll, their place on the waitlist, their teacher, their exam, or
+  how to join. It works out the next course from what they hold.
+- **A staff waitlist** that assigns the VATUSA Academy course, sees when it is
+  passed, and lets staff assign a teacher who is qualified for the course and
+  taking students.
+- **A teacher's page**: their students, and a training report form that files
+  straight into VATUSA's CTRS and can end the training or record an exam result.
+- **Certifications and endorsements** as the facility's system of record, granted
+  automatically when a course is finished and on arrival by rating.
+- **Discord, kept in step**: a role and a private channel per teacher, the
+  pairing message, rating exams for evaluators to claim, and alerts to staff.
+- **A background job every 15 minutes** that keeps all of it honest, with a
+  page showing each job's last run.
+
+**What it leans on, and what you would swap**
+
+| Piece                | Here                                                           | At another facility                                                                                                                                                                                       |
+| -------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hosting              | Cloudflare Workers and a D1 database                           | The same, on your own account                                                                                                                                                                             |
+| Sign-in              | Indy Center's `identity` Worker, over a service binding        | Your own VATSIM Connect sign-in. The seam is `getSessionContext()` in `src/lib/server/identity.ts`: anything that returns a CID, a rating and a list of roles                                             |
+| Roster               | VATUSA's public roster for `FACILITY_ID`                       | Change `FACILITY_ID` in `src/lib/config.ts`                                                                                                                                                               |
+| The queue staff work | A Jira project (`TRK`) the app files cards into and reads back | Your own Jira project. Field ids are in `src/lib/server/jira/fields.ts`, course options in `src/lib/courses.ts`, statuses are matched by name. A different tracker means replacing `src/lib/server/jira/` |
+| Discord              | "Larry", our bot's send Worker, over a service binding         | Optional. Without the binding every notice is logged and skipped; set `DISCORD_SYNC` to `off` to leave roles and channels alone. The seam is `src/lib/server/notify/`                                     |
+| VATUSA               | A facility API key, for Academy courses, transcripts and CTRS  | Your facility's key. `CTRS_SUBMIT` set to `test` makes VATUSA check a report and save nothing                                                                                                             |
+
+**What is yours to rewrite**
+
+- **The ladder**: `src/lib/certifications.ts` is the catalogue of certifications
+  and endorsements, their order and what each requires; `src/lib/courses.ts` is
+  the courses. Most rules read these rather than naming a code. The ones that
+  do name codes are few: which course needs which written course
+  (`vatusa-academy.ts`), which courses end in a rating exam (`teachers.ts`),
+  what a rating earns on arrival (`RATING_GRANTS` in `certifications.ts`), and
+  consolidation hours (`config.ts`).
+- **The wording** students and staff read: markdown under `src/lib/content/`.
+- **The facility's constants**: name, time zone, addresses and Discord channel
+  names, all in `src/lib/config.ts`.
+
+**What to expect.** It runs with pieces missing: with no Jira credentials a
+request is saved and filed later, and with no Discord binding nothing is sent.
+That makes it possible to stand up the roster, certifications and enrollment
+first and add the rest. The parts tied most tightly to how we work are the Jira
+workflow and its status names, and the end-of-course steps built on them;
+[The end of a course](#the-end-of-a-course) and [Enrollments](#enrollments)
+say what those assume. The rest of this document is the reference for how each
+part works, written for whoever maintains it.
+
 ## HTTP surface
 
 | Route                        | Auth       | Purpose                                                                                                            |
@@ -42,9 +103,9 @@ for a session, and a form action runs before any load. `?/withdraw` is only
 scoped to the caller's own request. Because `/` is public, its two actions
 check for a session themselves; no other route has to.
 
-**Nothing grants `training:certifications:edit` yet**, so `/certifications` is
-unreachable until identity implements and assigns the role. That is a release
-task, not a bug.
+`training:admin` implies every other `training:*` role, so a training admin
+reaches `/certifications` without holding `training:certifications:edit` itself.
+Roles are assigned in identity, not here.
 
 `/teach` is for anyone on the **teacher roster** — derived from VATUSA's `ZID:INS`
 and `ZID:MTR` roles, not from an identity role. `/teachers` needs
@@ -425,8 +486,10 @@ A card at Needs CATP is described as a failed exam only when it arrived from
 Rating Exam; staff can also move one there from In Training.
 
 Only the people a notice names are pinged; nothing typed into a field can mention
-anyone. **Students and teachers are not messaged by the app yet** — TRK's own
-notification script still does that (DEV-176).
+anyone. **Students and teachers are messaged by the app in two cases**: a
+pairing, posted in the teacher's own channel (see [The waitlist, for
+staff](#the-waitlist-for-staff)), and reminders about an assigned VATUSA course,
+sent privately. Those do not use an audience from the table above.
 
 **Arrivals are announced once.** `enrollments.announced_status` records the last
 status a request was announced at; `announceArrivals()` handles any request
