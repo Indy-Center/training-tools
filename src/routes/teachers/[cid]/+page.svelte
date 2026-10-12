@@ -9,6 +9,7 @@
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import Timeline from '$lib/components/controller/Timeline.svelte';
 	import {
+		CREDENTIAL_KIND_HEADINGS,
 		MAX_STUDENT_SLOTS,
 		STUDENT_MESSAGE_MAX_LENGTH,
 		QUALIFICATION_LEVEL_LABELS,
@@ -41,12 +42,6 @@
 			};
 		};
 	}
-
-	/** The qualifications list, split by what each one is for. */
-	const QUALIFICATION_GROUPS = [
-		{ kind: 'certification', title: 'Certifications', classes: 'text-sky-300' },
-		{ kind: 'endorsement', title: 'Endorsements', classes: 'text-purple-300' }
-	] as const;
 
 	const canEditProfile = $derived(data.teacher.onRoster && (data.manager || data.self));
 	const canAdmin = $derived(data.teacher.onRoster && data.manager);
@@ -221,7 +216,7 @@
 
 			<form method="POST" action="?/setQualifications" use:enhance={submitting('qualifications')}>
 				<fieldset disabled={!canAdmin}>
-					{#each QUALIFICATION_GROUPS as group (group.kind)}
+					{#each CREDENTIAL_KIND_HEADINGS as group (group.kind)}
 						{@const rows = data.qualifications.filter((row) => row.kind === group.kind)}
 						{#if rows.length > 0}
 							<h3

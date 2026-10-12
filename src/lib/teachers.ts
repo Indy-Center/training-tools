@@ -64,6 +64,12 @@ export const QUALIFICATION_LEVEL_SHORT: Record<QualificationLevel, string> = {
  */
 export const QUALIFICATION_CREDENTIALS = CREDENTIALS;
 
+/** The two kinds of credential, as a list of qualifications heads them. */
+export const CREDENTIAL_KIND_HEADINGS = [
+	{ kind: 'certification', title: 'Certifications', classes: 'text-sky-300' },
+	{ kind: 'endorsement', title: 'Endorsements', classes: 'text-purple-300' }
+] as const;
+
 /**
  * Courses that end in an evaluation, and the VATSIM rating it examines for.
  *

@@ -188,19 +188,18 @@ export const actions: Actions = {
 		// left open while their certifications changed is told to reload rather
 		// than filed for the wrong one.
 		const course = courseOptions.find((option) => option === input.course);
+		// What they typed, to show a refused form again as they left it.
+		const typed = {
+			notificationPreference: String(input.notificationPreference ?? ''),
+			availability: String(input.availability ?? ''),
+			agreed
+		};
 		if (!course) {
 			// With a choice on offer, sending none is a box left unticked.
 			if (courseOptions.length > 1 && !input.course) {
-				return fail(400, {
-					errors: { course: 'Choose the course you want to take.' } as EnrollmentErrors,
-					agreedError: undefined,
-					values: {
-						course: '',
-						notificationPreference: String(input.notificationPreference ?? ''),
-						availability: String(input.availability ?? ''),
-						agreed
-					}
-				});
+				const errors: EnrollmentErrors = { course: 'Choose the course you want to take.' };
+				// `agreedError` only so both refused forms have the same shape for the page.
+				return fail(400, { errors, agreedError: undefined, values: { ...typed, course: '' } });
 			}
 			return fail(409, {
 				formError:
@@ -217,12 +216,7 @@ export const actions: Actions = {
 			return fail(400, {
 				errors: validation.ok ? {} : validation.errors,
 				agreedError: agreed ? undefined : 'Please confirm you have read what we ask of you.',
-				values: {
-					course,
-					notificationPreference: String(input.notificationPreference ?? ''),
-					availability: String(input.availability ?? ''),
-					agreed
-				}
+				values: { ...typed, course }
 			});
 		}
 

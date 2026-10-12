@@ -26,7 +26,7 @@ export type PlacementInput = {
 };
 
 export type Placement = {
-	/** The course to preselect, or null when we genuinely cannot tell. */
+	/** The next course up the ladder, or null when we genuinely cannot tell. */
 	suggested: CourseCode | null;
 	/** One line explaining the suggestion, shown to the student. */
 	reason: string;

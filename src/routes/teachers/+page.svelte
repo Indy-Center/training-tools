@@ -4,6 +4,7 @@
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
 	import { formatDate, formatDateTime } from '$lib/format';
 	import {
+		CREDENTIAL_KIND_HEADINGS,
 		QUALIFICATION_LEVEL_LABELS,
 		QUALIFICATION_LEVEL_SHORT,
 		type QualificationLevel
@@ -19,12 +20,6 @@
 		teacher: 'bg-sky-500/10 text-sky-300',
 		evaluator: 'bg-green-500/10 text-green-300'
 	};
-
-	/** The two kinds of credential a teacher can be qualified for, as the table heads them. */
-	const KIND_HEADINGS = [
-		{ kind: 'certification', title: 'Certifications', classes: 'text-sky-300' },
-		{ kind: 'endorsement', title: 'Endorsements', classes: 'text-purple-300' }
-	] as const;
 
 	/** A rule down the table where the endorsements begin. */
 	const GROUP_EDGE = 'border-l border-slate-700/60';
@@ -91,7 +86,7 @@
 				<!-- Which columns are certifications and which endorsements. -->
 				<tr>
 					<th colspan="4"></th>
-					{#each KIND_HEADINGS as heading (heading.kind)}
+					{#each CREDENTIAL_KIND_HEADINGS as heading (heading.kind)}
 						{@const count = data.credentials.filter((c) => c.kind === heading.kind).length}
 						{#if count > 0}
 							<th
@@ -114,10 +109,7 @@
 						>Students / Slots</th
 					>
 					{#each data.credentials as credential, index (credential.code)}
-						<th
-							class="px-2 py-3 text-center font-mono font-medium {groupEdge(index)}"
-							title={credential.kind === 'endorsement' ? 'Endorsement' : 'Certification'}
-						>
+						<th class="px-2 py-3 text-center font-mono font-medium {groupEdge(index)}">
 							{credential.code}
 						</th>
 					{/each}

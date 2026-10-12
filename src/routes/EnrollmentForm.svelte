@@ -36,10 +36,21 @@
 
 	let submitting = $state(false);
 
-	// The first course starts selected; what they chose comes back with a refused form.
-	let picked = $state<string | null>(null);
-	const chosen = $derived(picked ?? (form?.values?.course || courses[0].code));
+	// The first course starts selected; what they chose comes back with a refused
+	// form. Assigned to as they pick between two.
+	let chosen = $derived(form?.values?.course || courses[0].code);
 </script>
+
+{#snippet courseSummary(course: Course)}
+	{@const courseLength = formatWeeksRange(course.estimatedWeeks)}
+	<span class="block text-sm font-medium text-white">{course.label}</span>
+	<span class="mt-0.5 block text-sm text-gray-400">{course.description}</span>
+	{#if courseLength}
+		<span class="mt-2 block text-sm text-gray-400">
+			Takes about <span class="text-gray-300">{courseLength}</span> once you start.
+		</span>
+	{/if}
+{/snippet}
 
 {#if form?.formError}
 	<Alert>{form.formError}</Alert>
@@ -105,17 +116,9 @@
 			{#if courses.length === 1}
 				<!-- One course, not a choice: the server accepts only what it offers,
 				     whatever this field says. -->
-				{@const course = courses[0]}
-				{@const courseLength = formatWeeksRange(course.estimatedWeeks)}
-				<input type="hidden" name="course" value={course.code} />
+				<input type="hidden" name="course" value={courses[0].code} />
 				<div class="rounded-lg border border-sky-500/50 bg-sky-500/10 px-4 py-3">
-					<div class="text-sm font-medium text-white">{course.label}</div>
-					<p class="mt-0.5 text-sm text-gray-400">{course.description}</p>
-					{#if courseLength}
-						<p class="mt-2 text-sm text-gray-400">
-							Takes about <span class="text-gray-300">{courseLength}</span> once you start.
-						</p>
-					{/if}
+					{@render courseSummary(courses[0])}
 				</div>
 			{:else}
 				<!-- Side by side, the first selected: the order is theirs to choose. -->
@@ -125,12 +128,11 @@
 				<fieldset
 					class="grid gap-3 sm:grid-cols-2"
 					onchange={(event) => {
-						if (event.target instanceof HTMLInputElement) picked = event.target.value;
+						if (event.target instanceof HTMLInputElement) chosen = event.target.value;
 					}}
 				>
 					<legend class="sr-only">Your next course</legend>
 					{#each courses as course (course.code)}
-						{@const courseLength = formatWeeksRange(course.estimatedWeeks)}
 						<ChoiceCard
 							type="radio"
 							name="course"
@@ -139,15 +141,7 @@
 							required
 							align="start"
 						>
-							<span class="min-w-0">
-								<span class="block text-sm font-medium text-white">{course.label}</span>
-								<span class="mt-0.5 block text-sm text-gray-400">{course.description}</span>
-								{#if courseLength}
-									<span class="mt-2 block text-sm text-gray-400">
-										Takes about <span class="text-gray-300">{courseLength}</span> once you start.
-									</span>
-								{/if}
-							</span>
+							<span class="min-w-0">{@render courseSummary(course)}</span>
 						</ChoiceCard>
 					{/each}
 				</fieldset>
