@@ -667,7 +667,9 @@ depend on the workflow staying as it is.
 
 What a course earns is the credential of the same code, and a certification only
 ever moves someone **up**: a card for a course below what they already hold
-changes nothing. An endorsement (S-LC) is added beside their certification.
+changes nothing. An endorsement (S-LC) is added beside their certification, and
+only while it can be held: an S-LC card finished by someone at A-LC or above
+changes nothing.
 
 **Needs CATP** (a Corrective Action Training Plan) is reached two ways: a failed
 exam, below, or a card staff move there from In Training on the board. The

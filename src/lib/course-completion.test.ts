@@ -68,6 +68,15 @@ describe('credentialChangeFor', () => {
 		});
 	});
 
+	// The same rule the staff page and a change of certification apply.
+	it('does not grant an endorsement that cannot be held', () => {
+		expect(credentialChangeFor('S-LC', ['A-LC'])).toEqual({
+			action: 'none',
+			reason: 'cannot-hold'
+		});
+		expect(credentialChangeFor('S-LC', [])).toEqual({ action: 'none', reason: 'cannot-hold' });
+	});
+
 	// A card for a lower course must never take a higher certification away.
 	it('never moves a controller down', () => {
 		expect(credentialChangeFor('S-GC', ['A-LC'])).toEqual({
