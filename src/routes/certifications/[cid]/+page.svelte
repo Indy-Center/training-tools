@@ -133,13 +133,17 @@
 
 			<div class="space-y-3">
 				{#each data.endorsements as endorsement (endorsement.code)}
+					<!-- One whose prerequisites are not met is greyed, not blocked: staff
+					     record what is true, and the training path is not always walked in order. -->
 					<form
 						method="POST"
 						action="?/toggleEndorsement"
 						use:enhance={submitting}
 						class="flex items-start justify-between gap-3 rounded-lg border px-4 py-3 {endorsement.held
 							? 'border-purple-500/40 bg-purple-500/10'
-							: 'border-slate-700/60'}"
+							: 'border-slate-700/60'} {!endorsement.held && !endorsement.eligible
+							? 'opacity-50'
+							: ''}"
 					>
 						<input type="hidden" name="endorsement" value={endorsement.code} />
 						<span class="min-w-0">
@@ -148,13 +152,6 @@
 								<span class="font-mono text-xs text-gray-500">({endorsement.code})</span>
 							</span>
 							<span class="mt-0.5 block text-xs text-gray-400">{endorsement.description}</span>
-							{#if !endorsement.held && !endorsement.eligible}
-								<!-- Guidance, not a block: staff record what is true, and the
-								     training path is not always walked in order. -->
-								<span class="mt-1 block text-xs text-orange-400">
-									Prerequisites not met for the usual training path.
-								</span>
-							{/if}
 						</span>
 						<button
 							type="submit"
