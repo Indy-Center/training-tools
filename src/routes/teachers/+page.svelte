@@ -90,7 +90,7 @@
 			<thead class="border-b border-slate-700/60 text-xs text-gray-400 uppercase">
 				<!-- Which columns are certifications and which endorsements. -->
 				<tr>
-					<th colspan="3"></th>
+					<th colspan="4"></th>
 					{#each KIND_HEADINGS as heading (heading.kind)}
 						{@const count = data.credentials.filter((c) => c.kind === heading.kind).length}
 						{#if count > 0}
@@ -108,6 +108,7 @@
 				</tr>
 				<tr>
 					<th class="px-4 py-3 font-medium">Teacher</th>
+					<th class="px-4 py-3 font-medium">Availability</th>
 					<th class="px-4 py-3 font-medium">Status</th>
 					<th class="px-4 py-3 text-center font-medium" title="In training / slots set"
 						>Students / Slots</th
@@ -135,12 +136,10 @@
 								<span>{teacher.ratingShort}</span>
 								<span>{teacher.roles.join('+')}</span>
 							</div>
-							{#if teacher.availability}
-								<!-- When they can teach, in their own words, for whoever is pairing students. -->
-								<p class="mt-1 max-w-xs text-xs whitespace-pre-line text-gray-400">
-									{teacher.availability}
-								</p>
-							{/if}
+						</td>
+						<!-- When they can teach, in their own words, for whoever is pairing students. -->
+						<td class="max-w-xs px-4 py-3 text-xs whitespace-pre-line text-gray-400">
+							{teacher.availability ?? ''}
 						</td>
 						<td class="px-4 py-3">
 							<TeacherStatusBadge status={teacher.status} />
