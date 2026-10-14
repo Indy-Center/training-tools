@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	allowedLevels,
 	canEvaluate,
+	coursesTaught,
 	downgradeFor,
 	hasEvaluation,
 	isAssignedTo,
@@ -181,6 +182,33 @@ describe('qualificationsExpired', () => {
 
 	it('expires them after more than six months off the roster', () => {
 		expect(qualificationsExpired(new Date('2026-03-29T00:00:00Z'), now)).toBe(true);
+	});
+});
+
+describe('coursesTaught', () => {
+	const ended = new Date('2026-09-01T00:00:00Z');
+
+	it('names every course with a current qualification, at any level', () => {
+		expect(
+			coursesTaught([
+				{ code: 'S-GC', level: 'evaluator', endedAt: null },
+				{ code: 'A-LC', level: 'teacher', endedAt: null },
+				{ code: 'S-LC', level: 'training', endedAt: null }
+			])
+		).toEqual(['A-LC', 'S-GC', 'S-LC']);
+	});
+
+	it('leaves out qualifications that have ended', () => {
+		expect(
+			coursesTaught([
+				{ code: 'S-GC', level: 'teacher', endedAt: ended },
+				{ code: 'A-LC', level: 'teacher', endedAt: null }
+			])
+		).toEqual(['A-LC']);
+	});
+
+	it('answers nothing for someone with no qualifications', () => {
+		expect(coursesTaught([])).toEqual([]);
 	});
 });
 

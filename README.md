@@ -167,6 +167,32 @@ read back from the TRK issue two ways: a Jira webhook (`POST /api/jira/webhook`)
 the 15-minute cron sweep as the backstop. A request the student withdrew here is
 never reopened by Jira.
 
+## RPC for other Workers
+
+`src/worker.ts` exports one `WorkerEntrypoint`, `Teaching`, for other Workers
+on the account to call over a service binding:
+
+```jsonc
+// in the calling Worker's wrangler.jsonc
+"services": [{ "binding": "TRAINING", "service": "training-tools", "entrypoint": "Teaching" }]
+```
+
+| Method               | Answers                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `coursesTaught(cid)` | The course and endorsement codes the CID holds a current teacher qualification on, sorted |
+
+"Current" is the rule the teacher pages use: any level (Training, Teacher, or
+Teacher and Evaluator) on a row that has not ended. LOA does not end a
+qualification; six months off the teacher roster does. A CID that is not a
+string of digits gets `[]`.
+
+It is read-only, and the binding is the only gate: a service binding is not
+internet-reachable, so only Workers bound to it can call it. The caller is
+indy-library (`library.flyindycenter.com`), which shows a course's teacher
+notes to the people who may teach it. Course content itself — lesson plans,
+scenarios, tasks — is authored in the CMS at `cms.flyindycenter.com`, not here.
+Training Admin and lead instructor come from identity, not from this method.
+
 ## Scheduled work
 
 Every 15 minutes (`*/15 * * * *`), in this order:
@@ -259,7 +285,7 @@ exist.
 
 ```
 src/
-├── worker.ts                  worker entry: SvelteKit fetch + the roster cron
+├── worker.ts                  worker entry: SvelteKit fetch, the roster cron, the Teaching RPC
 ├── hooks.server.ts            db client + session load + the route gate
 ├── app.d.ts                   App.Locals / App.Platform (IDENTITY is optional here on purpose)
 ├── lib/

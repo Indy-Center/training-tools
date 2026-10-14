@@ -8,11 +8,10 @@
  * label has to match Jira's option value character for character, because it is
  * also what goes in the issue summary.
  *
- * Code, label and Jira option id live together in one record deliberately.
- * Course content is eventually generated from a repo of markdown, which will
- * mean creating new options on the Jira select rather than choosing from a
- * fixed six; keeping the mapping in one shape gives that generator one place to
- * write instead of two modules to keep in step.
+ * Code, label and Jira option id live together in one record deliberately, so
+ * a new course is added in one place. Course content (lesson plans, scenarios,
+ * tasks) is authored in the CMS at cms.flyindycenter.com, not here; its course
+ * codes match these.
  *
  * See research/jira-student-tracking.md
  */

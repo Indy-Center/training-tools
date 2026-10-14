@@ -218,6 +218,24 @@ export function qualificationsExpired(removedAt: Date | null, now: Date): boolea
 	return removedAt.getTime() < cutoff.getTime();
 }
 
+/**
+ * The courses someone may teach, as other apps are told it: every course or
+ * endorsement they hold a current qualification on, at any level, sorted.
+ *
+ * "Current" is the rule every other page applies — the row has not ended. LOA
+ * ends nothing, and six months off the teacher roster ends every row through
+ * the sync, so neither needs a check of its own here. See the courseware notes,
+ * decisions/0039.
+ */
+export function coursesTaught(
+	qualifications: readonly { code: string; level: QualificationLevel; endedAt: Date | null }[]
+): string[] {
+	const codes = new Set(
+		qualifications.filter((row) => row.endedAt === null).map((row) => row.code)
+	);
+	return [...codes].sort();
+}
+
 export type SlotSummary = {
 	/** What the teacher set, or null when they have not said. */
 	total: number | null;
