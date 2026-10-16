@@ -83,7 +83,7 @@ part works, written for whoever maintains it.
 | `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                                                                |
 | `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                                                                        |
 | `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`, `?/changeTeacher`, `?/withdrawStudent`, `?/removeStudent` |
-| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                                                            |
+| `GET /teach`                 | teacher    | A teacher's assigned students, slots, qualifications and the teacher resources                                     |
 | `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                                                              |
 | `GET /teach/report/{id}`     | teacher    | A training report form for one of their students                                                                   |
 | `POST /teach/report/{id}`    | teacher    | `?/submit` files the report in VATUSA's CTRS                                                                       |
@@ -238,6 +238,7 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
 | `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
 | `CTRS_SUBMIT`                    | `live` files training reports; anything else only checks them      |
+| `CMS_URL`                        | `https://cms.flyindycenter.com` — payload; see Teacher resources   |
 
 | Secret                | What it is                                                       |
 | --------------------- | ---------------------------------------------------------------- |
@@ -245,6 +246,7 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security              |
 | `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery        |
 | `VATUSA_API_KEY`      | ZID's VATUSA facility key; set by the deploy from the org secret |
+| `TRAINING_API_TOKEN`  | Reads training content from payload; see Teacher resources       |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to
@@ -804,6 +806,24 @@ training team should need a public PR to change.
 
 When you change `agreement.md` in a way that alters what a student agrees to,
 **bump `TERMS_VERSION`** in `src/lib/content/enrollment/index.ts`.
+
+### Teacher resources
+
+The Training Admin keeps a list of links for teachers in the CMS (payload's
+"Teacher resources", in its Training group). Every teacher sees them on
+`/teach`, last in the left column, in the CMS's order. A save in payload shows
+on the next page load.
+
+`$lib/server/cms` is the one place this app reads from payload:
+`GET {CMS_URL}/api/training/resources` with `TRAINING_API_TOKEN` as a bearer
+token. The document is checked before use: one row without a title, without an
+`https` link or without its new-tab setting rejects the whole list.
+
+**To set the token**, generate one value (`openssl rand -hex 32`) and set it in
+both places: as `TRAINING_API_TOKEN` in payload's server environment, and here
+with `npx wrangler secret put TRAINING_API_TOKEN`. Either may go first. Until
+both match, or whenever payload cannot be read, the panel is simply not shown;
+nothing else on `/teach` changes, and the failure is logged.
 
 ## Local development
 
