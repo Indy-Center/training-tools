@@ -19,6 +19,7 @@
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboard from '~icons/mdi/clipboard-text-clock';
 	import { page } from '$app/state';
+	import TeacherResourcesPrototype from './TeacherResources.prototype.svelte';
 
 	let { data, form } = $props();
 
@@ -253,6 +254,8 @@
 				</Panel>
 			</div>
 		{/if}
+
+		<TeacherResourcesPrototype />
 	</div>
 
 	<div class="space-y-6">
