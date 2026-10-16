@@ -8,9 +8,12 @@ import { d1Copies } from './copies';
 import { CmsError, readCms, resolveCmsConfig } from './index';
 import { readThroughCopy } from './read';
 
+/** Where payload serves the teacher resources; also the key of their copy in D1. */
+const TEACHER_RESOURCES_PATH = '/api/training/resources';
+
 /**
- * What payload serves at `GET /api/training/resources`. A hand copy of
- * payload's contract; keep the two in step.
+ * What payload serves at `TEACHER_RESOURCES_PATH`. A hand copy of payload's
+ * contract; keep the two in step.
  */
 export type TeacherResourcesDocument = {
 	/** In the Training Admin's order, which is the order they are shown in. */
@@ -32,9 +35,11 @@ export type TeacherResource = {
 };
 
 /**
- * The teacher resources, in order. None while the CMS is not configured.
- * Read through the copy in D1; throws `CmsError` when the CMS cannot be read
- * and there is no copy.
+ * The teacher resources, in order. Read through the copy in D1; throws
+ * `CmsError` when the CMS cannot be read and there is no copy.
+ *
+ * None while the CMS is not configured, even with a copy kept: an unset token
+ * is a setting, not an outage, and the copy is for outages.
  */
 export async function getTeacherResources(
 	env: Partial<Env> | undefined,
@@ -46,7 +51,7 @@ export async function getTeacherResources(
 	const document = await readThroughCopy(
 		cms,
 		d1Copies(db),
-		'/api/training/resources',
+		TEACHER_RESOURCES_PATH,
 		parseTeacherResources
 	);
 	return document.resources;

@@ -261,7 +261,7 @@
 			<div class="mt-6">
 				<Panel title="Teacher resources" icon={IconBookshelf}>
 					<ul class="divide-y divide-slate-700/60">
-						{#each data.resources as resource, i (i)}
+						{#each data.resources as resource}
 							<li class="flex gap-3 px-4 py-3">
 								<TeacherResourceIcon
 									name={resource.icon}

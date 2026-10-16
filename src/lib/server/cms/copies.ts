@@ -15,11 +15,11 @@ export function d1Copies(db: Database): CmsCopies {
 			return row ? { document: JSON.parse(row.document), fetchedAt: row.fetchedAt } : null;
 		},
 		async put(path, copy) {
-			const set = { document: JSON.stringify(copy.document), fetchedAt: copy.fetchedAt };
+			const values = { document: JSON.stringify(copy.document), fetchedAt: copy.fetchedAt };
 			await db
 				.insert(cmsCopiesTable)
-				.values({ key: path, ...set })
-				.onConflictDoUpdate({ target: cmsCopiesTable.key, set });
+				.values({ key: path, ...values })
+				.onConflictDoUpdate({ target: cmsCopiesTable.key, set: values });
 		}
 	};
 }

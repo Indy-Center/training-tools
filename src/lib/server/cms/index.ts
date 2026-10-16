@@ -19,7 +19,10 @@ export function resolveCmsConfig(env: Partial<Env> | undefined): CmsConfig | nul
 	return baseUrl && token ? { baseUrl, token } : null;
 }
 
-/** Thrown when the CMS does not answer, or answers with anything but a JSON 200. */
+/**
+ * Thrown when the CMS does not answer, answers with anything but a JSON 200,
+ * or answers with a document that breaks its contract.
+ */
 export class CmsError extends Error {
 	constructor(
 		message: string,
