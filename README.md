@@ -83,7 +83,7 @@ part works, written for whoever maintains it.
 | `GET /certifications/{cid}`  | staff      | One controller's credentials and their full history                                                                |
 | `POST /certifications/{cid}` | staff      | `?/setCertification`, `?/toggleEndorsement`                                                                        |
 | `POST /waitlist`             | staff      | `?/assignVatusa`, `?/completeVatusa`, `?/assignTeacher`, `?/changeTeacher`, `?/withdrawStudent`, `?/removeStudent` |
-| `GET /teach`                 | teacher    | A teacher's assigned students, slots and qualifications                                                            |
+| `GET /teach`                 | teacher    | A teacher's assigned students, slots, qualifications and the teacher resources                                     |
 | `POST /teach`                | teacher    | `?/completeTraining`, `?/claimExam`, `?/completeExam`                                                              |
 | `GET /teach/report/{id}`     | teacher    | A training report form for one of their students                                                                   |
 | `POST /teach/report/{id}`    | teacher    | `?/submit` files the report in VATUSA's CTRS                                                                       |
@@ -238,6 +238,7 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
 | `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
 | `CTRS_SUBMIT`                    | `live` files training reports; anything else only checks them      |
+| `CMS_URL`                        | `https://cms.flyindycenter.com` — payload; see Teacher resources   |
 
 | Secret                | What it is                                                       |
 | --------------------- | ---------------------------------------------------------------- |
@@ -245,6 +246,7 @@ least once. Discord ids come from the VATUSA roster on each sync.
 | `JIRA_API_TOKEN`      | Classic API token, from id.atlassian.com → Security              |
 | `JIRA_WEBHOOK_SECRET` | Secret on the TRK webhook in Jira; verifies each delivery        |
 | `VATUSA_API_KEY`      | ZID's VATUSA facility key; set by the deploy from the org secret |
+| `TRAINING_API_TOKEN`  | Reads training content from payload; see Teacher resources       |
 
 **Auth needs no secrets** — service bindings aren't internet-reachable, so there
 is no client id, client secret or signing key. The Jira secrets are unrelated to
@@ -290,7 +292,7 @@ src/
 │   │   └── header/            the site header, navigation and logo
 │   ├── format.ts              date formatting, pinned to one locale
 │   ├── job-health.ts          pure "is this job healthy" rules for /admin
-│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health)
+│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health, cms_copies)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
 │   ├── server/
@@ -309,6 +311,7 @@ src/
 │   │   ├── job-health.ts      records each job's last run; read back by /admin
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for / and /enroll/tier-2
 │   │   ├── jira/              Jira client, field ids, issue payload builder
+│   │   ├── cms/               the one CMS (payload) reader, through copies kept in D1
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
@@ -804,6 +807,43 @@ training team should need a public PR to change.
 
 When you change `agreement.md` in a way that alters what a student agrees to,
 **bump `TERMS_VERSION`** in `src/lib/content/enrollment/index.ts`.
+
+### Teacher resources
+
+The Training Admin keeps a list of links for teachers in the CMS (payload's
+"Teacher resources", in its Training group). Every teacher sees them on
+`/teach`, last in the left column, in the CMS's order. A save in payload shows
+within about five minutes. Each row is an icon, its title as a link, and an
+optional description beneath, drawn as plain text (never HTML).
+
+The icon is one of a closed list of mdi names (`$lib/teacher-resources.ts`),
+each mapped to a static import in `TeacherResourceIcon.svelte`: `unplugin-icons`
+compiles icons at build time, so a name cannot be drawn unless it is listed. A
+row with no icon, or one this app does not know, gets the link icon. Adding an
+icon means adding it there and to payload's options.
+
+`$lib/server/cms` is the one place this app reads from payload:
+`GET {CMS_URL}/api/training/resources` with `TRAINING_API_TOKEN` as a bearer
+token. The document is checked before use: one row without a title, without an
+`https` link, without its new-tab setting or with a description that is not
+text rejects the whole list.
+
+Reads go through a copy in D1 (`cms_copies`, one row per path). A copy under
+five minutes old is used without asking payload; an older one is refetched, and
+a good document replaces it. When payload is down, slow (5 s) or answers with a
+malformed document, the copy is served whatever its age and left as it was, so
+teachers keep their links through an outage. There is no scheduled job and no
+Cloudflare cache. The panel is streamed, so the rest of `/teach` never waits on
+payload; during an outage it appears once the read gives up, from the copy.
+
+**To set the token**, generate one value (`openssl rand -hex 32`) and set it in
+both places: as `TRAINING_API_TOKEN` in payload's server environment, and here
+with `npx wrangler secret put TRAINING_API_TOKEN`. Either may go first. Until
+both match, or whenever payload cannot be read and there is no copy yet, the
+panel is simply not shown and nothing else on `/teach` changes. An unset token
+hides the panel even when a copy is kept: the copy is for outages, not for a
+missing setting. A failed read is logged; an unset token is not, so a local
+checkout without one stays quiet.
 
 ## Local development
 

@@ -1,0 +1,232 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * `/teach` shows the teacher resources the Training Admin keeps in the CMS.
+ * The CMS is faked at `fetch`; the database is faked at the modules that read it.
+ */
+
+vi.mock('$lib/server/teachers', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/server/teachers')>()),
+	getActiveTeacher: vi.fn(async () => ({
+		cid: '1000001',
+		initials: 'TT',
+		status: 'active',
+		availability: 'Evenings',
+		roles: [],
+		studentSlots: 2
+	})),
+	getAssignedEnrollments: vi.fn(async () => []),
+	getCurrentQualifications: vi.fn(async () => [{ code: 'S1', level: 'instructor' }])
+}));
+
+vi.mock('$lib/server/roster', () => ({
+	getPeople: vi.fn(async () => new Map()),
+	getRosterEmails: vi.fn(async () => new Map())
+}));
+
+// No copy is kept unless a test sets one, so most loads ask the faked CMS. The
+// copy rule has its own tests in `$lib/server/cms/read.test.ts`.
+const copies = vi.hoisted(() => ({ kept: null as { document: unknown; fetchedAt: Date } | null }));
+vi.mock('$lib/server/cms/copies', () => ({
+	d1Copies: () => ({ get: async () => copies.kept, put: async () => {} })
+}));
+
+const { load } = await import('./+page.server');
+
+const ENV = { CMS_URL: 'https://cms.example.com', TRAINING_API_TOKEN: 'secret-token' };
+
+const event = (env: Record<string, string> = ENV) =>
+	({
+		locals: { db: {}, session: { roles: [], user: { cid: '1000001' } } },
+		platform: { env }
+	}) as unknown as Parameters<typeof load>[0];
+
+/** The page's data, with the streamed resources awaited. */
+const loaded = async (e = event()) => {
+	const { resources, ...page } = (await load(e)) as Record<string, unknown>;
+	return { ...page, resources: await resources };
+};
+
+const cms = vi.fn<typeof fetch>();
+
+const answer = (body: unknown, status = 200) =>
+	cms.mockResolvedValue(new Response(JSON.stringify(body), { status }));
+
+beforeEach(() => {
+	cms.mockReset();
+	copies.kept = null;
+	vi.stubGlobal('fetch', cms);
+	// The load logs each failed read; these tests cause them on purpose.
+	vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+afterEach(() => {
+	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
+});
+
+describe('/teach load: teacher resources', () => {
+	it('lists the resources in the order the CMS gives them', async () => {
+		const rows = [
+			{
+				title: 'Training Order',
+				description: null,
+				url: 'https://example.com/order.pdf',
+				newTab: true,
+				icon: 'file-document'
+			},
+			{
+				title: 'Lesson plans',
+				description: null,
+				url: 'https://drive.example.com/plans',
+				newTab: false,
+				icon: 'google-drive'
+			}
+		];
+		answer({ resources: rows });
+
+		const data = await loaded(event());
+
+		expect(data.resources).toEqual(rows);
+		const [url, init] = cms.mock.calls[0];
+		expect(String(url)).toBe('https://cms.example.com/api/training/resources');
+		expect(new Headers(init?.headers).get('authorization')).toBe('Bearer secret-token');
+	});
+
+	it('shows no resources when the CMS cannot be read, and the rest of the page is unchanged', async () => {
+		answer({ resources: [] });
+		const { resources: none, ...page } = await loaded(event());
+		expect(none).toEqual([]);
+
+		const failures: [string, () => unknown, Record<string, string>?][] = [
+			['a server error', () => answer({ message: 'Server error' }, 500)],
+			['a refused token', () => answer({ message: 'Unauthorized' }, 401)],
+			['no answer', () => cms.mockRejectedValue(new TypeError('fetch failed'))],
+			['a body that is not JSON', () => cms.mockResolvedValue(new Response('<html>'))],
+			['no CMS_URL', () => answer({ resources: [] }), { TRAINING_API_TOKEN: 'secret-token' }],
+			['no token', () => answer({ resources: [] }), { CMS_URL: 'https://cms.example.com' }]
+		];
+		for (const [name, arrange, env] of failures) {
+			cms.mockReset();
+			arrange();
+			const { resources, ...rest } = await loaded(event(env));
+			expect(resources, name).toEqual([]);
+			expect(rest, name).toEqual(page);
+		}
+	});
+
+	it('shows the kept copy, however old, when the CMS cannot be read', async () => {
+		const row = {
+			title: 'Training Order',
+			description: null,
+			url: 'https://example.com/order.pdf',
+			newTab: true,
+			icon: 'file-document'
+		};
+		copies.kept = { document: { resources: [row] }, fetchedAt: new Date(0) };
+		cms.mockRejectedValue(new TypeError('fetch failed'));
+
+		const data = await loaded(event());
+
+		expect(data.resources).toEqual([row]);
+	});
+
+	it('does not hold the page while the CMS is slow', async () => {
+		cms.mockReturnValue(new Promise(() => {}));
+		const data = (await load(event())) as Record<string, unknown>;
+		expect(data.teacher).toBeDefined();
+		expect(data.resources).toBeInstanceOf(Promise);
+	});
+
+	it('shows no resources while the token is unset, even with a copy kept', async () => {
+		const row = { title: 'T', url: 'https://example.com', newTab: true };
+		copies.kept = { document: { resources: [row] }, fetchedAt: new Date() };
+
+		const data = await loaded(event({ CMS_URL: 'https://cms.example.com' }));
+
+		expect(data.resources).toEqual([]);
+		expect(cms).not.toHaveBeenCalled();
+	});
+
+	it('uses none of a document that is not the shape payload promises', async () => {
+		const good = { title: 'Training Order', url: 'https://example.com/order.pdf', newTab: true };
+		const malformed: [string, unknown][] = [
+			['no list', {}],
+			['a list that is not one', { resources: 'Training Order' }],
+			['a row with no title', { resources: [good, { ...good, title: '' }] }],
+			['a row with no URL', { resources: [good, { title: 'X', newTab: true }] }],
+			['a plain http link', { resources: [good, { ...good, url: 'http://example.com' }] }],
+			['a script link', { resources: [good, { ...good, url: 'javascript:alert(1)' }] }],
+			['a URL that is not one', { resources: [good, { ...good, url: 'https://' }] }],
+			['a new-tab flag that is not a boolean', { resources: [good, { ...good, newTab: 'yes' }] }],
+			['a description that is not text', { resources: [good, { ...good, description: ['x'] }] }]
+		];
+		for (const [name, body] of malformed) {
+			answer(body);
+			const data = await loaded(event());
+			expect(data.resources, name).toEqual([]);
+		}
+	});
+
+	it('shows a row saved before descriptions and icons, with the link icon', async () => {
+		answer({ resources: [{ title: 'T', url: 'https://example.com', newTab: true }] });
+		const data = await loaded(event());
+		expect(data.resources).toEqual([
+			{
+				title: 'T',
+				description: null,
+				url: 'https://example.com',
+				newTab: true,
+				icon: 'link-variant'
+			}
+		]);
+	});
+
+	it('draws the link icon for an icon name the app does not know', async () => {
+		const row = { title: 'T', description: null, url: 'https://example.com', newTab: true };
+		answer({
+			resources: [
+				{ ...row, icon: 'rocket-launch' },
+				{ ...row, icon: 7 }
+			]
+		});
+		const data = await loaded(event());
+		expect(data.resources).toEqual([
+			{ ...row, icon: 'link-variant' },
+			{ ...row, icon: 'link-variant' }
+		]);
+	});
+
+	it('treats a blank description as none', async () => {
+		const row = { title: 'T', url: 'https://example.com', newTab: true, icon: 'web' };
+		answer({
+			resources: [
+				{ ...row, description: '' },
+				{ ...row, description: '  \n ' }
+			]
+		});
+		const data = await loaded(event());
+		expect(data.resources).toEqual([
+			{ ...row, description: null },
+			{ ...row, description: null }
+		]);
+	});
+
+	it('carries each resource’s description and icon, and nothing the panel does not draw', async () => {
+		answer({
+			resources: [
+				{
+					id: 'row-1',
+					title: 'T',
+					description: 'D',
+					url: 'https://example.com',
+					newTab: false,
+					icon: 'map'
+				}
+			]
+		});
+		const data = await loaded(event());
+		expect(data.resources).toEqual([
+			{ title: 'T', description: 'D', url: 'https://example.com', newTab: false, icon: 'map' }
+		]);
+	});
+});

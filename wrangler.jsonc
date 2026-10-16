@@ -55,7 +55,8 @@
 		// Training reports from /teach to VATUSA's CTRS. "live" files them; anything
 		// else ("test") has VATUSA check the report and save nothing.
 		// Live since 2026-10-07, after a test report was seen to pass.
-		"CTRS_SUBMIT": "live"
+		"CTRS_SUBMIT": "live",
+		"CMS_URL": "https://cms.flyindycenter.com"
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
 	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157

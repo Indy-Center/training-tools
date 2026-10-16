@@ -6,6 +6,7 @@ import * as syncState from '$lib/db/schema/sync-state';
 import * as teachers from '$lib/db/schema/teachers';
 import * as activityLog from '$lib/db/schema/activity-log';
 import * as jobHealth from '$lib/db/schema/job-health';
+import * as cmsCopies from '$lib/db/schema/cms-copies';
 
 // Every table module has to be spread in here, not just re-exported from the
 // schema barrel — miss one and `db.query.<table>` silently does not exist.
@@ -16,7 +17,8 @@ const schema = {
 	...syncState,
 	...teachers,
 	...activityLog,
-	...jobHealth
+	...jobHealth,
+	...cmsCopies
 };
 
 export type Database = ReturnType<typeof drizzle>;

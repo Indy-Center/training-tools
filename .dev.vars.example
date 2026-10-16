@@ -28,3 +28,11 @@ JIRA_API_TOKEN=
 # WebHooks). Only needed to exercise /api/jira/webhook locally; statuses still
 # sync every 15 minutes without it. In production this is a Worker secret.
 JIRA_WEBHOOK_SECRET=
+
+# The CMS (payload), for the teacher resources on /teach. CMS_URL is a var in
+# wrangler.jsonc; set it here to read a local payload instead
+# (http://localhost:3000). TRAINING_API_TOKEN must match payload's own
+# TRAINING_API_TOKEN; in production it is a Worker secret. Leave it unset and
+# /teach simply shows no teacher resources.
+# CMS_URL=http://localhost:3000
+TRAINING_API_TOKEN=

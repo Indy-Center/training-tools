@@ -18,6 +18,8 @@
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboard from '~icons/mdi/clipboard-text-clock';
+	import IconBookshelf from '~icons/mdi/bookshelf';
+	import TeacherResourceIcon from '$lib/components/teachers/TeacherResourceIcon.svelte';
 	import { page } from '$app/state';
 
 	let { data, form } = $props();
@@ -253,6 +255,46 @@
 				</Panel>
 			</div>
 		{/if}
+
+		<!-- Kept by the Training Admin in the CMS; not shown when there are none or the CMS is down. -->
+		<!-- Streamed: drawn when the read finishes, so the rest of the page never waits on the CMS. -->
+		{#await data.resources then resources}
+			{#if resources.length > 0}
+				<div class="mt-6">
+					<Panel title="Teacher resources" icon={IconBookshelf}>
+						<ul class="divide-y divide-slate-700/60">
+							{#each resources as resource}
+								<li class="flex gap-3 px-4 py-3">
+									<TeacherResourceIcon
+										name={resource.icon}
+										class="mt-0.5 h-5 w-5 shrink-0 text-sky-400"
+									/>
+									<div class="min-w-0">
+										<a
+											href={resource.url}
+											target={resource.newTab ? '_blank' : undefined}
+											rel={resource.newTab ? 'noopener noreferrer' : undefined}
+											class="inline-flex items-center gap-1 text-sm font-medium text-sky-400 hover:text-sky-300"
+										>
+											{resource.title}
+											{#if resource.newTab}
+												<IconOpen class="h-3.5 w-3.5 opacity-60" />
+											{/if}
+										</a>
+										<!-- Admin-supplied plain text: always as text, never {@html} (decisions/0036). -->
+										{#if resource.description}
+											<!-- One line: pre-line keeps the CMS's line breaks, and would draw any Prettier adds. -->
+											<!-- prettier-ignore -->
+											<p class="mt-0.5 text-xs whitespace-pre-line text-gray-400">{resource.description}</p>
+										{/if}
+									</div>
+								</li>
+							{/each}
+						</ul>
+					</Panel>
+				</div>
+			{/if}
+		{/await}
 	</div>
 
 	<div class="space-y-6">
