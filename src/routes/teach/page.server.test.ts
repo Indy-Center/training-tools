@@ -41,6 +41,12 @@ const event = (env: Record<string, string> = ENV) =>
 		platform: { env }
 	}) as unknown as Parameters<typeof load>[0];
 
+/** The page's data, with the streamed resources awaited. */
+const loaded = async (e = event()) => {
+	const { resources, ...page } = (await load(e)) as Record<string, unknown>;
+	return { ...page, resources: await resources };
+};
+
 const cms = vi.fn<typeof fetch>();
 
 const answer = (body: unknown, status = 200) =>
@@ -78,7 +84,7 @@ describe('/teach load: teacher resources', () => {
 		];
 		answer({ resources: rows });
 
-		const data = (await load(event())) as { resources: unknown };
+		const data = await loaded(event());
 
 		expect(data.resources).toEqual(rows);
 		const [url, init] = cms.mock.calls[0];
@@ -88,7 +94,7 @@ describe('/teach load: teacher resources', () => {
 
 	it('shows no resources when the CMS cannot be read, and the rest of the page is unchanged', async () => {
 		answer({ resources: [] });
-		const { resources: none, ...page } = (await load(event())) as Record<string, unknown>;
+		const { resources: none, ...page } = await loaded(event());
 		expect(none).toEqual([]);
 
 		const failures: [string, () => unknown, Record<string, string>?][] = [
@@ -102,7 +108,7 @@ describe('/teach load: teacher resources', () => {
 		for (const [name, arrange, env] of failures) {
 			cms.mockReset();
 			arrange();
-			const { resources, ...rest } = (await load(event(env))) as Record<string, unknown>;
+			const { resources, ...rest } = await loaded(event(env));
 			expect(resources, name).toEqual([]);
 			expect(rest, name).toEqual(page);
 		}
@@ -119,18 +125,23 @@ describe('/teach load: teacher resources', () => {
 		copies.kept = { document: { resources: [row] }, fetchedAt: new Date(0) };
 		cms.mockRejectedValue(new TypeError('fetch failed'));
 
-		const data = (await load(event())) as { resources: unknown };
+		const data = await loaded(event());
 
 		expect(data.resources).toEqual([row]);
+	});
+
+	it('does not hold the page while the CMS is slow', async () => {
+		cms.mockReturnValue(new Promise(() => {}));
+		const data = (await load(event())) as Record<string, unknown>;
+		expect(data.teacher).toBeDefined();
+		expect(data.resources).toBeInstanceOf(Promise);
 	});
 
 	it('shows no resources while the token is unset, even with a copy kept', async () => {
 		const row = { title: 'T', url: 'https://example.com', newTab: true };
 		copies.kept = { document: { resources: [row] }, fetchedAt: new Date() };
 
-		const data = (await load(event({ CMS_URL: 'https://cms.example.com' }))) as {
-			resources: unknown;
-		};
+		const data = await loaded(event({ CMS_URL: 'https://cms.example.com' }));
 
 		expect(data.resources).toEqual([]);
 		expect(cms).not.toHaveBeenCalled();
@@ -151,14 +162,14 @@ describe('/teach load: teacher resources', () => {
 		];
 		for (const [name, body] of malformed) {
 			answer(body);
-			const data = (await load(event())) as { resources: unknown };
+			const data = await loaded(event());
 			expect(data.resources, name).toEqual([]);
 		}
 	});
 
 	it('shows a row saved before descriptions and icons, with the link icon', async () => {
 		answer({ resources: [{ title: 'T', url: 'https://example.com', newTab: true }] });
-		const data = (await load(event())) as { resources: unknown };
+		const data = await loaded(event());
 		expect(data.resources).toEqual([
 			{
 				title: 'T',
@@ -178,7 +189,7 @@ describe('/teach load: teacher resources', () => {
 				{ ...row, icon: 7 }
 			]
 		});
-		const data = (await load(event())) as { resources: unknown };
+		const data = await loaded(event());
 		expect(data.resources).toEqual([
 			{ ...row, icon: 'link-variant' },
 			{ ...row, icon: 'link-variant' }
@@ -193,7 +204,7 @@ describe('/teach load: teacher resources', () => {
 				{ ...row, description: '  \n ' }
 			]
 		});
-		const data = (await load(event())) as { resources: unknown };
+		const data = await loaded(event());
 		expect(data.resources).toEqual([
 			{ ...row, description: null },
 			{ ...row, description: null }
@@ -213,7 +224,7 @@ describe('/teach load: teacher resources', () => {
 				}
 			]
 		});
-		const data = (await load(event())) as { resources: unknown };
+		const data = await loaded(event());
 		expect(data.resources).toEqual([
 			{ title: 'T', description: 'D', url: 'https://example.com', newTab: false, icon: 'map' }
 		]);

@@ -50,16 +50,19 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		redirect(303, canManageTeachers(session.roles) ? '/teachers' : '/');
 	}
 
-	const [enrollments, people, qualifications, emails, resources] = await Promise.all([
+	// Streamed, not awaited: while the CMS is down each read waits out its
+	// timeout, and the rest of the page should not wait with it. Hidden, not an
+	// error, when the CMS cannot be read: nothing else here depends on it.
+	const resources = getTeacherResources(platform?.env, locals.db).catch((err) => {
+		console.error('Teacher resources could not be read from the CMS:', err);
+		return [];
+	});
+
+	const [enrollments, people, qualifications, emails] = await Promise.all([
 		getAssignedEnrollments(locals.db),
 		getPeople(locals.db),
 		getCurrentQualifications(locals.db, teacher.cid),
-		getRosterEmails(locals.db),
-		// Hidden, not an error, when the CMS cannot be read: nothing else here depends on it.
-		getTeacherResources(platform?.env, locals.db).catch((err) => {
-			console.error('Teacher resources could not be read from the CMS:', err);
-			return [];
-		})
+		getRosterEmails(locals.db)
 	]);
 
 	const assignments = assignmentsFor(teacher, enrollments);

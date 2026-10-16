@@ -833,7 +833,8 @@ five minutes old is used without asking payload; an older one is refetched, and
 a good document replaces it. When payload is down, slow (5 s) or answers with a
 malformed document, the copy is served whatever its age and left as it was, so
 teachers keep their links through an outage. There is no scheduled job and no
-Cloudflare cache.
+Cloudflare cache. The panel is streamed, so the rest of `/teach` never waits on
+payload; during an outage it appears once the read gives up, from the copy.
 
 **To set the token**, generate one value (`openssl rand -hex 32`) and set it in
 both places: as `TRAINING_API_TOKEN` in payload's server environment, and here
