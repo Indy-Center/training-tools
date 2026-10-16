@@ -56,7 +56,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		getCurrentQualifications(locals.db, teacher.cid),
 		getRosterEmails(locals.db),
 		// Hidden, not an error, when the CMS cannot be read: nothing else here depends on it.
-		getTeacherResources(platform?.env).catch((err) => {
+		getTeacherResources(platform?.env, locals.db).catch((err) => {
 			console.error('Teacher resources could not be read from the CMS:', err);
 			return [];
 		})

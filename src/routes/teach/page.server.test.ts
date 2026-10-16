@@ -24,6 +24,12 @@ vi.mock('$lib/server/roster', () => ({
 	getRosterEmails: vi.fn(async () => new Map())
 }));
 
+// No copies are kept, so every load asks the faked CMS. The copy rule has its
+// own tests in `$lib/server/cms/read.test.ts`.
+vi.mock('$lib/server/cms/copies', () => ({
+	d1Copies: () => ({ get: async () => null, put: async () => {} })
+}));
+
 const { load } = await import('./+page.server');
 
 const ENV = { CMS_URL: 'https://cms.example.com', TRAINING_API_TOKEN: 'secret-token' };

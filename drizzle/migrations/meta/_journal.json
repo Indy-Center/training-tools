@@ -148,6 +148,13 @@
       "when": 1791398258201,
       "tag": "0021_sparkling_clea",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1792171901499,
+      "tag": "0022_absurd_jackpot",
+      "breakpoints": true
     }
   ]
 }

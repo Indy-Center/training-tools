@@ -1,4 +1,7 @@
+import type { Database } from '$lib/server/db';
+import { d1Copies } from './copies';
 import { CmsError, readCms, resolveCmsConfig } from './index';
+import { readThroughCopy } from './read';
 
 /**
  * What payload serves at `GET /api/training/resources`. A hand copy of
@@ -18,14 +21,23 @@ export type TeacherResource = {
 
 /**
  * The teacher resources, in order. None while the CMS is not configured.
- * Throws `CmsError` when the CMS cannot be read.
+ * Read through the copy in D1; throws `CmsError` when the CMS cannot be read
+ * and there is no copy.
  */
 export async function getTeacherResources(
-	env: Partial<Env> | undefined
+	env: Partial<Env> | undefined,
+	db: Database
 ): Promise<TeacherResource[]> {
 	const config = resolveCmsConfig(env);
 	if (!config) return [];
-	return parseTeacherResources(await readCms(config, '/api/training/resources')).resources;
+	const cms = { read: (path: string) => readCms(config, path) };
+	const document = await readThroughCopy(
+		cms,
+		d1Copies(db),
+		'/api/training/resources',
+		parseTeacherResources
+	);
+	return document.resources;
 }
 
 /**

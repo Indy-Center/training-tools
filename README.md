@@ -292,7 +292,7 @@ src/
 │   │   └── header/            the site header, navigation and logo
 │   ├── format.ts              date formatting, pinned to one locale
 │   ├── job-health.ts          pure "is this job healthy" rules for /admin
-│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health)
+│   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health, cms_copies)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
 │   ├── server/
@@ -311,6 +311,7 @@ src/
 │   │   ├── job-health.ts      records each job's last run; read back by /admin
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for / and /enroll/tier-2
 │   │   ├── jira/              Jira client, field ids, issue payload builder
+│   │   ├── cms/               the one CMS (payload) reader, through copies kept in D1
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
@@ -812,18 +813,25 @@ When you change `agreement.md` in a way that alters what a student agrees to,
 The Training Admin keeps a list of links for teachers in the CMS (payload's
 "Teacher resources", in its Training group). Every teacher sees them on
 `/teach`, last in the left column, in the CMS's order. A save in payload shows
-on the next page load.
+within about five minutes.
 
 `$lib/server/cms` is the one place this app reads from payload:
 `GET {CMS_URL}/api/training/resources` with `TRAINING_API_TOKEN` as a bearer
 token. The document is checked before use: one row without a title, without an
 `https` link or without its new-tab setting rejects the whole list.
 
+Reads go through a copy in D1 (`cms_copies`, one row per path). A copy under
+five minutes old is used without asking payload; an older one is refetched, and
+a good document replaces it. When payload is down, slow (5 s) or answers with a
+malformed document, the copy is served whatever its age and left as it was, so
+teachers keep their links through an outage. There is no scheduled job and no
+Cloudflare cache.
+
 **To set the token**, generate one value (`openssl rand -hex 32`) and set it in
 both places: as `TRAINING_API_TOKEN` in payload's server environment, and here
 with `npx wrangler secret put TRAINING_API_TOKEN`. Either may go first. Until
-both match, or whenever payload cannot be read, the panel is simply not shown
-and nothing else on `/teach` changes. A failed read is logged; an unset token
+both match, or whenever payload cannot be read and there is no copy yet, the
+panel is simply not shown and nothing else on `/teach` changes. A failed read is logged; an unset token
 is not, so a local checkout without one stays quiet.
 
 ## Local development
