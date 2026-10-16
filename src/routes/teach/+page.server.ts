@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { canManageTeachers } from '$lib/utils/permissions';
 import { requireSession } from '$lib/server/guards';
 import { getPeople, getRosterEmails } from '$lib/server/roster';
+import { getTeacherResources } from '$lib/server/cms/teacher-resources';
 import {
 	completeExam,
 	completeTraining,
@@ -40,7 +41,7 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
  * A teacher can also be a student. Their own enrollment is never listed here
  * (see `assignmentsFor`), and nothing on this page touches their student view.
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, platform }) => {
 	const session = requireSession(locals);
 	const teacher = await getActiveTeacher(locals.db, session.user.cid);
 
@@ -49,11 +50,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		redirect(303, canManageTeachers(session.roles) ? '/teachers' : '/');
 	}
 
-	const [enrollments, people, qualifications, emails] = await Promise.all([
+	const [enrollments, people, qualifications, emails, resources] = await Promise.all([
 		getAssignedEnrollments(locals.db),
 		getPeople(locals.db),
 		getCurrentQualifications(locals.db, teacher.cid),
-		getRosterEmails(locals.db)
+		getRosterEmails(locals.db),
+		// Hidden, not an error, when the CMS cannot be read: nothing else here depends on it.
+		getTeacherResources(platform?.env).catch((err) => {
+			console.error('Teacher resources could not be read from the CMS:', err);
+			return [];
+		})
 	]);
 
 	const assignments = assignmentsFor(teacher, enrollments);
@@ -123,7 +129,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			code: credential.code,
 			name: credential.name,
 			level: levels.get(credential.code) ?? null
-		}))
+		})),
+		resources
 	};
 };
 

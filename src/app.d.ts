@@ -23,6 +23,12 @@ declare global {
 		 * them by hand; nothing else needs it.
 		 */
 		VATUSA_API_KEY?: string;
+		/**
+		 * Reads training content from the CMS (payload); the same value as
+		 * payload's own `TRAINING_API_TOKEN`. Without it `/teach` shows no
+		 * teacher resources.
+		 */
+		TRAINING_API_TOKEN?: string;
 	}
 
 	namespace App {
