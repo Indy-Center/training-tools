@@ -24,10 +24,11 @@ vi.mock('$lib/server/roster', () => ({
 	getRosterEmails: vi.fn(async () => new Map())
 }));
 
-// No copies are kept, so every load asks the faked CMS. The copy rule has its
-// own tests in `$lib/server/cms/read.test.ts`.
+// No copy is kept unless a test sets one, so most loads ask the faked CMS. The
+// copy rule has its own tests in `$lib/server/cms/read.test.ts`.
+const copies = vi.hoisted(() => ({ kept: null as { document: unknown; fetchedAt: Date } | null }));
 vi.mock('$lib/server/cms/copies', () => ({
-	d1Copies: () => ({ get: async () => null, put: async () => {} })
+	d1Copies: () => ({ get: async () => copies.kept, put: async () => {} })
 }));
 
 const { load } = await import('./+page.server');
@@ -47,6 +48,7 @@ const answer = (body: unknown, status = 200) =>
 
 beforeEach(() => {
 	cms.mockReset();
+	copies.kept = null;
 	vi.stubGlobal('fetch', cms);
 	// The load logs each failed read; these tests cause them on purpose.
 	vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -104,6 +106,34 @@ describe('/teach load: teacher resources', () => {
 			expect(resources, name).toEqual([]);
 			expect(rest, name).toEqual(page);
 		}
+	});
+
+	it('shows the kept copy, however old, when the CMS cannot be read', async () => {
+		const row = {
+			title: 'Training Order',
+			description: null,
+			url: 'https://example.com/order.pdf',
+			newTab: true,
+			icon: 'file-document'
+		};
+		copies.kept = { document: { resources: [row] }, fetchedAt: new Date(0) };
+		cms.mockRejectedValue(new TypeError('fetch failed'));
+
+		const data = (await load(event())) as { resources: unknown };
+
+		expect(data.resources).toEqual([row]);
+	});
+
+	it('shows no resources while the token is unset, even with a copy kept', async () => {
+		const row = { title: 'T', url: 'https://example.com', newTab: true };
+		copies.kept = { document: { resources: [row] }, fetchedAt: new Date() };
+
+		const data = (await load(event({ CMS_URL: 'https://cms.example.com' }))) as {
+			resources: unknown;
+		};
+
+		expect(data.resources).toEqual([]);
+		expect(cms).not.toHaveBeenCalled();
 	});
 
 	it('uses none of a document that is not the shape payload promises', async () => {

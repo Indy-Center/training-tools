@@ -839,8 +839,10 @@ Cloudflare cache.
 both places: as `TRAINING_API_TOKEN` in payload's server environment, and here
 with `npx wrangler secret put TRAINING_API_TOKEN`. Either may go first. Until
 both match, or whenever payload cannot be read and there is no copy yet, the
-panel is simply not shown and nothing else on `/teach` changes. A failed read is logged; an unset token
-is not, so a local checkout without one stays quiet.
+panel is simply not shown and nothing else on `/teach` changes. An unset token
+hides the panel even when a copy is kept: the copy is for outages, not for a
+missing setting. A failed read is logged; an unset token is not, so a local
+checkout without one stays quiet.
 
 ## Local development
 
