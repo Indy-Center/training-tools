@@ -1,4 +1,4 @@
-import { CmsError, readCms, resolveCmsConfig } from '.';
+import { CmsError, readCms, resolveCmsConfig } from './index';
 
 /**
  * What payload serves at `GET /api/training/resources`. A hand copy of
@@ -53,7 +53,10 @@ export function parseTeacherResources(body: unknown): TeacherResourcesDocument {
 	};
 }
 
-/** Payload allows only `https`; anything else (`javascript:` above all) never becomes a link here. */
+/**
+ * Payload allows only `https`; anything else (`javascript:` above all) never
+ * becomes a link here.
+ */
 function isHttps(url: unknown): url is string {
 	if (typeof url !== 'string') return false;
 	try {

@@ -822,8 +822,9 @@ token. The document is checked before use: one row without a title, without an
 **To set the token**, generate one value (`openssl rand -hex 32`) and set it in
 both places: as `TRAINING_API_TOKEN` in payload's server environment, and here
 with `npx wrangler secret put TRAINING_API_TOKEN`. Either may go first. Until
-both match, or whenever payload cannot be read, the panel is simply not shown;
-nothing else on `/teach` changes, and the failure is logged.
+both match, or whenever payload cannot be read, the panel is simply not shown
+and nothing else on `/teach` changes. A failed read is logged; an unset token
+is not, so a local checkout without one stays quiet.
 
 ## Local development
 

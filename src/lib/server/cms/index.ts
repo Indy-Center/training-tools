@@ -9,7 +9,10 @@
 
 export type CmsConfig = { baseUrl: string; token: string };
 
-/** Null until both are set: a missing token hides what the CMS feeds rather than failing a page. */
+/**
+ * Null until both are set: a missing token hides what the CMS feeds rather
+ * than failing a page.
+ */
 export function resolveCmsConfig(env: Partial<Env> | undefined): CmsConfig | null {
 	const baseUrl = env?.CMS_URL?.trim().replace(/\/$/, '');
 	const token = env?.TRAINING_API_TOKEN?.trim();
@@ -30,7 +33,10 @@ export class CmsError extends Error {
 /** Long enough for a cold payload, short enough not to hold a page that waits on it. */
 const TIMEOUT_MS = 5000;
 
-/** Fetch one of payload's training endpoints as JSON. Throws `CmsError`; the caller decides what a page shows instead. */
+/**
+ * Fetch one of payload's training endpoints as JSON. Throws `CmsError`; the
+ * caller decides what a page shows instead.
+ */
 export async function readCms(config: CmsConfig, path: string): Promise<unknown> {
 	let response: Response;
 	try {
