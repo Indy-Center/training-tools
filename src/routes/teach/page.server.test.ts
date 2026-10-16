@@ -58,19 +58,27 @@ afterEach(() => {
 
 describe('/teach load: teacher resources', () => {
 	it('lists the resources in the order the CMS gives them', async () => {
-		answer({
-			resources: [
-				{ title: 'Training Order', url: 'https://example.com/order.pdf', newTab: true },
-				{ title: 'Lesson plans', url: 'https://drive.example.com/plans', newTab: false }
-			]
-		});
+		const rows = [
+			{
+				title: 'Training Order',
+				description: null,
+				url: 'https://example.com/order.pdf',
+				newTab: true,
+				icon: 'file-document'
+			},
+			{
+				title: 'Lesson plans',
+				description: null,
+				url: 'https://drive.example.com/plans',
+				newTab: false,
+				icon: 'google-drive'
+			}
+		];
+		answer({ resources: rows });
 
 		const data = (await load(event())) as { resources: unknown };
 
-		expect(data.resources).toEqual([
-			{ title: 'Training Order', url: 'https://example.com/order.pdf', newTab: true },
-			{ title: 'Lesson plans', url: 'https://drive.example.com/plans', newTab: false }
-		]);
+		expect(data.resources).toEqual(rows);
 		const [url, init] = cms.mock.calls[0];
 		expect(String(url)).toBe('https://cms.example.com/api/training/resources');
 		expect(new Headers(init?.headers).get('authorization')).toBe('Bearer secret-token');
@@ -108,7 +116,8 @@ describe('/teach load: teacher resources', () => {
 			['a plain http link', { resources: [good, { ...good, url: 'http://example.com' }] }],
 			['a script link', { resources: [good, { ...good, url: 'javascript:alert(1)' }] }],
 			['a URL that is not one', { resources: [good, { ...good, url: 'https://' }] }],
-			['a new-tab flag that is not a boolean', { resources: [good, { ...good, newTab: 'yes' }] }]
+			['a new-tab flag that is not a boolean', { resources: [good, { ...good, newTab: 'yes' }] }],
+			['a description that is not text', { resources: [good, { ...good, description: ['x'] }] }]
 		];
 		for (const [name, body] of malformed) {
 			answer(body);
@@ -117,9 +126,66 @@ describe('/teach load: teacher resources', () => {
 		}
 	});
 
-	it('keeps only the fields the panel draws', async () => {
-		answer({ resources: [{ id: 'row-1', title: 'T', url: 'https://example.com', newTab: false }] });
+	it('shows a row saved before descriptions and icons, with the link icon', async () => {
+		answer({ resources: [{ title: 'T', url: 'https://example.com', newTab: true }] });
 		const data = (await load(event())) as { resources: unknown };
-		expect(data.resources).toEqual([{ title: 'T', url: 'https://example.com', newTab: false }]);
+		expect(data.resources).toEqual([
+			{
+				title: 'T',
+				description: null,
+				url: 'https://example.com',
+				newTab: true,
+				icon: 'link-variant'
+			}
+		]);
+	});
+
+	it('draws the link icon for an icon name the app does not know', async () => {
+		const row = { title: 'T', description: null, url: 'https://example.com', newTab: true };
+		answer({
+			resources: [
+				{ ...row, icon: 'rocket-launch' },
+				{ ...row, icon: 7 }
+			]
+		});
+		const data = (await load(event())) as { resources: unknown };
+		expect(data.resources).toEqual([
+			{ ...row, icon: 'link-variant' },
+			{ ...row, icon: 'link-variant' }
+		]);
+	});
+
+	it('treats a blank description as none', async () => {
+		const row = { title: 'T', url: 'https://example.com', newTab: true, icon: 'web' };
+		answer({
+			resources: [
+				{ ...row, description: '' },
+				{ ...row, description: '  \n ' }
+			]
+		});
+		const data = (await load(event())) as { resources: unknown };
+		expect(data.resources).toEqual([
+			{ ...row, description: null },
+			{ ...row, description: null }
+		]);
+	});
+
+	it('carries each resource’s description and icon, and nothing the panel does not draw', async () => {
+		answer({
+			resources: [
+				{
+					id: 'row-1',
+					title: 'T',
+					description: 'D',
+					url: 'https://example.com',
+					newTab: false,
+					icon: 'map'
+				}
+			]
+		});
+		const data = (await load(event())) as { resources: unknown };
+		expect(data.resources).toEqual([
+			{ title: 'T', description: 'D', url: 'https://example.com', newTab: false, icon: 'map' }
+		]);
 	});
 });

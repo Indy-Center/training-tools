@@ -1,4 +1,9 @@
 import type { Database } from '$lib/server/db';
+import {
+	DEFAULT_TEACHER_RESOURCE_ICON,
+	isTeacherResourceIcon,
+	type TeacherResourceIconName
+} from '$lib/teacher-resources';
 import { d1Copies } from './copies';
 import { CmsError, readCms, resolveCmsConfig } from './index';
 import { readThroughCopy } from './read';
@@ -14,9 +19,16 @@ export type TeacherResourcesDocument = {
 
 export type TeacherResource = {
 	title: string;
+	/** Plain text, drawn as text. Null when blank or absent. */
+	description: string | null;
 	/** Always `https`. */
 	url: string;
 	newTab: boolean;
+	/**
+	 * The link icon when absent (rows saved, and copies kept, before icons) or
+	 * not one this app knows.
+	 */
+	icon: TeacherResourceIconName;
 };
 
 /**
@@ -60,7 +72,16 @@ export function parseTeacherResources(body: unknown): TeacherResourcesDocument {
 			if (typeof row.newTab !== 'boolean') {
 				throw new CmsError(`Teacher resources: row ${i} has no new-tab setting`);
 			}
-			return { title: row.title, url: row.url, newTab: row.newTab };
+			if (row.description != null && typeof row.description !== 'string') {
+				throw new CmsError(`Teacher resources: row ${i} has a description that is not text`);
+			}
+			return {
+				title: row.title,
+				description: row.description?.trim() ? row.description : null,
+				url: row.url,
+				newTab: row.newTab,
+				icon: isTeacherResourceIcon(row.icon) ? row.icon : DEFAULT_TEACHER_RESOURCE_ICON
+			};
 		})
 	};
 }

@@ -19,7 +19,7 @@
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboard from '~icons/mdi/clipboard-text-clock';
 	import IconBookshelf from '~icons/mdi/bookshelf';
-	import IconLink from '~icons/mdi/link-variant';
+	import TeacherResourceIcon from '$lib/components/teachers/TeacherResourceIcon.svelte';
 	import { page } from '$app/state';
 
 	let { data, form } = $props();
@@ -263,18 +263,29 @@
 					<ul class="divide-y divide-slate-700/60">
 						{#each data.resources as resource, i (i)}
 							<li class="flex gap-3 px-4 py-3">
-								<IconLink class="mt-0.5 h-5 w-5 shrink-0 text-sky-400" />
-								<a
-									href={resource.url}
-									target={resource.newTab ? '_blank' : undefined}
-									rel={resource.newTab ? 'noopener noreferrer' : undefined}
-									class="inline-flex items-center gap-1 text-sm font-medium text-sky-400 hover:text-sky-300"
-								>
-									{resource.title}
-									{#if resource.newTab}
-										<IconOpen class="h-3.5 w-3.5 opacity-60" />
+								<TeacherResourceIcon
+									name={resource.icon}
+									class="mt-0.5 h-5 w-5 shrink-0 text-sky-400"
+								/>
+								<div class="min-w-0">
+									<a
+										href={resource.url}
+										target={resource.newTab ? '_blank' : undefined}
+										rel={resource.newTab ? 'noopener noreferrer' : undefined}
+										class="inline-flex items-center gap-1 text-sm font-medium text-sky-400 hover:text-sky-300"
+									>
+										{resource.title}
+										{#if resource.newTab}
+											<IconOpen class="h-3.5 w-3.5 opacity-60" />
+										{/if}
+									</a>
+									<!-- Admin-supplied plain text: always as text, never {@html} (decisions/0036). -->
+									{#if resource.description}
+										<!-- One line: pre-line keeps the CMS's line breaks, and would draw any Prettier adds. -->
+										<!-- prettier-ignore -->
+										<p class="mt-0.5 text-xs whitespace-pre-line text-gray-400">{resource.description}</p>
 									{/if}
-								</a>
+								</div>
 							</li>
 						{/each}
 					</ul>

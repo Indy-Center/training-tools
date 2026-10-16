@@ -813,12 +813,20 @@ When you change `agreement.md` in a way that alters what a student agrees to,
 The Training Admin keeps a list of links for teachers in the CMS (payload's
 "Teacher resources", in its Training group). Every teacher sees them on
 `/teach`, last in the left column, in the CMS's order. A save in payload shows
-within about five minutes.
+within about five minutes. Each row is an icon, its title as a link, and an
+optional description beneath, drawn as plain text (never HTML).
+
+The icon is one of a closed list of mdi names (`$lib/teacher-resources.ts`),
+each mapped to a static import in `TeacherResourceIcon.svelte`: `unplugin-icons`
+compiles icons at build time, so a name cannot be drawn unless it is listed. A
+row with no icon, or one this app does not know, gets the link icon. Adding an
+icon means adding it there and to payload's options.
 
 `$lib/server/cms` is the one place this app reads from payload:
 `GET {CMS_URL}/api/training/resources` with `TRAINING_API_TOKEN` as a bearer
 token. The document is checked before use: one row without a title, without an
-`https` link or without its new-tab setting rejects the whole list.
+`https` link, without its new-tab setting or with a description that is not
+text rejects the whole list.
 
 Reads go through a copy in D1 (`cms_copies`, one row per path). A copy under
 five minutes old is used without asking payload; an older one is refetched, and
