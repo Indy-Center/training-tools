@@ -234,14 +234,6 @@ export const RATING_GRANTS: Readonly<Record<string, CertificationCode | null>> =
 };
 
 /**
- * How recently someone must have controlled for an arrival grant.
- *
- * DEV-115: "If they have not had an active controlling session in the last 6
- * months, do not issue certifications."
- */
-export const ACTIVITY_WINDOW_MONTHS = 6;
-
-/**
  * Hours at a rating tier below which we do not treat it as earned, when
  * inferring a SUP/ADM's controller rating from their VATSIM stats. Guards
  * against a few stray minutes logged at a rating they never really held.
