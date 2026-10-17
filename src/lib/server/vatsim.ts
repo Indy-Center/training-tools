@@ -21,7 +21,7 @@ const ATC_HISTORY_MAX_PAGES = 5;
  * **No API key**, same as the VATUSA roster. Neither identity nor the VATUSA
  * roster payload carries controlling history — `roster_members.lastActivityAt`
  * is VATUSA's "last seen in our system", which is not the same as having
- * controlled — so this is the only source for it.
+ * controlled — so this is the only source for a member's controlling history.
  *
  * Both functions return null rather than throwing on a bad response. A
  * controller's certification grant is not worth failing the whole cron over,

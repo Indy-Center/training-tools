@@ -11,7 +11,7 @@ export type InsertCertification = InferInsertModel<typeof certificationsTable>;
  * audit trail DEV-115 asks for.
  */
 export const GRANT_BASES = [
-	'auto-arrival', // the roster sync worked it out from rating and activity
+	'auto-arrival', // the arrival job worked it out from rating, or a SUP/ADM's logged hours
 	'imported', // carried over from community-website, which owned certs before
 	'manual', // a staff member set it on the edit view
 	'training' // earned by finishing the course, applied when the card reached Certification Update
