@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { endorsementsLostWith } from './certifications';
 import {
 	inferEarnedRating,
 	needsVatsimLookup,
@@ -56,7 +57,7 @@ describe('resolveArrivalGrant — already holds something', () => {
 	// The leave-and-return case from DEV-115: a returning member must not have
 	// their certification re-granted or duplicated.
 	it('keeps an existing certification rather than re-granting it', () => {
-		const decision = resolveArrivalGrant(facts({ ratingShort: 'C1', held: ['T-RC'] }));
+		const decision = resolveArrivalGrant(facts({ ratingShort: 'C1', held: ['E-RC'] }));
 		expect(decision.action).toBe('keep');
 	});
 
@@ -65,6 +66,35 @@ describe('resolveArrivalGrant — already holds something', () => {
 	it('does not treat a lone endorsement as being certified', () => {
 		const decision = resolveArrivalGrant(facts({ ratingShort: 'S1', held: ['T2-CTR'] }));
 		expect(decision.action).toBe('grant');
+	});
+
+	it('keeps a certification above what the rating grants', () => {
+		const decision = resolveArrivalGrant(facts({ ratingShort: 'S2', held: ['T-RC'] }));
+		expect(decision.action).toBe('keep');
+	});
+
+	// An S1 with S-LC transfers out, makes S2 elsewhere and comes back. They are
+	// owed A-LC like any S2 arrival, and S-LC cannot be held with it.
+	it('moves a returning member up to what a new rating grants', () => {
+		const held = ['S-GC', 'S-LC'];
+		const decision = resolveArrivalGrant(facts({ ratingShort: 'S2', held }));
+		if (decision.action !== 'grant') throw new Error('expected a grant');
+		expect(decision.code).toBe('A-LC');
+		expect(decision.needsReview).toBe(false);
+		expect(decision.note).toContain('S-GC');
+		expect(endorsementsLostWith(decision.code, held).map((lost) => lost.code)).toEqual(['S-LC']);
+	});
+
+	it('drops S-LC from someone kept at A-LC or above', () => {
+		const decision = resolveArrivalGrant(facts({ ratingShort: 'S2', held: ['A-LC', 'S-LC'] }));
+		if (decision.action !== 'keep') throw new Error('expected a keep');
+		expect(decision.drop).toEqual(['S-LC']);
+	});
+
+	it('drops nothing an existing certification can be held with', () => {
+		const decision = resolveArrivalGrant(facts({ ratingShort: 'S1', held: ['A-GC', 'S-LC'] }));
+		if (decision.action !== 'keep') throw new Error('expected a keep');
+		expect(decision.drop).toEqual([]);
 	});
 });
 

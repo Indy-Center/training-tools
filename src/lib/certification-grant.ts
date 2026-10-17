@@ -12,8 +12,11 @@
 import {
 	EARNED_RATING_MIN_HOURS,
 	RATING_GRANTS,
+	endorsementsLostWith,
+	findCredential,
 	highestCertification,
-	type CertificationCode
+	type CertificationCode,
+	type CredentialCode
 } from './certifications';
 
 /**
@@ -35,10 +38,18 @@ export type ArrivalFacts = {
 };
 
 export type GrantDecision =
-	/** They already hold a certification; leave it alone. */
-	| { action: 'keep'; reason: string }
+	/**
+	 * They already hold a certification at least as high as their rating grants;
+	 * leave it alone, but give up any endorsement it cannot be held with.
+	 */
+	| { action: 'keep'; code: CredentialCode; reason: string; drop: CredentialCode[] }
 	/** Nothing is due. Still stamped as checked, so we stop asking. */
 	| { action: 'none'; reason: string }
+	/**
+	 * Replaces any lower certification they hold, and revokes the endorsements
+	 * the new one cannot be held with — an S2 returning with S-GC and S-LC ends
+	 * up with A-LC alone.
+	 */
 	| {
 			action: 'grant';
 			code: CertificationCode;
@@ -93,14 +104,32 @@ export function needsVatsimLookup(ratingShort: string, held: readonly string[]):
 }
 
 export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
-	// 1. Already certified — nothing to do.
+	// 1. Already certified at or above what the rating grants — keep it.
 	//
-	// This is the whole leave-and-return safety net: whatever they held when they
-	// left, they still hold unless staff revoked it, so a returning member is
-	// recognised rather than re-inferred.
+	// This is the leave-and-return safety net: whatever they held when they left,
+	// they still hold unless staff revoked it, so a returning member is
+	// recognised rather than re-inferred. Someone who earned a higher rating while
+	// away is moved up to it instead, as any arrival with that rating would be.
 	const existing = highestCertification(facts.held);
 	if (existing) {
-		return { action: 'keep', reason: `Already holds ${existing.code}` };
+		const entitled = RATING_GRANTS[facts.ratingShort];
+		const entitledRank = entitled ? (findCredential(entitled)?.rank ?? 0) : 0;
+
+		if (!entitled || entitledRank <= (existing.rank ?? 0)) {
+			return {
+				action: 'keep',
+				code: existing.code,
+				reason: `Already holds ${existing.code}`,
+				drop: endorsementsLostWith(existing.code, facts.held).map((lost) => lost.code)
+			};
+		}
+
+		return {
+			action: 'grant',
+			code: entitled,
+			needsReview: false,
+			note: `${facts.ratingShort} on return; replaces ${existing.code}`
+		};
 	}
 
 	// There is deliberately no activity test here. The six-month currency rule

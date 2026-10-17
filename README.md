@@ -371,6 +371,11 @@ granted on arrival. SUP and ADM are not controller ratings, so their earned
 rating is inferred from logged hours (VATSIM API v2, no API key) and always
 flagged for a TA.
 
+A returning member keeps what they held, unless their rating now grants a
+higher certification: then they are moved up to it. Either way they lose any
+endorsement the result cannot be held with, so an S1 who left with S-GC and S-LC
+and comes back an S2 holds A-LC alone.
+
 All grants and revocations go through `grantCredential` / `revokeCredential` in
 `$lib/server/certifications/` — the arrival job, the import and the staff edit
 page all call them, so there is one place to hook notifications onto later.

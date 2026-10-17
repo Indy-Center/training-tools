@@ -10,7 +10,8 @@ import {
 import { fetchAtcHoursByRating } from '$lib/server/vatsim';
 import { notify } from '$lib/server/notify';
 import { getPeople } from '$lib/server/roster';
-import { grantCredential } from './index';
+import { revokeCredential, setCertification } from './index';
+import type { CredentialCode } from '$lib/certifications';
 import { reviewNeededNotice } from './notices';
 
 export type ArrivalGrantResult = {
@@ -101,6 +102,7 @@ export async function grantArrivalCertifications(
 	const now = new Date();
 	const checked: string[] = [];
 	const grants: { cid: string; code: string; note: string; needsReview: boolean }[] = [];
+	const drops: { cid: string; code: CredentialCode; reason: string }[] = [];
 
 	for (const candidate of candidates) {
 		const held = heldByCid.get(candidate.cid) ?? [];
@@ -145,6 +147,9 @@ export async function grantArrivalCertifications(
 			});
 		} else if (decision.action === 'keep') {
 			result.kept += 1;
+			for (const code of decision.drop) {
+				drops.push({ cid: candidate.cid, code, reason: `Cannot be held with ${decision.code}` });
+			}
 		} else {
 			result.none += 1;
 		}
@@ -153,15 +158,21 @@ export async function grantArrivalCertifications(
 	// Grants first: a crash between the two must not leave someone stamped as
 	// checked with nothing granted, which would silently deny them a
 	// certification until a human noticed.
+	//
+	// setCertification rather than a bare grant, so a returning member's lower
+	// certification is replaced and an endorsement the new one cannot be held
+	// with (S-LC at A-LC and above) is revoked. See
+	// decisions/0031-endorsements-held-only-with-what-they-require.md
 	for (const grant of grants) {
-		await grantCredential(db, {
-			cid: grant.cid,
-			code: grant.code,
+		await setCertification(db, grant.cid, grant.code, null, {
 			basis: 'auto-arrival',
-			grantedBy: null,
 			note: grant.note,
 			needsReview: grant.needsReview
 		});
+	}
+
+	for (const drop of drops) {
+		await revokeCredential(db, { cid: drop.cid, code: drop.code, reason: drop.reason });
 	}
 
 	// Flagged grants are only useful if someone hears about them. After the
