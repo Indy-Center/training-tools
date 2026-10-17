@@ -25,8 +25,11 @@ export type AtcHoursByRating = Readonly<Record<string, number>>;
 export type ArrivalFacts = {
 	/** Short VATSIM rating, e.g. "S2". From the roster row we just wrote. */
 	ratingShort: string;
-	/** Only fetched for SUP/ADM, where the rating does not say what they earned. */
-	atcHoursByRating: AtcHoursByRating | null;
+	/**
+	 * Only fetched for SUP/ADM, where the rating does not say what they earned.
+	 * Absent when it was not fetched; a failed lookup never gets this far.
+	 */
+	atcHoursByRating?: AtcHoursByRating;
 	/** Credential codes they already hold unrevoked. */
 	held: readonly string[];
 };
@@ -59,7 +62,7 @@ const RATING_TIERS = ['s1', 's2', 's3', 'c1', 'c3', 'i1', 'i3'] as const;
  * Returns null when there is nothing to go on, which the caller turns into
  * DEV-115's stated fallback rather than a guess.
  */
-export function inferEarnedRating(hours: AtcHoursByRating | null): string | null {
+export function inferEarnedRating(hours: AtcHoursByRating | undefined): string | null {
 	if (!hours) return null;
 
 	for (const tier of [...RATING_TIERS].reverse()) {
@@ -67,6 +70,14 @@ export function inferEarnedRating(hours: AtcHoursByRating | null): string | null
 	}
 
 	return null;
+}
+
+/**
+ * SUP and ADM are not controller ratings, so what they earned comes from their
+ * logged hours rather than the rating.
+ */
+export function isHoursDerivedRating(ratingShort: string): boolean {
+	return ratingShort === 'SUP' || ratingShort === 'ADM';
 }
 
 /**
@@ -78,7 +89,7 @@ export function inferEarnedRating(hours: AtcHoursByRating | null): string | null
  */
 export function needsVatsimLookup(ratingShort: string, held: readonly string[]): boolean {
 	if (highestCertification(held)) return false;
-	return ratingShort === 'SUP' || ratingShort === 'ADM';
+	return isHoursDerivedRating(ratingShort);
 }
 
 export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
@@ -97,7 +108,7 @@ export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
 	// granted on arrival; a certification follows from the rating alone.
 
 	// 2. SUP and ADM are not controller ratings, so work out what they earned.
-	if (facts.ratingShort === 'SUP' || facts.ratingShort === 'ADM') {
+	if (isHoursDerivedRating(facts.ratingShort)) {
 		const earned = inferEarnedRating(facts.atcHoursByRating);
 
 		// DEV-115's stated fallback: "set E-RC and flag for TA".

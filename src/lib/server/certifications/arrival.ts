@@ -2,7 +2,11 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { certificationsTable } from '$lib/db/schema/certifications';
 import { rosterMembersTable } from '$lib/db/schema/roster';
-import { needsVatsimLookup, resolveArrivalGrant } from '$lib/certification-grant';
+import {
+	needsVatsimLookup,
+	resolveArrivalGrant,
+	type AtcHoursByRating
+} from '$lib/certification-grant';
 import { fetchAtcHoursByRating } from '$lib/server/vatsim';
 import { notify } from '$lib/server/notify';
 import { getPeople } from '$lib/server/roster';
@@ -106,19 +110,20 @@ export async function grantArrivalCertifications(
 		// members who need none — they are free.
 		if (lookupNeeded && result.lookups >= MAX_LOOKUPS_PER_RUN) continue;
 
-		let atcHoursByRating = null;
+		let atcHoursByRating: AtcHoursByRating | undefined;
 
 		if (lookupNeeded) {
 			result.lookups += 1;
-			atcHoursByRating = await fetchAtcHoursByRating(candidate.cid);
+			const fetched = await fetchAtcHoursByRating(candidate.cid);
 
 			// null means the lookup failed, which is not the same as "no usable
 			// hours". Leave the stamp unset so the next run tries again rather than
 			// granting the E-RC fallback on missing data.
-			if (atcHoursByRating === null) {
+			if (fetched === null) {
 				result.deferred += 1;
 				continue;
 			}
+			atcHoursByRating = fetched;
 		}
 
 		const decision = resolveArrivalGrant({

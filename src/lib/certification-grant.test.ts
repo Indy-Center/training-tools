@@ -9,7 +9,6 @@ import {
 function facts(overrides: Partial<ArrivalFacts> = {}): ArrivalFacts {
 	return {
 		ratingShort: 'S2',
-		atcHoursByRating: null,
 		held: [],
 		...overrides
 	};
@@ -84,7 +83,7 @@ describe('inferEarnedRating', () => {
 	});
 
 	it('reports nothing when there is nothing to go on', () => {
-		expect(inferEarnedRating(null)).toBeNull();
+		expect(inferEarnedRating(undefined)).toBeNull();
 		expect(inferEarnedRating({})).toBeNull();
 		expect(inferEarnedRating({ s1: 0, s2: 0 })).toBeNull();
 	});
@@ -151,6 +150,22 @@ describe('needsVatsimLookup', () => {
 	// An endorsement is not a certification, so it does not settle the question.
 	it('still looks up a supervisor holding only an endorsement', () => {
 		expect(needsVatsimLookup('SUP', ['T2-CTR'])).toBe(true);
+	});
+
+	// Skipping the lookup is only safe if the hours could not have changed the
+	// answer. This keeps the two functions agreeing on who needs one.
+	it.each([
+		['C1', ['T-RC']],
+		['SUP', ['A-GC']],
+		['OBS', []],
+		['S1', []],
+		['C2', []]
+	] as const)('decides a %s holding %j the same without hours', (ratingShort, held) => {
+		expect(needsVatsimLookup(ratingShort, held)).toBe(false);
+		const withHours = resolveArrivalGrant(
+			facts({ ratingShort, held, atcHoursByRating: { s1: 200, c1: 771.3 } })
+		);
+		expect(resolveArrivalGrant(facts({ ratingShort, held }))).toEqual(withHours);
 	});
 });
 
