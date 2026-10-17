@@ -364,10 +364,12 @@ and bumps them each sync — a difference DEV-116's cutover has to reconcile.
 A **partial unique index** on `(cid, code) WHERE revoked_at IS NULL` is what
 stops a member who leaves and returns being granted a duplicate.
 
-Arrivals are granted automatically each cron run from their VATSIM rating, but
-only if they have controlled in the last six months — read from VATSIM API v2,
-which needs no API key. SUP and ADM are not controller ratings, so their earned
-rating is inferred from logged hours and always flagged for a TA.
+Arrivals are granted a certification automatically each cron run from their
+VATSIM rating, however long since they last controlled — the six-month currency
+rule covers only the endorsements held here (S-LC, T2-CTR), which are never
+granted on arrival. SUP and ADM are not controller ratings, so their earned
+rating is inferred from logged hours (VATSIM API v2, no API key) and always
+flagged for a TA.
 
 All grants and revocations go through `grantCredential` / `revokeCredential` in
 `$lib/server/certifications/` — the arrival job, the import and the staff edit

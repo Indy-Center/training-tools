@@ -3,7 +3,7 @@ import type { Database } from '$lib/server/db';
 import { certificationsTable } from '$lib/db/schema/certifications';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { needsVatsimLookup, resolveArrivalGrant } from '$lib/certification-grant';
-import { fetchAtcHoursByRating, fetchLastAtcSessionEnd } from '$lib/server/vatsim';
+import { fetchAtcHoursByRating } from '$lib/server/vatsim';
 import { notify } from '$lib/server/notify';
 import { getPeople } from '$lib/server/roster';
 import { grantCredential } from './index';
@@ -31,8 +31,8 @@ export type ArrivalGrantResult = {
  * left over is picked up on the next 15-minute tick, so the cap costs time and
  * nothing else.
  *
- * Members decidable without a lookup — already certified, or a rating that
- * carries no certification — do not count against it.
+ * Only a SUP or ADM holding no certification needs a lookup; everyone else is
+ * free and does not count against it.
  */
 const MAX_LOOKUPS_PER_RUN = 20;
 
@@ -49,8 +49,7 @@ const CHUNK_SIZE = 25;
  * D1 allows only 100 bound parameters, which is how the roster sync first broke.
  *
  * Restored members are re-examined because the sync clears their stamp; they may
- * have earned a rating elsewhere, or gone long enough without controlling that
- * the answer has changed.
+ * have earned a rating elsewhere since they left.
  *
  * See decisions/0010-certifications-model.md and DEV-115.
  */
@@ -107,33 +106,26 @@ export async function grantArrivalCertifications(
 		// members who need none — they are free.
 		if (lookupNeeded && result.lookups >= MAX_LOOKUPS_PER_RUN) continue;
 
-		let lastAtcSessionEnd: Date | null = null;
 		let atcHoursByRating = null;
 
 		if (lookupNeeded) {
 			result.lookups += 1;
-			const lastSession = await fetchLastAtcSessionEnd(candidate.cid);
+			atcHoursByRating = await fetchAtcHoursByRating(candidate.cid);
 
-			// undefined means the lookup failed, which is not the same as "never
-			// controlled". Leave the stamp unset so the next run tries again rather
-			// than recording a decision made on missing data.
-			if (lastSession === undefined) {
+			// null means the lookup failed, which is not the same as "no usable
+			// hours". Leave the stamp unset so the next run tries again rather than
+			// granting the E-RC fallback on missing data.
+			if (atcHoursByRating === null) {
 				result.deferred += 1;
 				continue;
 			}
-
-			lastAtcSessionEnd = lastSession;
-
-			if (candidate.ratingShort === 'SUP' || candidate.ratingShort === 'ADM') {
-				result.lookups += 1;
-				atcHoursByRating = await fetchAtcHoursByRating(candidate.cid);
-			}
 		}
 
-		const decision = resolveArrivalGrant(
-			{ ratingShort: candidate.ratingShort, lastAtcSessionEnd, atcHoursByRating, held },
-			now
-		);
+		const decision = resolveArrivalGrant({
+			ratingShort: candidate.ratingShort,
+			atcHoursByRating,
+			held
+		});
 
 		result.examined += 1;
 		checked.push(candidate.cid);
