@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	ACTIVITY_WINDOW_MONTHS,
 	CERTIFICATIONS,
 	CREDENTIALS,
 	CREDENTIAL_CODES,
@@ -234,5 +235,9 @@ describe('arrival rating grants', () => {
 	it('never grants an endorsement on arrival, T2-CTR least of all', () => {
 		expect(Object.values(RATING_GRANTS)).not.toContain('T2-CTR');
 		expect(Object.values(RATING_GRANTS)).not.toContain('S-LC');
+	});
+
+	it('uses the six-month window the story specifies', () => {
+		expect(ACTIVITY_WINDOW_MONTHS).toBe(6);
 	});
 });

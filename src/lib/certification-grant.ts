@@ -10,13 +10,11 @@
  * See decisions/0010-certifications-model.md and DEV-115.
  */
 import {
+	ACTIVITY_WINDOW_MONTHS,
 	EARNED_RATING_MIN_HOURS,
 	RATING_GRANTS,
-	endorsementsLostWith,
-	findCredential,
 	highestCertification,
-	type CertificationCode,
-	type CredentialCode
+	type CertificationCode
 } from './certifications';
 
 /**
@@ -29,27 +27,21 @@ export type ArrivalFacts = {
 	/** Short VATSIM rating, e.g. "S2". From the roster row we just wrote. */
 	ratingShort: string;
 	/**
-	 * Only fetched for SUP/ADM, where the rating does not say what they earned.
-	 * Absent when it was not fetched; a failed lookup never gets this far.
+	 * End of their most recent ATC session anywhere on the network, or null if
+	 * they have never controlled.
 	 */
-	atcHoursByRating?: AtcHoursByRating;
+	lastAtcSessionEnd: Date | null;
+	/** Only fetched for SUP/ADM, where the rating does not say what they earned. */
+	atcHoursByRating: AtcHoursByRating | null;
 	/** Credential codes they already hold unrevoked. */
 	held: readonly string[];
 };
 
 export type GrantDecision =
-	/**
-	 * They already hold a certification at least as high as their rating grants;
-	 * leave it alone, but give up any endorsement it cannot be held with.
-	 */
-	| { action: 'keep'; code: CredentialCode; reason: string; drop: CredentialCode[] }
+	/** They already hold a certification; leave it alone. */
+	| { action: 'keep'; reason: string }
 	/** Nothing is due. Still stamped as checked, so we stop asking. */
 	| { action: 'none'; reason: string }
-	/**
-	 * Replaces any lower certification they hold, and revokes the endorsements
-	 * the new one cannot be held with — an S2 returning with S-GC and S-LC ends
-	 * up with A-LC alone.
-	 */
 	| {
 			action: 'grant';
 			code: CertificationCode;
@@ -62,6 +54,10 @@ export type GrantDecision =
 /** Ratings in ascending order, as VATSIM's stats endpoint keys them. */
 const RATING_TIERS = ['s1', 's2', 's3', 'c1', 'c3', 'i1', 'i3'] as const;
 
+function monthsBetween(from: Date, to: Date): number {
+	return (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+}
+
 /**
  * The rating a SUP or ADM actually earned as a controller.
  *
@@ -73,7 +69,7 @@ const RATING_TIERS = ['s1', 's2', 's3', 'c1', 'c3', 'i1', 'i3'] as const;
  * Returns null when there is nothing to go on, which the caller turns into
  * DEV-115's stated fallback rather than a guess.
  */
-export function inferEarnedRating(hours: AtcHoursByRating | undefined): string | null {
+export function inferEarnedRating(hours: AtcHoursByRating | null): string | null {
 	if (!hours) return null;
 
 	for (const tier of [...RATING_TIERS].reverse()) {
@@ -84,60 +80,61 @@ export function inferEarnedRating(hours: AtcHoursByRating | undefined): string |
 }
 
 /**
- * SUP and ADM are not controller ratings, so what they earned comes from their
- * logged hours rather than the rating.
- */
-export function isHoursDerivedRating(ratingShort: string): boolean {
-	return ratingShort === 'SUP' || ratingShort === 'ADM';
-}
-
-/**
  * Whether looking this member up on VATSIM can change the answer.
  *
- * Only for a SUP or ADM holding no certification: their rating does not say
- * what they earned, so their logged hours have to. Everyone else is decided
- * from the database alone.
+ * Two cases are decidable without leaving the database: someone who already
+ * holds a certification keeps it, and someone whose rating carries no
+ * certification gets nothing however recently they controlled. Both would
+ * otherwise cost an HTTP call each.
+ *
+ * That is not a micro-optimisation. After the community-website import, 114 of
+ * 157 roster members hold something and 39 more are OBS, so this is the
+ * difference between 157 lookups on the first pass and four.
  */
 export function needsVatsimLookup(ratingShort: string, held: readonly string[]): boolean {
 	if (highestCertification(held)) return false;
-	return isHoursDerivedRating(ratingShort);
+	return RATING_GRANTS[ratingShort] !== null;
 }
 
-export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
-	// 1. Already certified at or above what the rating grants — keep it.
+function isCurrent(lastAtcSessionEnd: Date | null, now: Date): boolean {
+	if (!lastAtcSessionEnd) return false;
+	return monthsBetween(lastAtcSessionEnd, now) <= ACTIVITY_WINDOW_MONTHS;
+}
+
+function formatDate(date: Date): string {
+	return date.toISOString().slice(0, 10);
+}
+
+export function resolveArrivalGrant(facts: ArrivalFacts, now: Date): GrantDecision {
+	// 1. Already certified — nothing to do.
 	//
-	// This is the leave-and-return safety net: whatever they held when they left,
-	// they still hold unless staff revoked it, so a returning member is
-	// recognised rather than re-inferred. Someone who earned a higher rating while
-	// away is moved up to it instead, as any arrival with that rating would be.
+	// This is the whole leave-and-return safety net, and it is why "current on
+	// the roster in the last 6 months keeps their certifications" needs no date
+	// arithmetic here: if the currency job has not revoked them, they still hold
+	// them, and a returning member is recognised rather than re-inferred.
 	const existing = highestCertification(facts.held);
 	if (existing) {
-		const entitled = RATING_GRANTS[facts.ratingShort];
-		const entitledRank = entitled ? (findCredential(entitled)?.rank ?? 0) : 0;
+		return { action: 'keep', reason: `Already holds ${existing.code}` };
+	}
 
-		if (!entitled || entitledRank <= (existing.rank ?? 0)) {
-			return {
-				action: 'keep',
-				code: existing.code,
-				reason: `Already holds ${existing.code}`,
-				drop: endorsementsLostWith(existing.code, facts.held).map((lost) => lost.code)
-			};
-		}
-
+	// 2. Not current — grant nothing.
+	//
+	// DEV-115: "If they have not had an active controlling session in the last 6
+	// months, do not issue certifications." Covers the controller who goes quiet,
+	// takes a leave of absence, and comes back having lost what they held.
+	if (!isCurrent(facts.lastAtcSessionEnd, now)) {
 		return {
-			action: 'grant',
-			code: entitled,
-			needsReview: false,
-			note: `${facts.ratingShort} on return; replaces ${existing.code}`
+			action: 'none',
+			reason: facts.lastAtcSessionEnd
+				? `No controlling session since ${formatDate(facts.lastAtcSessionEnd)}`
+				: 'No controlling history on record'
 		};
 	}
 
-	// There is deliberately no activity test here. The six-month currency rule
-	// covers the endorsements held at Indy (S-LC, T2-CTR), which are never
-	// granted on arrival; a certification follows from the rating alone.
+	const lastSession = `last ATC session ${formatDate(facts.lastAtcSessionEnd!)}`;
 
-	// 2. SUP and ADM are not controller ratings, so work out what they earned.
-	if (isHoursDerivedRating(facts.ratingShort)) {
+	// 3. SUP and ADM are not controller ratings, so work out what they earned.
+	if (facts.ratingShort === 'SUP' || facts.ratingShort === 'ADM') {
 		const earned = inferEarnedRating(facts.atcHoursByRating);
 
 		// DEV-115's stated fallback: "set E-RC and flag for TA".
@@ -146,7 +143,7 @@ export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
 				action: 'grant',
 				code: 'E-RC',
 				needsReview: true,
-				note: `${facts.ratingShort} with no usable hours breakdown; granted E-RC per the fallback rule — confirm with the TA.`
+				note: `${facts.ratingShort} with no usable hours breakdown; granted E-RC per the fallback rule — confirm with the TA. ${lastSession}`
 			};
 		}
 
@@ -164,11 +161,11 @@ export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
 			code,
 			// Always flagged: this is an inference, however well-founded.
 			needsReview: true,
-			note: `${facts.ratingShort} with ${logged.toFixed(1)}h logged at ${earned}; granted ${code} on that basis — confirm with the TA.`
+			note: `${facts.ratingShort} with ${logged.toFixed(1)}h logged at ${earned}; granted ${code} on that basis — confirm with the TA. ${lastSession}`
 		};
 	}
 
-	// 3. Everyone else comes straight off the GCAP table.
+	// 4. Everyone else comes straight off the GCAP table.
 	const code = RATING_GRANTS[facts.ratingShort];
 
 	if (code === undefined) {
@@ -184,6 +181,6 @@ export function resolveArrivalGrant(facts: ArrivalFacts): GrantDecision {
 		action: 'grant',
 		code,
 		needsReview: false,
-		note: `${facts.ratingShort} on arrival`
+		note: `${facts.ratingShort} on arrival; ${lastSession}`
 	};
 }
