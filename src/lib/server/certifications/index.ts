@@ -142,15 +142,15 @@ export async function revokeCredential(db: Database, input: RevokeInput): Promis
  * certification — and revoked when it cannot: S-LC on reaching A-LC, T2-CTR on
  * leaving E-RC, either with no certification at all.
  *
- * `actorCid` is null when nobody did this by hand — the end-of-course flow or
- * the arrival job — and `grant` then says how the new certification came about.
+ * `actorCid` is null when nobody did this by hand — the end-of-course flow —
+ * and `grant` then says how the new certification came about.
  */
 export async function setCertification(
 	db: Database,
 	cid: string,
 	code: string | null,
 	actorCid: string | null,
-	grant: { basis: GrantBasis; note?: string | null; needsReview?: boolean } = { basis: 'manual' }
+	grant: { basis: GrantBasis; note?: string | null } = { basis: 'manual' }
 ): Promise<void> {
 	const held = await getHeldCredentials(db, cid);
 	const current = highestCertification(held.map((row) => row.code));
@@ -177,7 +177,6 @@ export async function setCertification(
 			code,
 			basis: grant.basis,
 			note: grant.note ?? null,
-			needsReview: grant.needsReview,
 			grantedBy: actorCid
 		});
 	}
