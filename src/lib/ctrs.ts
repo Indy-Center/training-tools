@@ -19,9 +19,9 @@ import { ASSIGNED_STATUSES, isAssignedTo } from './teachers';
 
 /** Where the session happened. The numbers are VATUSA's. */
 export const SESSION_LOCATIONS = [
+	{ value: 0, label: 'Sweatbox' },
 	{ value: 1, label: 'Live network' },
-	{ value: 2, label: 'Sweatbox' },
-	{ value: 0, label: 'Classroom' }
+	{ value: 2, label: 'Classroom' }
 ] as const;
 
 /**
