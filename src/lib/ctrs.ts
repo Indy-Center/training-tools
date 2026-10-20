@@ -24,6 +24,10 @@ export const SESSION_LOCATIONS = [
 	{ value: 2, label: 'Classroom' }
 ] as const;
 
+export type SessionLocation = (typeof SESSION_LOCATIONS)[number]['value'];
+
+export const DEFAULT_SESSION_LOCATION: SessionLocation = 0;
+
 /**
  * Whether the session was a rating exam ("OTS"). The numbers are VATUSA's.
  *
