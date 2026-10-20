@@ -7,7 +7,6 @@
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import {
-		DEFAULT_SESSION_LOCATION,
 		EXAM_RESULT_DETAILS,
 		FINISH_LABELS,
 		MAX_LESSON_LENGTH,
@@ -109,8 +108,6 @@
 	const inputClasses =
 		'w-full rounded-lg border border-slate-600/50 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-sky-500 focus:ring-sky-500/50';
 	const labelClasses = 'block text-sm font-medium text-gray-300';
-
-	const selectedLocation = $derived(String(values.location ?? DEFAULT_SESSION_LOCATION));
 </script>
 
 <svelte:head>
@@ -277,7 +274,7 @@
 				<label for="location" class={labelClasses}>Where</label>
 				<select id="location" name="location" required class="mt-2 {inputClasses}">
 					{#each SESSION_LOCATIONS as choice (choice.value)}
-						<option value={choice.value} selected={String(choice.value) === selectedLocation}>
+						<option value={choice.value} selected={String(choice.value) === values.location}>
 							{choice.label}
 						</option>
 					{/each}

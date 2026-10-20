@@ -9,6 +9,7 @@ import {
 	notesHtml,
 	otsChoices,
 	readReport,
+	SESSION_LOCATIONS,
 	type ReportValues
 } from './ctrs';
 
@@ -105,6 +106,17 @@ describe('blankReport', () => {
 			position: '',
 			duration: ''
 		});
+	});
+
+	it('starts on the sweatbox', () => {
+		expect(blankReport(new Date()).location).toBe('2');
+	});
+});
+
+describe('SESSION_LOCATIONS', () => {
+	it("keeps VATUSA's numbers", () => {
+		const byLabel = Object.fromEntries(SESSION_LOCATIONS.map((l) => [l.label, l.value]));
+		expect(byLabel).toEqual({ Classroom: 0, 'Live network': 1, Sweatbox: 2 });
 	});
 });
 

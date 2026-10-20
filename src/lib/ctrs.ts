@@ -17,16 +17,20 @@ import {
 } from './course-completion';
 import { ASSIGNED_STATUSES, isAssignedTo } from './teachers';
 
-/** Where the session happened. The numbers are VATUSA's. */
+/**
+ * Where the session happened, in the order the form lists them. The numbers are
+ * VATUSA's (0 classroom, 1 live, 2 sweatbox): reorder freely, never renumber.
+ */
 export const SESSION_LOCATIONS = [
-	{ value: 0, label: 'Sweatbox' },
+	{ value: 2, label: 'Sweatbox' },
 	{ value: 1, label: 'Live network' },
-	{ value: 2, label: 'Classroom' }
+	{ value: 0, label: 'Classroom' }
 ] as const;
 
 export type SessionLocation = (typeof SESSION_LOCATIONS)[number]['value'];
 
-export const DEFAULT_SESSION_LOCATION: SessionLocation = 0;
+/** Most sessions are on the sweatbox, so a new report starts there. */
+export const DEFAULT_SESSION_LOCATION: SessionLocation = 2;
 
 /**
  * Whether the session was a rating exam ("OTS"). The numbers are VATUSA's.
@@ -131,7 +135,7 @@ export function blankReport(now: Date): ReportValues {
 		time: iso.slice(11, 16),
 		duration: '',
 		position: '',
-		location: '1',
+		location: String(DEFAULT_SESSION_LOCATION),
 		otsStatus: '0',
 		finish: '',
 		score: '',
