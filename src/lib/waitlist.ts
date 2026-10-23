@@ -1,3 +1,4 @@
+import type { SlotSummary } from './teachers';
 import type { TeacherGate } from './vatusa-academy';
 
 /**
@@ -11,8 +12,8 @@ import type { TeacherGate } from './vatusa-academy';
 export type TeacherChoice = {
 	cid: string;
 	label: string;
-	/** Open slots, or null when they have not said how many they take. */
-	available: number | null;
+	/** Their students in training against their slots, to colour and label them. */
+	slots: SlotSummary;
 };
 
 /**
@@ -57,10 +58,15 @@ export type WaitlistRow = {
 	teachers: TeacherChoice[];
 };
 
-/** A teacher's open slots as a dropdown shows them: "(2 open)", "(full)", "(slots not set)". */
-export function slotsLabel(available: number | null): string {
-	if (available === null) return '(slots not set)';
-	return available === 0 ? '(full)' : `(${available} open)`;
+/**
+ * A teacher's slots as a dropdown shows them: "(2 open)", "(full)", "(1 over)",
+ * "(slots not set)". Says in words what the option's colour says, for pickers
+ * that ignore it.
+ */
+export function slotsLabel(slots: SlotSummary): string {
+	if (slots.total === null || slots.available === null) return '(slots not set)';
+	if (slots.used > slots.total) return `(${slots.used - slots.total} over)`;
+	return slots.available === 0 ? '(full)' : `(${slots.available} open)`;
 }
 
 /** One course's rows on the sheet. */

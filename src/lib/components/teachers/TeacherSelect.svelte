@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SLOTS_TONE_CLASSES, slotsTone } from '$lib/teachers';
 	import { slotsLabel, type TeacherChoice } from '$lib/waitlist';
 
 	/**
@@ -40,8 +41,9 @@
 		<option value="">{currentLabel ?? 'Choose a teacher'}</option>
 	{/if}
 	{#each teachers as teacher (teacher.cid)}
-		<option value={teacher.cid}>
-			{teacher.label}{teacher.cid === chosen ? '' : ` ${slotsLabel(teacher.available)}`}
+		<!-- Coloured by how full they are; the label says it too, for pickers that drop the colour. -->
+		<option value={teacher.cid} class={SLOTS_TONE_CLASSES[slotsTone(teacher.slots, 'active')]}>
+			{teacher.label}{teacher.cid === chosen ? '' : ` ${slotsLabel(teacher.slots)}`}
 		</option>
 	{/each}
 </select>

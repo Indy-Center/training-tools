@@ -392,7 +392,10 @@ every qualification**; someone back sooner still holds them.
 
 **Slots**: `in-training` students use a slot; `rating-exam` students are listed
 as assigned but do not. A teacher on **LOA** keeps their slots visible but none
-count as open anywhere. Students are matched to a teacher by TRK's `Teacher`
+count as open anywhere. On `/teachers` and in the assignment dropdown a teacher's
+count is yellow with room to spare, green when exactly full, red when over their
+slots, and grey on LOA or with no slots set (`slotsTone()` in `$lib/teachers.ts`).
+Students are matched to a teacher by TRK's `Teacher`
 value — their initials, or their CID until they have some. A teacher can also be
 a student; they are never listed as their own.
 

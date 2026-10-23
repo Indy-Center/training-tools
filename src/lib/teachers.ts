@@ -247,6 +247,33 @@ export function slotSummary(input: {
 }
 
 /**
+ * How full a teacher is, for colouring their count wherever students are
+ * paired: `room` for slots to spare (none used is the most room), `full` for
+ * exactly their slots, `over` for more students than slots. `closed` is LOA,
+ * whose slots are not open; `unset` is no slots set to compare with.
+ */
+export type SlotsTone = 'room' | 'full' | 'over' | 'closed' | 'unset';
+
+/** One colour per tone, so every view that shows slots agrees. */
+export const SLOTS_TONE_CLASSES: Record<SlotsTone, string> = {
+	room: 'text-yellow-400',
+	full: 'text-green-400',
+	over: 'text-red-400',
+	closed: 'text-gray-400',
+	unset: 'text-gray-400'
+};
+
+export function slotsTone(
+	slots: Pick<SlotSummary, 'total' | 'used'>,
+	status: TeacherStatus
+): SlotsTone {
+	if (status === 'loa') return 'closed';
+	if (slots.total === null) return 'unset';
+	if (slots.used === slots.total) return 'full';
+	return slots.used > slots.total ? 'over' : 'room';
+}
+
+/**
  * Operating initials as stored: two letters, upper case. Returns null for
  * anything else rather than guessing at what was meant.
  */

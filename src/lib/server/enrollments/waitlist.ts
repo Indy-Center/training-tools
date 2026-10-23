@@ -85,13 +85,16 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 			.map((teacher) => ({
 				cid: teacher.cid,
 				label: teacherLabel(teacher, people.get(teacher.cid)),
-				available: slotSummary({
+				slots: slotSummary({
 					status: teacher.status,
 					studentSlots: teacher.studentSlots,
 					inTraining: assignmentsFor(teacher, assigned).inTraining
-				}).available
+				})
 			}))
-			.sort((a, b) => (b.available ?? -1) - (a.available ?? -1) || a.label.localeCompare(b.label));
+			.sort(
+				(a, b) =>
+					(b.slots.available ?? -1) - (a.slots.available ?? -1) || a.label.localeCompare(b.label)
+			);
 
 	/** A board value (initials, or a CID) as the person it stands for. */
 	const assigneeName = (value: string | null): string | null => {
