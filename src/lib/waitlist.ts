@@ -64,7 +64,7 @@ export type WaitlistRow = {
  * that ignore it.
  */
 export function slotsLabel(slots: SlotSummary): string {
-	if (slots.total === null || slots.available === null) return '(slots not set)';
+	if (slots.total === null) return '(slots not set)';
 	if (slots.used > slots.total) return `(${slots.used - slots.total} over)`;
 	return slots.available === 0 ? '(full)' : `(${slots.available} open)`;
 }

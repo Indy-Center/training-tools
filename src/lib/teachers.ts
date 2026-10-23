@@ -263,6 +263,7 @@ export const SLOTS_TONE_CLASSES: Record<SlotsTone, string> = {
 	unset: 'text-gray-400'
 };
 
+/** How full a teacher is. LOA comes first: their slots are not open, whatever the count. */
 export function slotsTone(
 	slots: Pick<SlotSummary, 'total' | 'used'>,
 	status: TeacherStatus

@@ -33,7 +33,7 @@
 			: '';
 	}
 
-	function slotsLabel(slots: { total: number | null; used: number }) {
+	function slotsCount(slots: { total: number | null; used: number }) {
 		return slots.total === null ? `${slots.used} / —` : `${slots.used} / ${slots.total}`;
 	}
 </script>
@@ -137,7 +137,7 @@
 								slotsTone(teacher.slots, teacher.status)
 							]}"
 						>
-							{slotsLabel(teacher.slots)}
+							{slotsCount(teacher.slots)}
 							{#if teacher.status === 'loa' && teacher.slots.total !== null}
 								<span class="block text-xs text-orange-400">not open</span>
 							{/if}
