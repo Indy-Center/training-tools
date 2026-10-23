@@ -21,9 +21,15 @@ const rows = [
 
 describe('slotsLabel', () => {
 	it('says how many are open, when full, and when nobody has said', () => {
-		expect(slotsLabel(2)).toBe('(2 open)');
-		expect(slotsLabel(0)).toBe('(full)');
-		expect(slotsLabel(null)).toBe('(slots not set)');
+		expect(slotsLabel({ total: 3, used: 1, available: 2 })).toBe('(2 open)');
+		expect(slotsLabel({ total: 2, used: 2, available: 0 })).toBe('(full)');
+		expect(slotsLabel({ total: null, used: 1, available: null })).toBe('(slots not set)');
+	});
+
+	// Some native pickers ignore option colours, so the words carry it too.
+	it('says how far over their slots a teacher is', () => {
+		expect(slotsLabel({ total: 2, used: 3, available: 0 })).toBe('(1 over)');
+		expect(slotsLabel({ total: 0, used: 2, available: 0 })).toBe('(2 over)');
 	});
 });
 

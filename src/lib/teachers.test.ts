@@ -12,6 +12,7 @@ import {
 	qualificationsExpired,
 	QUALIFICATION_CREDENTIALS,
 	slotSummary,
+	slotsTone,
 	teacherRolesFrom,
 	validateTeacherProfile
 } from './teachers';
@@ -214,6 +215,37 @@ describe('slotSummary', () => {
 			used: 1,
 			available: null
 		});
+	});
+});
+
+describe('slotsTone', () => {
+	it('has room while fewer students are in training than slots set', () => {
+		expect(slotsTone({ total: 3, used: 1 }, 'active')).toBe('room');
+	});
+
+	it('is full with exactly as many students as slots', () => {
+		expect(slotsTone({ total: 2, used: 2 }, 'active')).toBe('full');
+	});
+
+	it('is over with more students than slots', () => {
+		expect(slotsTone({ total: 1, used: 3 }, 'active')).toBe('over');
+	});
+
+	it('is unset when the teacher has not said how many they take', () => {
+		expect(slotsTone({ total: null, used: 0 }, 'active')).toBe('unset');
+		expect(slotsTone({ total: null, used: 2 }, 'active')).toBe('unset');
+	});
+
+	// Their slots stay visible on LOA, but none of them are open.
+	it('is closed on LOA, however many students they have', () => {
+		expect(slotsTone({ total: 3, used: 0 }, 'loa')).toBe('closed');
+		expect(slotsTone({ total: 2, used: 2 }, 'loa')).toBe('closed');
+		expect(slotsTone({ total: 1, used: 2 }, 'loa')).toBe('closed');
+	});
+
+	// Today's page greyed this out; it is the teacher with the most room.
+	it('has room with no students and slots set', () => {
+		expect(slotsTone({ total: 2, used: 0 }, 'active')).toBe('room');
 	});
 });
 
