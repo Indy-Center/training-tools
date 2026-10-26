@@ -37,7 +37,7 @@ import type { RequestHandler } from './$types';
  * | Not configured here yet                | 503    | yes      |
  * | Fallback Jira read failed              | 502    | yes      |
  *
- * The 15-minute sweep catches anything that runs out of retries.
+ * The 10-minute sweep catches anything that runs out of retries.
  *
  * Each verified delivery is also recorded for `/admin`, off the response path.
  * Unverified requests are not: the endpoint is public, and a row anyone can

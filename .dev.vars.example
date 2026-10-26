@@ -26,7 +26,7 @@ JIRA_API_TOKEN=
 
 # Signs deliveries from the TRK "issue updated" webhook (Jira admin → System →
 # WebHooks). Only needed to exercise /api/jira/webhook locally; statuses still
-# sync every 15 minutes without it. In production this is a Worker secret.
+# sync every 10 minutes without it. In production this is a Worker secret.
 JIRA_WEBHOOK_SECRET=
 
 # The CMS (payload), for the teacher resources on /teach. CMS_URL is a var in

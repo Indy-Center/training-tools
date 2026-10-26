@@ -32,7 +32,7 @@ repository, or reach the Indy Center staff through
   automatically when a course is finished and on arrival by rating.
 - **Discord, kept in step**: a role and a private channel per teacher, the
   pairing message, rating exams for evaluators to claim, and alerts to staff.
-- **A background job every 15 minutes** that keeps all of it honest, with a
+- **A background job every 10 minutes** that keeps all of it honest, with a
   page showing each job's last run.
 
 **What it leans on, and what you would swap**
@@ -164,12 +164,12 @@ has one. Scheduling and the student's next lesson will join it there.
 
 Those statuses, the assigned `Teacher` and the rating exam's `RE Instructor` are
 read back from the TRK issue two ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
-the 15-minute cron sweep as the backstop. A request the student withdrew here is
+the 10-minute cron sweep as the backstop. A request the student withdrew here is
 never reopened by Jira.
 
 ## Scheduled work
 
-Every 15 minutes (`*/15 * * * *`), in this order:
+Every 10 minutes (`*/10 * * * *`), in this order:
 
 | Job                       | Does                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------ |
@@ -486,7 +486,7 @@ That needs Larry 1.2.0 or later.
 **A status renamed on the board stops the app reading every card in it.** The
 board import checks each card's status on every run and tells the tech team
 once per distinct set of problems (`sync_state`, like the dropdown check), so
-a rename shows up within fifteen minutes rather than when a student asks.
+a rename shows up within ten minutes rather than when a student asks.
 
 A card at Needs CATP is described as a failed exam only when it arrived from
 Rating Exam; staff can also move one there from In Training.
@@ -770,7 +770,7 @@ behind the scenes is seen before a student has to report it.
   back in the cron's queue. Requests still inside their retries are listed
   separately, with nothing to do.
 - **Scheduled jobs.** Each of the seven, with when it last ran and one of four
-  states: OK, Failing (its last run threw), Not running (no run for 45 minutes —
+  states: OK, Failing (its last run threw), Not running (no run for 30 minutes —
   three missed intervals), or No runs recorded. A failure shows its message and
   how many runs in a row; the last error stays visible after a recovery.
 - **Jira webhook.** The last verified delivery. It is never "Not running": it

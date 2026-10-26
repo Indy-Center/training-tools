@@ -10,7 +10,7 @@ export type JobHealth = InferSelectModel<typeof jobHealthTable>;
  * `/admin` can answer "is it running, and did it work" without anyone tailing
  * the Worker's logs. Before this the only trace of a failed job was a log line.
  *
- * **Latest state, not a history.** Seven jobs run every fifteen minutes; a row
+ * **Latest state, not a history.** Seven jobs run every ten minutes; a row
  * per run would be several hundred a day for a question that is only ever
  * "what about now". The row is overwritten, and `failuresInARow` carries the
  * one piece of history worth having.

@@ -158,7 +158,7 @@ const BOARD_PROBLEMS_KEY = 'jira-board-problems-notified';
 
 /**
  * Tell the tech team what on the board the app cannot read — once per distinct
- * set, not every fifteen minutes, the way the teacher-dropdown check does. A
+ * set, not every ten minutes, the way the teacher-dropdown check does. A
  * notice that could not be sent is retried next run; a board that comes clean
  * forgets what was sent, so the same problem returning is news again.
  */

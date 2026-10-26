@@ -71,7 +71,7 @@ export const rosterMembersTable = sqliteTable(
 		 * Ours, not VATUSA's, so the sync upsert deliberately leaves it out of its
 		 * `set` clause — a roster refresh must not clear it. Without it, every
 		 * member who legitimately qualifies for nothing gets re-checked against the
-		 * VATSIM API every 15 minutes forever.
+		 * VATSIM API every 10 minutes forever.
 		 *
 		 * This is bookkeeping *about* the mirror rather than training data, so it
 		 * does not breach the rule above; losing it to a mirror rebuild costs a

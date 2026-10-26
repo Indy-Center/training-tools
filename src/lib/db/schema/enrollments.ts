@@ -194,7 +194,7 @@ export const enrollmentsTable = sqliteTable(
 		 * `$lib/course-completion.ts`). Null when nothing is holding it.
 		 *
 		 * Also what makes the training admins hear about a hold once rather than
-		 * every fifteen minutes: they are told when this changes.
+		 * every ten minutes: they are told when this changes.
 		 */
 		certificationHold: text('certification_hold'),
 		/**
