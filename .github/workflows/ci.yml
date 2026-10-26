@@ -27,3 +27,7 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
+      # The TrainingRpc types package, published from rpc/ after a deploy:
+      # caught here if it no longer builds.
+      - run: npm ci && npm run build
+        working-directory: rpc

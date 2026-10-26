@@ -265,6 +265,17 @@ from (as `$rpc`), so the class and the package can't drift: the class
 implements the published `TrainingRpc` interface, and `src/worker.test.ts` fails
 `npm run check` if the class has a method the package doesn't declare.
 
+To publish a change to `rpc/src/`: bump `version` in `rpc/package.json` and
+merge. The `publish-types` job in `build-and-deploy.yml` runs after the deploy,
+publishes any version npm doesn't have yet, and does nothing when the version is
+unchanged. It uses npm's trusted publishing, so there is no token to keep: on
+npmjs.com the package's settings name this repository and the workflow file
+`build-and-deploy.yml`, with no environment. To publish by hand instead, run
+`npm ci && npm run release` in `rpc/` (needs publish rights on the
+`@indy-center` npm org). `release` builds `dist/` and then publishes; a bare
+`npm publish` builds only through the `prepack` hook, which npm skips when it is
+set to ignore scripts, and would then publish nothing but `package.json`.
+
 ## Bindings
 
 | Binding    | Type                     | What it's for                                                |
