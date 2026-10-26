@@ -4,7 +4,7 @@ import { drizzle } from '$lib/server/db';
 import { runScheduledJobs, scheduledJobs } from '$lib/server/scheduled';
 import { recordAndAlert } from '$lib/server/job-health';
 import { readRoster } from '$lib/server/roster';
-import type { Roster, TrainingRpcMethods } from '$lib/rpc/training-rpc';
+import type { Roster, TrainingRpc as Contract } from '$rpc';
 
 /**
  * Custom worker entry.
@@ -28,10 +28,12 @@ export default {
  * The read-only RPC other Workers bind to (`entrypoint: "TrainingRpc"`).
  *
  * A thin delegate, kept out of tests: each method hands the database to a
- * function that is tested. Its contract is `$lib/rpc/training-rpc.ts`; a
- * breaking change goes in a new class, `TrainingRpcV2`, beside this one.
+ * function that is tested. Its contract is `rpc/src/index.ts`, the source of
+ * the npm package callers type their binding with; `src/worker.test.ts` fails
+ * the type check if this class and it differ. A breaking change goes in a new
+ * class, `TrainingRpcV2`, beside this one.
  */
-export class TrainingRpc extends WorkerEntrypoint<Env> implements TrainingRpcMethods {
+export class TrainingRpc extends WorkerEntrypoint<Env> implements Contract {
 	getRoster(): Promise<Roster> {
 		return readRoster(drizzle(this.env.DB));
 	}

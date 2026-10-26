@@ -246,11 +246,24 @@ The answer holds only what is held now: no history, revoked credentials or grant
 details. It is two queries whatever the roster's size
 (`src/lib/server/roster/read.ts`).
 
-The contract is `src/lib/rpc/training-rpc.ts`. Adding a field or a method is
-made there in place. A breaking change (renaming, removing or retyping a field)
-goes into a new entrypoint class, `TrainingRpcV2`, beside the old one, so a
-caller never breaks mid-deploy. The only caller so far is community-website
-(DEV-116).
+The contract is `rpc/src/index.ts`. Adding a field or a method is made there in
+place. A breaking change (renaming, removing or retyping a field) goes into a new
+entrypoint class, `TrainingRpcV2`, beside the old one, so a caller never breaks
+mid-deploy. The only caller so far is community-website (DEV-116).
+
+**Types for callers** are published to npm as `@indy-center/training-tools`,
+like `@indy-center/indy-larry-worker`. Install it as a dependency
+(`npm install @indy-center/training-tools`) and type the binding in the
+caller's `Env` as `TRAINING: TrainingBinding`; `Roster`, `RosterMember` and
+`AvailableCredential` are exported too. It is types only, built from `rpc/src/`;
+callers also need `@cloudflare/workers-types` (or `wrangler types`) for
+`Service` and `Rpc`. It is public, so it installs with no npm login, and it holds
+nothing that isn't already in this repository.
+
+`rpc/src/index.ts` is also where `src/worker.ts` takes the entrypoint's types
+from (as `$rpc`), so the class and the package can't drift: the class
+implements the published `TrainingRpc` interface, and `src/worker.test.ts` fails
+`npm run check` if the class has a method the package doesn't declare.
 
 ## Bindings
 
@@ -326,7 +339,6 @@ src/
 │   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health, cms_copies)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
-│   ├── rpc/training-rpc.ts    the TrainingRpc contract: getRoster()'s answer (types only)
 │   ├── server/
 │   │   ├── identity.ts        reads fic_session, calls the IDENTITY binding
 │   │   ├── guards.ts          requireSession / requireRole, for every load and action
@@ -347,6 +359,9 @@ src/
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
+
+rpc/                           the npm package @indy-center/training-tools (its own package.json)
+└── src/index.ts               the TrainingRpc contract: getRoster()'s answer and the binding type (types only)
 ```
 
 ### Roster data

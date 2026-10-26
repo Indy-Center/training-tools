@@ -1,10 +1,11 @@
 /**
- * The contract of the `TrainingRpc` entrypoint (`src/worker.ts`): what another
- * Worker bound to this one gets back. Types only.
+ * The contract of the training app's `TrainingRpc` entrypoint: what another
+ * Worker bound to it gets back. Types only.
  *
- * This is a published contract (community-website decision 0003). Adding a
- * field or a method is made here in place; anything that would break a caller
- * (renaming, removing or retyping a field) goes into a new entrypoint class,
+ * Published to npm as `@indy-center/training-tools` (this folder), and the one
+ * source of the entrypoint's types in `src/worker.ts`. Adding a field or a
+ * method is made here in place; anything that would break a caller (renaming,
+ * removing or retyping a field) goes into a new entrypoint class,
  * `TrainingRpcV2`, beside the old one, so no caller breaks mid-deploy.
  */
 
@@ -62,7 +63,13 @@ export type Roster = {
 };
 
 /** What a caller's `TrainingRpc` binding can call. */
-export interface TrainingRpcMethods {
+export interface TrainingRpc extends Rpc.WorkerEntrypointBranded {
 	/** The whole controller roster and the available credentials, in one call. Read-only. */
 	getRoster(): Promise<Roster>;
 }
+
+/**
+ * The binding's type in a caller's `Env`: `TRAINING: TrainingBinding`, for
+ * `{ "binding": "TRAINING", "service": "training-tools", "entrypoint": "TrainingRpc" }`.
+ */
+export type TrainingBinding = Service<TrainingRpc>;

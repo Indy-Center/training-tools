@@ -4,7 +4,7 @@ import { rosterMembersTable } from '$lib/db/schema/roster';
 import { certificationsTable } from '$lib/db/schema/certifications';
 import { CERTIFICATIONS, CREDENTIALS, ENDORSEMENTS } from '$lib/certifications';
 import { FACILITY_ID } from '$lib/config';
-import type { AvailableCredential, Roster, RosterMember } from '$lib/rpc/training-rpc';
+import type { AvailableCredential, Roster, RosterMember } from '$rpc';
 
 /** The roster mirror's columns the answer is built from. */
 export type MemberRow = {
@@ -25,7 +25,7 @@ export type HeldRow = { cid: string; code: string; revokedAt: Date | null };
 
 /**
  * What `TrainingRpc.getRoster()` answers: the controller roster now and the
- * available credentials. See `$lib/rpc/training-rpc.ts` for the contract.
+ * available credentials. See `rpc/src/index.ts` for the contract.
  *
  * Two queries whatever the roster's size — the active roster and every live
  * credential — grouped in memory, never an `IN (...)` over CIDs (D1 allows 100
