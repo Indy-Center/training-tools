@@ -6,7 +6,7 @@
  */
 
 /** How often the cron fires. Mirrors `triggers.crons` in wrangler.jsonc. */
-export const CRON_INTERVAL_MINUTES = 15;
+export const CRON_INTERVAL_MINUTES = 10;
 
 /**
  * How long without a run before a scheduled job counts as not running.
