@@ -3,6 +3,7 @@ import type { Database } from '$lib/server/db';
 import { rosterMembersTable, type RosterMember } from '$lib/db/schema/roster';
 
 export { syncRoster, type RosterSyncResult } from './sync';
+export { readRoster } from './read';
 
 /**
  * The current roster entry for a CID, or null if they are not on the roster.

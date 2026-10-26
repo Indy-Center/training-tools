@@ -221,6 +221,37 @@ onto their roster row. VATUSA's public roster never includes emails, so
 `/certifications/{cid}` shows one only for people who have signed in here at
 least once. Discord ids come from the VATUSA roster on each sync.
 
+## RPC for other Workers
+
+`src/worker.ts` exports a `TrainingRpc` `WorkerEntrypoint` beside its fetch and
+scheduled handlers. Another Worker on the account binds to it:
+
+```jsonc
+"services": [{ "binding": "TRAINING", "service": "training-tools", "entrypoint": "TrainingRpc" }]
+```
+
+It has one read-only method. `getRoster()` returns:
+
+- `credentials`: every available credential, certifications lowest to highest
+  and then endorsements. Each has `code`, `kind`, `name`, `order` (from 1) and
+  `description`.
+- `members`: everyone on the controller roster now. Removed members are left out.
+  Each has `cid`, `firstName`, `lastName`, `namePrivacy`, `rating` (short code),
+  `facilityJoinedAt`, `roles` (VATUSA facility roles at ZID, such as `ATM` or
+  `MTR`), `certification` (the highest held, or null) and `endorsements`.
+  `lastName` is present even when `namePrivacy` is set; a caller must not show it
+  publicly then.
+
+The answer holds only what is held now: no history, revoked credentials or grant
+details. It is two queries whatever the roster's size
+(`src/lib/server/roster/read.ts`).
+
+The contract is `src/lib/rpc/training-rpc.ts`. Adding a field or a method is
+made there in place. A breaking change (renaming, removing or retyping a field)
+goes into a new entrypoint class, `TrainingRpcV2`, beside the old one, so a
+caller never breaks mid-deploy. The only caller so far is community-website
+(DEV-116).
+
 ## Bindings
 
 | Binding    | Type                     | What it's for                                                |
@@ -261,7 +292,7 @@ exist.
 
 ```
 src/
-├── worker.ts                  worker entry: SvelteKit fetch + the roster cron
+├── worker.ts                  worker entry: SvelteKit fetch, the cron, and the TrainingRpc entrypoint
 ├── hooks.server.ts            db client + session load + the route gate
 ├── app.d.ts                   App.Locals / App.Platform (IDENTITY is optional here on purpose)
 ├── lib/
@@ -295,12 +326,13 @@ src/
 │   ├── db/schema/             drizzle tables (roster, enrollments, certifications, teachers, activity_log, job_health, cms_copies)
 │   ├── types/vatusa.ts        VATUSA API shapes
 │   ├── types/vatsim.ts        VATSIM v2 API shapes
+│   ├── rpc/training-rpc.ts    the TrainingRpc contract: getRoster()'s answer (types only)
 │   ├── server/
 │   │   ├── identity.ts        reads fic_session, calls the IDENTITY binding
 │   │   ├── guards.ts          requireSession / requireRole, for every load and action
 │   │   ├── vatusa.ts          VATUSA roster fetch (no API key needed)
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
-│   │   ├── roster/            roster lookup, search, and the reconciling sync
+│   │   ├── roster/            roster lookup, search, the reconciling sync, and the RPC's roster read
 │   │   ├── certifications/    grant/revoke, and the arrival pass
 │   │   ├── teachers/          teacher roster sync, profiles, qualifications, dropdown check
 │   │   ├── notify/            Discord notices, queued through Larry
