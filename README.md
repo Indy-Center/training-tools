@@ -955,6 +955,31 @@ stay unfiled.
 **Never run `wrangler d1 delete` or `wrangler d1 create` to fix local state** —
 both operate on production.
 
+### Comparing credentials with community-website
+
+Before the community site stops keeping its own credentials (DEV-116),
+`scripts/compare-credentials.ts` lists every CID whose credentials differ between
+the site's database (`website-db`) and this app's, so edits made on the site
+since the September import can be signed off:
+
+```bash
+npx wrangler login                                       # once
+node scripts/compare-credentials.ts > comparison.txt
+```
+
+It needs a Cloudflare login on this app's account with read access to both
+databases (`wrangler login`, or `CLOUDFLARE_API_TOKEN` with D1 read), and Node
+22.18 or later. It only runs SELECTs, through `wrangler d1 execute --remote`, and
+prints CIDs, site user ids and credential codes, never names or emails.
+
+The site's rows are mapped the way data migration `0003` did: site user to CID,
+one certification per CID (the highest), endorsements as they are. This app's
+side is what is held now. Each differing CID shows what the site holds, what
+this app holds, and the difference; site rows it cannot map (a code this app
+does not have, such as `APP-SOLO`, or a user with no CID) are listed at the end.
+The comparison itself is `src/lib/credential-comparison.ts`, tested on made-up
+rows.
+
 ## Tests
 
 ```bash
