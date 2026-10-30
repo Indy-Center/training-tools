@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
-import { isDueForRemoval, isInRestoreWindow, restoreByFor } from './roster-removal';
+import {
+	boardMoveOutcome,
+	isBackOnHomeRoster,
+	isDueForRemoval,
+	isInRestoreWindow,
+	restoreByFor
+} from './roster-removal';
 
 const LEFT = new Date('2026-10-01T15:00:00Z');
 const minutes = (n: number) => new Date(LEFT.getTime() + n * 60_000);
@@ -81,5 +87,44 @@ describe('isInRestoreWindow', () => {
 		expect(isInRestoreWindow({ rosterRemovedAt: null, restoreClosedAt: null })).toBe(false);
 		expect(isInRestoreWindow({ rosterRemovedAt: LEFT, restoreClosedAt: null })).toBe(true);
 		expect(isInRestoreWindow({ rosterRemovedAt: LEFT, restoreClosedAt: minutes(5) })).toBe(false);
+	});
+});
+
+describe('isBackOnHomeRoster', () => {
+	const home = { membership: 'home' as const, removedAt: null, leftHomeAt: null };
+
+	it('is a home member with no left_home_at', () => {
+		expect(isBackOnHomeRoster(home)).toBe(true);
+	});
+
+	it('is not someone away, a visitor, gone from the mirror, or with no row', () => {
+		expect(isBackOnHomeRoster({ ...home, leftHomeAt: LEFT })).toBe(false);
+		expect(isBackOnHomeRoster({ ...home, membership: 'visit' })).toBe(false);
+		expect(isBackOnHomeRoster({ ...home, removedAt: LEFT })).toBe(false);
+		expect(isBackOnHomeRoster(null)).toBe(false);
+	});
+});
+
+describe('boardMoveOutcome', () => {
+	it('treats a card back at a stage as restored', () => {
+		for (const status of ['waitlist', 'in-training', 'rating-exam'] as const) {
+			expect(boardMoveOutcome({ status, rosterRemovedFrom: 'waitlist' })).toBe('restored');
+		}
+		expect(boardMoveOutcome({ status: 'needs-catp', rosterRemovedFrom: 'needs-catp' })).toBe(
+			'restored'
+		);
+	});
+
+	it('closes the window for Withdrawn, or Needs CATP from another stage', () => {
+		expect(boardMoveOutcome({ status: 'withdrawn', rosterRemovedFrom: 'waitlist' })).toBe('closed');
+		expect(boardMoveOutcome({ status: 'needs-catp', rosterRemovedFrom: 'rating-exam' })).toBe(
+			'closed'
+		);
+	});
+
+	it('leaves a card still at Removed, or anywhere else', () => {
+		for (const status of ['removed', 'certification-update', 'completed'] as const) {
+			expect(boardMoveOutcome({ status, rosterRemovedFrom: 'waitlist' })).toBeNull();
+		}
 	});
 });

@@ -13,6 +13,11 @@ import {
 	rosterRemovalStudentMessage,
 	rosterRemovalSummaryNotice,
 	rosterRemovalTeacherMessage,
+	rosterRestoreExaminerMessage,
+	rosterRestoreNotice,
+	rosterRestoreRefusedNotice,
+	rosterRestoreStudentMessage,
+	rosterRestoreTeacherMessage,
 	stuckRequestNotice,
 	vatusaOverdueNotice,
 	vatusaReminderMessage,
@@ -384,5 +389,108 @@ describe('roster removal notices', () => {
 				'Sam Lee (7654321): Terminal Radar Control (T-RC), In training, left July 15, 2026'
 			].join('\n')
 		);
+	});
+});
+
+describe('roster restore notices', () => {
+	const restore = {
+		...request,
+		stage: 'In Training',
+		keptInLine: false,
+		teacherCleared: null,
+		untold: []
+	};
+
+	it('tells the training admins what was restored, and where to', () => {
+		const notice = rosterRestoreNotice(restore);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toBe('Restored: Jo Rivera');
+		expect(notice.summary).toBe(
+			"Jo Rivera's Terminal Radar Control (T-RC) request was restored to In Training, at its old place in line."
+		);
+		expect(field(notice, 'Restored to')).toBe('In Training');
+		expect(field(notice, 'Teacher')).toBe('SW');
+		expect(field(notice, 'Examiner')).toBe('HI');
+		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+		expect(field(notice, 'Not told')).toBeUndefined();
+	});
+
+	it('says when it is kept in line, a teacher was cleared, or someone was not told', () => {
+		const notice = rosterRestoreNotice({
+			...restore,
+			stage: 'Waitlist',
+			teacher: null,
+			keptInLine: true,
+			teacherCleared: 'SW',
+			untold: ['the student (chose email)']
+		});
+		expect(notice.summary).toBe(
+			"Jo Rivera's Terminal Radar Control (T-RC) request was restored to Waitlist, at its old place in line. They are still off the ZID home roster, so it is kept in line and is not removed again while they are away."
+		);
+		expect(field(notice, 'Teacher')).toBe('SW cleared: no longer an active teacher');
+		expect(field(notice, 'Not told')).toBe('the student (chose email)');
+	});
+
+	it('tells the student their request is back', () => {
+		const message = rosterRestoreStudentMessage({
+			course: 'T-RC',
+			stage: 'Rating Exam',
+			teacherCleared: false
+		});
+		expect(message.title).toBe('Your training request is back');
+		expect(message.summary).toBe(
+			'Your Terminal Radar Control (T-RC) request has been restored to Rating Exam, at its old place in line.'
+		);
+	});
+
+	it('tells the student when their teacher is not taking them back', () => {
+		const message = rosterRestoreStudentMessage({
+			course: 'T-RC',
+			stage: 'Waitlist',
+			teacherCleared: true
+		});
+		expect(message.summary).toBe(
+			'Your Terminal Radar Control (T-RC) request has been restored to Waitlist, at its old place in line. Your teacher is not taking students right now, so you wait on the waitlist for a new one.'
+		);
+	});
+
+	it('tells the teacher their student is back with them', () => {
+		const message = rosterRestoreTeacherMessage({ name: 'Jo Rivera', course: 'T-RC' });
+		expect(message.title).toBe('Jo Rivera is back in training with you');
+		expect(message.summary).toBe(
+			"Jo Rivera's Terminal Radar Control (T-RC) training has been restored, so they are your student again and take one of your slots."
+		);
+	});
+
+	it('tells the examiner they are still on the card', () => {
+		const message = rosterRestoreExaminerMessage({
+			name: 'Jo Rivera',
+			course: 'T-RC',
+			stage: 'Rating Exam'
+		});
+		expect(message.title).toBe("Jo Rivera's request is back");
+		expect(message.summary).toBe(
+			"Jo Rivera's Terminal Radar Control (T-RC) request has been restored to Rating Exam, and you are still named on it as examiner."
+		);
+	});
+
+	it("tells the training admins a restore is waiting on the board, with Jira's error", () => {
+		const notice = rosterRestoreRefusedNotice({
+			...request,
+			stage: 'Waitlist',
+			transition: 'Restore to Waitlist',
+			error: 'No transition to "Waitlist" from TRK-42\'s current status.'
+		});
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.tone).toBe('warning');
+		expect(notice.title).toBe('Restore waiting on the board: Jo Rivera');
+		expect(notice.summary).toBe(
+			'Jo Rivera is back on the ZID home roster, but TRK refused to move their Terminal Radar Control (T-RC) request from Removed to Waitlist, so it has not been restored. It is tried again on every pass, and this is the only notice. Has the "Restore to Waitlist" transition been added to the board?'
+		);
+		expect(field(notice, 'Restore to')).toBe('Waitlist');
+		expect(field(notice, 'Jira said')).toBe(
+			'No transition to "Waitlist" from TRK-42\'s current status.'
+		);
+		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
 	});
 });

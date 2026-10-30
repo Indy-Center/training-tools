@@ -102,3 +102,25 @@ describe('/ as a student whose request is paused by a roster removal', () => {
 		});
 	}
 });
+
+// Home again, before the roster removals pass has restored the request.
+describe('/ as a returning student whose request is being restored', () => {
+	beforeEach(async () => {
+		await member({ membership: 'home' });
+	});
+
+	it('shows the being-restored copy and no enroll form', async () => {
+		const data = (await visit()) as Exclude<Awaited<ReturnType<typeof visit>>, void>;
+
+		expect(data.flow).toBe('back-on-home-roster');
+		expect(data.enroll).toBeNull();
+		expect(data.request).toMatchObject({ id: 'a', course: 'S-LC' });
+	});
+
+	it('refuses ?/enroll', async () => {
+		expect(await enroll()).toMatchObject({
+			status: 409,
+			data: { formError: 'You already have an open training request.' }
+		});
+	});
+});

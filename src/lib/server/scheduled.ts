@@ -139,7 +139,13 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 				'Removes requests whose student left the home roster, and restores them if they come back.',
 			run: async () => {
 				const result = await processRosterRemovals(db, env);
-				return result.due > 0 ? result : null;
+				const acted =
+					result.due +
+					result.finished +
+					result.closedOnBoard +
+					result.restored +
+					result.restoreRefused;
+				return acted > 0 ? result : null;
 			}
 		},
 		{

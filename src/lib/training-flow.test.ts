@@ -216,6 +216,21 @@ describe('resolveTrainingFlow with a request in its restore window', () => {
 			'visiting-controller'
 		);
 	});
+
+	// Home again, and the pass has not restored it yet: never the enroll form.
+	it('tells a student back on the home roster that their request is being restored', () => {
+		for (const openStatus of ['removed', 'waitlist'] as const) {
+			expect(
+				resolveTrainingFlow({
+					membership: 'home',
+					ratingId: 3,
+					consolidation: { status: 'met' } as Consolidation,
+					openStatus,
+					inRestoreWindow: true
+				})
+			).toBe('back-on-home-roster');
+		}
+	});
 });
 
 describe('isOpenEnrollmentStatus', () => {

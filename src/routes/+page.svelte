@@ -23,6 +23,7 @@
 	import IconClockOutline from '~icons/mdi/clock-outline';
 	import IconOpenInNew from '~icons/mdi/open-in-new';
 	import IconPause from '~icons/mdi/pause-circle-outline';
+	import IconRestore from '~icons/mdi/restore';
 	import IconSchool from '~icons/mdi/school';
 	import IconStar from '~icons/mdi/star-outline';
 
@@ -94,6 +95,14 @@
 							: 'the end of your 30 days'
 					})}
 					icon={IconPause}
+				/>
+			{:else if data.flow === 'back-on-home-roster' && data.request}
+				<!-- The same request, its student home again: the next pass restores it. -->
+				<CopyPanel
+					copy={fillCopy(TRAINING_COPY['back-on-home-roster'], {
+						course: findCourse(data.request.course)?.label ?? data.request.course
+					})}
+					icon={IconRestore}
 				/>
 			{:else if data.request}
 				<!-- A request is open: where it stands, whatever else has changed. -->

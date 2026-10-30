@@ -13,12 +13,7 @@ import { isDueForRemoval, restoreByFor } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
 import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
-import {
-	NEEDS_CATP_STATUS,
-	RATING_EXAM_STATUS,
-	REMOVED_STATUS,
-	toFacilityDate
-} from '$lib/server/jira/progress';
+import { REMOVED_STATUS, toFacilityDate } from '$lib/server/jira/progress';
 import { notify, notifyDirect, type DirectNotice } from '$lib/server/notify';
 import { listTeachers } from '$lib/server/teachers';
 import {
@@ -29,6 +24,13 @@ import {
 	rosterRemovalTeacherMessage,
 	type NoticeRequest
 } from './notices';
+import {
+	closeBoardEndedWindows,
+	finishBoardRestores,
+	restoreReturnedStudents,
+	TRK_STAGE_NAMES,
+	type RosterRestoreResult
+} from './roster-restores';
 import { syncEnrollmentIssue } from './status-sync';
 
 /**
@@ -45,14 +47,6 @@ import { syncEnrollmentIssue } from './status-sync';
  * decisions/0037-roster-removal-and-restore.md
  */
 
-/** TRK's name for each stage a removal takes a request from: the card comment says it. */
-export const TRK_STAGE_NAMES: Record<RosterRemovableStatus, string> = {
-	waitlist: 'Waitlist',
-	'in-training': 'In Training',
-	'rating-exam': RATING_EXAM_STATUS,
-	'needs-catp': NEEDS_CATP_STATUS
-};
-
 /**
  * `sync_state` key, written when the job first finishes. Until then a pass is
  * the **first run**: a request whose student left more than 30 days ago is
@@ -64,9 +58,14 @@ export const FIRST_RUN_DONE_KEY = 'roster-removals-first-run';
 /** How many removals one pass attempts. A busy month has a handful. */
 const BATCH_SIZE = 25;
 
-export type RosterRemovalResult = {
-	/** True until a pass has finished with nothing left due. */
-	firstRun: boolean;
+export type RosterRemovalResult = RosterRestoreResult &
+	RemovalCounts & {
+		/** True until a pass has finished with nothing left due. */
+		firstRun: boolean;
+	};
+
+/** Step 5, the removal. */
+type RemovalCounts = {
 	/** Requests due for removal this pass. */
 	due: number;
 	/** Of those, removed: card moved and read back, or an unfiled row stamped. */
@@ -83,11 +82,11 @@ export type RosterRemovalResult = {
  * One pass of the job. Run by the cron after the status sweep and before the
  * announcements, and after a Jira webhook delivery.
  *
- * The spec's order, each step a function the next ticket inserts:
+ * The spec's order:
  *
- * 1. finish restores the board made (05),
- * 2. close windows the board ended (05),
- * 3. restore (05),
+ * 1. finish restores the board made — `finishBoardRestores()`,
+ * 2. close windows the board ended — `closeBoardEndedWindows()`,
+ * 3. restore — `restoreReturnedStudents()` (all three in `./roster-restores.ts`),
  * 4. expire (06),
  * 5. remove — `removeDepartedStudents()`, below.
  *
@@ -101,7 +100,11 @@ export async function processRosterRemovals(
 ): Promise<RosterRemovalResult> {
 	const firstRun = !(await hasFinishedOnce(db));
 
-	// Steps 1–4 go here, in that order.
+	const finished = await finishBoardRestores(db, env, now);
+	const closedOnBoard = await closeBoardEndedWindows(db, now);
+	const { restored, restoreRefused } = await restoreReturnedStudents(db, env, now);
+
+	// Step 4, expire, goes here.
 
 	const removal = await removeDepartedStudents(db, env, now, firstRun);
 
@@ -109,7 +112,7 @@ export async function processRosterRemovals(
 	// past the first pass's batch, is still closed at once when it goes through.
 	if (firstRun && removal.refused === 0 && removal.deferred === 0) await markFinished(db, now);
 
-	return { firstRun, ...removal };
+	return { firstRun, finished, closedOnBoard, restored, restoreRefused, ...removal };
 }
 
 async function hasFinishedOnce(db: Database): Promise<boolean> {
@@ -157,7 +160,7 @@ async function removeDepartedStudents(
 	env: Partial<Env> | undefined,
 	now: Date,
 	firstRun: boolean
-): Promise<Omit<RosterRemovalResult, 'firstRun'>> {
+): Promise<RemovalCounts> {
 	const candidates = await db
 		.select()
 		.from(enrollmentsTable)

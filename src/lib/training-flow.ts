@@ -23,6 +23,7 @@ export type TrainingFlow =
 	| OpenEnrollmentStatus
 	// A request in its restore window (decisions/0037).
 	| 'left-home-roster' // the student is off the home roster: the request is paused
+	| 'back-on-home-roster' // home again: the next pass restores it
 	// No open request.
 	| 'enroll' // home controller who may enroll in their next course
 	| 'consolidating' // home controller short of the hours their next course asks for
@@ -153,9 +154,8 @@ export function resolveTrainingFlow({
 }: FlowInput): TrainingFlow {
 	// A request in its restore window, ahead of its status: the status is
 	// `removed`, or whatever the card was read back at before the pass caught up.
-	// The "student back" flow (home again, restore not yet applied) goes beside
-	// this one.
-	if (inRestoreWindow && membership !== 'home') return 'left-home-roster';
+	// Off the home roster it is paused; home again, the next pass restores it.
+	if (inRestoreWindow) return membership === 'home' ? 'back-on-home-roster' : 'left-home-roster';
 
 	if (isOpenEnrollmentStatus(openStatus)) return openStatus;
 
