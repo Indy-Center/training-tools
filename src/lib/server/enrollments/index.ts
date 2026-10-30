@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNull, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	CLOSED_ENROLLMENT_STATUSES,
@@ -25,6 +25,7 @@ export { getWaitlistStats, type CourseWaitlist } from './stats';
 export { announceArrivals, type AnnounceResult } from './announce';
 export { sendVatusaReminders, type ReminderPassResult } from './reminders';
 export { announcePairings, type PairingPassResult } from './pairings';
+export { processRosterRemovals, type RosterRemovalResult } from './roster-removals';
 export {
 	applyCertificationUpdate,
 	applyPendingCertificationUpdates,
@@ -79,6 +80,10 @@ export type NewEnrollment = {
  * submission and what the page shows instead of an empty form. A rejected
  * request frees them to submit a different one.
  *
+ * A request in its restore window counts as open too: its status is `removed`,
+ * but the student can still get it back, so they may not file another
+ * (decisions/0037-roster-removal-and-restore.md).
+ *
  * The status list is three values, so this stays well inside D1's 100-parameter
  * limit — unlike the roster, where a CID list would not have.
  */
@@ -87,7 +92,10 @@ export async function getOpenEnrollment(db: Database, cid: string): Promise<Enro
 		where: and(
 			eq(enrollmentsTable.cid, cid),
 			isNull(enrollmentsTable.withdrawnAt),
-			notInArray(enrollmentsTable.status, [...CLOSED_ENROLLMENT_STATUSES])
+			or(
+				notInArray(enrollmentsTable.status, [...CLOSED_ENROLLMENT_STATUSES]),
+				and(isNotNull(enrollmentsTable.rosterRemovedAt), isNull(enrollmentsTable.restoreClosedAt))
+			)
 		),
 		orderBy: desc(enrollmentsTable.createdAt)
 	});

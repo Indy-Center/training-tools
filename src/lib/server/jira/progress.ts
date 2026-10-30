@@ -23,6 +23,8 @@ export const NEEDS_CATP_STATUS = 'Needs CATP';
 /** Ours is still `certification-update`: the board renamed its status on 2026-10-06. */
 export const CERTIFICATION_UPDATE_STATUS = 'Audit';
 export const COMPLETED_STATUS = 'Completed';
+/** Where staff take someone off the list, and where a roster removal puts them. */
+export const REMOVED_STATUS = 'Removed';
 
 /**
  * Today's date for a Jira date field, **in the facility's timezone**.

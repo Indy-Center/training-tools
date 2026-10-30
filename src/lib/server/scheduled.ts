@@ -10,6 +10,7 @@ import {
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	importBoardIssues,
+	processRosterRemovals,
 	reconcileEnrollments,
 	sendVatusaReminders,
 	sweepEnrollmentStatuses
@@ -43,7 +44,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in ten places, each noted below.
+ * Order matters in eleven places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -127,6 +128,18 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await sweepEnrollmentStatuses(db, env);
 				return result.updated > 0 || result.full || !result.complete ? result : null;
+			}
+		},
+		{
+			// After the sweep, so each card is judged at where it is now, and before
+			// the announcements, so a restore is finished before they look: a
+			// restored request is not announced as an arrival.
+			name: 'roster removals',
+			description:
+				'Removes requests whose student left the home roster, and restores them if they come back.',
+			run: async () => {
+				const result = await processRosterRemovals(db, env);
+				return result.due > 0 ? result : null;
 			}
 		},
 		{
