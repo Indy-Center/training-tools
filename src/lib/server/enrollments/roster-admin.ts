@@ -69,13 +69,13 @@ export async function restoreRequestNow(
 
 	const outcome = await restoreNow(db, env, request, admin, now);
 	if (!outcome.ok) {
-		if (outcome.error === null) {
-			// Jira not set up, or the row changed under us.
-			const after = await read(db, id);
-			return after && isInRestoreWindow(after) && after.status === 'removed'
-				? { ok: false, status: 502, message: NOT_CONFIGURED }
-				: { ok: false, status: 409, message: NOT_IN_WINDOW };
+		// The row may have changed under us: another admin's Restore now, or the
+		// job, restored or closed it meanwhile. Then it is not Jira's refusal.
+		const after = await read(db, id);
+		if (!after || !isInRestoreWindow(after) || after.status !== 'removed') {
+			return { ok: false, status: 409, message: NOT_IN_WINDOW };
 		}
+		if (outcome.error === null) return { ok: false, status: 502, message: NOT_CONFIGURED };
 		return {
 			ok: false,
 			status: 502,
