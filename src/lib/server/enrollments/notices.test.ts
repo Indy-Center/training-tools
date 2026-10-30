@@ -376,6 +376,19 @@ describe('roster removal notices', () => {
 		);
 	});
 
+	it('gives the admins the same line when an admin closes a window for good', () => {
+		const notice = rosterExpiryNotice({
+			...request,
+			restoreBy: '2026-11-19',
+			closedBy: 'Pat Admin'
+		});
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toBe('Request closed: Jo Rivera');
+		expect(notice.summary).toBe(
+			'Jo Rivera (1234567) left the ZID home roster; their Terminal Radar Control (T-RC) request is closed for good, closed by Pat Admin.'
+		);
+	});
+
 	it('sums up a first run in one notice, a line per request', () => {
 		const notice = rosterRemovalSummaryNotice([
 			{ ...request, was: 'waitlist', leftHomeOn: '2026-08-01' },

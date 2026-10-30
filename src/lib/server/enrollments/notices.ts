@@ -443,17 +443,24 @@ export function rosterRemovalSummaryNotice(
  * A request's restore window ran out without the student returning, so it is
  * closed for good. One line for the training admins; the student is not told.
  * `restoreBy` is a facility day (`2026-11-19`).
+ *
+ * With `closedBy`, an admin pressed Close for good on `/waitlist` before the
+ * window ran out: the same line, saying who.
  */
 export function rosterExpiryNotice(request: {
 	name: string;
 	cid: string;
 	course: string;
 	restoreBy: string;
+	closedBy?: string;
 }): Notice {
+	const summary = request.closedBy
+		? `${student(request)} left the ZID home roster; their ${course(request.course)} request is closed for good, closed by ${request.closedBy}.`
+		: `${student(request)} did not return to the ZID home roster by ${formatCardDate(request.restoreBy, 'long')}; their ${course(request.course)} request is closed for good.`;
 	return {
 		audience: 'training-admins',
 		title: `Request closed: ${request.name}`,
-		summary: `${student(request)} did not return to the ZID home roster by ${formatCardDate(request.restoreBy, 'long')}; their ${course(request.course)} request is closed for good.`
+		summary
 	};
 }
 
