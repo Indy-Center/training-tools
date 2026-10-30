@@ -769,7 +769,25 @@ Most cards were filed by hand and never came through the form, so the card is
 the only place their availability is; an empty card never erases what a student
 typed here.
 
-The page is built from small pieces: `ManagePanel`, `SheetFilters`,
+**Left the roster** (decisions/0037; `roster-admin.ts`) sits below the sheet,
+and only when a request is in its restore window: student, course, the stage it
+left, teacher, left-home date and `restore_by` (facility days), soonest
+`restore_by` first. **Restore now** runs the job's restore for that request at
+once; if the student is still away it is also kept in line by the admin who
+pressed it, and the card's comment says so. Jira refusing shows `TRK refused
+"Restore to …": … Has the transition been added to the board?` and changes
+nothing. **Close for good** ends the window as `closed-by-admin`, without
+touching Jira, and the training admins get the expiry's line saying who closed
+it. On the sheet, a request whose student is off the home roster and not yet
+removed has **Keep in line** in its menu (the job then skips it), and a kept
+one is labelled "Kept in line by <admin | the board>" with **Stop keeping in
+line**, after which the next pass removes it if the 24 hours have passed. Each
+action checks the role itself and writes only while the row still holds what
+the button was for, so a second press, or a second admin, gets a refusal ("This
+request is no longer waiting to be restored.", "Already removed. Use Restore now
+instead.") rather than acting twice.
+
+The page is built from small pieces: `ManagePanel`, `LeftTheRoster`, `SheetFilters`,
 `StudentRow` and the two cells beside it in `src/routes/waitlist/`, on shared
 components in `$lib/components/`. The grouping, filtering and counting are plain
 functions in `$lib/waitlist.ts`.

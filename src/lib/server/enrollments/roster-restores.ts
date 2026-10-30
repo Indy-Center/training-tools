@@ -64,8 +64,14 @@ export function restoreTransitionName(stage: RosterRemovableStatus): string {
 	return stage === 'needs-catp' ? NEEDS_CATP_STATUS : `Restore to ${TRK_STAGE_NAMES[stage]}`;
 }
 
-/** The comment a restored card gets. */
-export function restoreComment(stage: RosterRemovableStatus): string {
+/**
+ * The comment a restored card gets. `awayRestoredBy` names the admin who pressed
+ * Restore now while the student is still off the home roster.
+ */
+export function restoreComment(stage: RosterRemovableStatus, awayRestoredBy?: string): string {
+	if (awayRestoredBy) {
+		return `Restored to ${TRK_STAGE_NAMES[stage]} by ${awayRestoredBy}, while still off the ZID home roster.`;
+	}
 	return `Back on the ZID home roster. Restored to ${TRK_STAGE_NAMES[stage]}.`;
 }
 
@@ -238,10 +244,34 @@ function hasActiveTeacher(initials: string | null, teachers: Teacher[]): boolean
 	);
 }
 
-type RestoreOutcome =
-	| { ok: true }
+export type RestoreOutcome =
+	/** `keptInLine` when an admin restored a student still away, so it is kept in line by them. */
+	| { ok: true; stage: RosterRemovableStatus; keptInLine: boolean }
 	/** `error` is Jira's message, or null when Jira is not configured (nobody to tell). */
 	| { ok: false; stage: RosterRemovableStatus; error: string | null };
+
+/** The admin pressing Restore now on `/waitlist`. */
+export type RestoringAdmin = { cid: string; name: string };
+
+/**
+ * Restore now, from `/waitlist`: one request in its window, at once, by the
+ * same steps as the automatic restore, whether or not its student is back.
+ * A student still away is also kept in line by `admin`, so the next pass does
+ * not remove it again; the card's comment says who restored it.
+ *
+ * Refused by Jira: nothing here changes, and the admin is shown why rather
+ * than the training admins being told.
+ */
+export async function restoreNow(
+	db: Database,
+	env: Partial<Env> | undefined,
+	request: Enrollment,
+	admin: RestoringAdmin,
+	now: Date
+): Promise<RestoreOutcome> {
+	const context = await loadContext(db, env);
+	return restoreRequest(db, env, resolveJiraConfig(env), context, request, now, admin);
+}
 
 /**
  * Restore one request in its window: steps 1–4 of the spec's "Automatic".
@@ -256,6 +286,10 @@ type RestoreOutcome =
  *    finishes it.
  *
  * An unfiled request has no card: its status goes back here, and it is finished.
+ *
+ * `admin` is set for Restore now. With a student still away, the row is kept in
+ * line by that admin as soon as the card has moved, so however the restore is
+ * finished (here, or by step 1 of a later pass) it is not the board's.
  */
 async function restoreRequest(
 	db: Database,
@@ -263,18 +297,22 @@ async function restoreRequest(
 	config: JiraConfig | null,
 	context: Context,
 	request: Enrollment,
-	now: Date
+	now: Date,
+	admin: RestoringAdmin | null = null
 ): Promise<RestoreOutcome> {
 	const from = request.rosterRemovedFrom!;
 	const clearTeacher =
 		from === 'in-training' && !hasActiveTeacher(request.teacher, context.teachers);
 	const stage: RosterRemovableStatus = clearTeacher ? 'waitlist' : from;
 	const teacherCleared = clearTeacher ? request.teacher : null;
+	const keptBy =
+		admin && !isBackOnHomeRoster(context.people.get(request.cid) ?? null) ? admin : null;
+	const keptInLine = keptBy ? { keptInLineAt: now, keptInLineBy: keptBy.cid } : {};
 
 	if (!request.jiraIssueKey) {
 		const [reverted] = await db
 			.update(enrollmentsTable)
-			.set({ status: stage, updatedAt: now })
+			.set({ status: stage, ...keptInLine, updatedAt: now })
 			.where(
 				and(
 					eq(enrollmentsTable.id, request.id),
@@ -285,7 +323,7 @@ async function restoreRequest(
 			.returning();
 		if (!reverted) return { ok: false, stage, error: null };
 		await finishRestore(db, env, context, reverted, now, teacherCleared);
-		return { ok: true };
+		return { ok: true, stage, keptInLine: keptBy !== null };
 	}
 
 	if (!config) return { ok: false, stage, error: null };
@@ -302,6 +340,15 @@ async function restoreRequest(
 		return { ok: false, stage, error };
 	}
 
+	// The card has moved, so the restore will be finished: by this admin's hand.
+	if (keptBy) {
+		await db
+			.update(enrollmentsTable)
+			.set({ ...keptInLine, updatedAt: now })
+			.where(eq(enrollmentsTable.id, request.id));
+	}
+	const done = { ok: true, stage, keptInLine: keptBy !== null } as const;
+
 	try {
 		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.removed]: null });
 	} catch (err) {
@@ -312,7 +359,7 @@ async function restoreRequest(
 		);
 	}
 	try {
-		await commentOnIssue(config, issueKey, restoreComment(stage));
+		await commentOnIssue(config, issueKey, restoreComment(stage, keptBy?.name));
 	} catch (err) {
 		console.error('[training-tools] roster restore: could not comment', issueKey, err);
 	}
@@ -322,7 +369,7 @@ async function restoreRequest(
 	} catch (err) {
 		// The card has moved; the next pass reads it back and finishes it.
 		console.error('[training-tools] roster restore: could not read back', issueKey, err);
-		return { ok: true };
+		return done;
 	}
 
 	const read = await db.query.enrollmentsTable.findFirst({
@@ -330,10 +377,10 @@ async function restoreRequest(
 	});
 	if (read?.status !== stage) {
 		console.warn('[training-tools] roster restore: card not read back at', stage, issueKey);
-		return { ok: true };
+		return done;
 	}
 	await finishRestore(db, env, context, read, now, teacherCleared);
-	return { ok: true };
+	return done;
 }
 
 /**
