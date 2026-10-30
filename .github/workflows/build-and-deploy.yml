@@ -82,7 +82,7 @@ jobs:
           fi
       # Trusted publishing needs npm 11.5.1 or later; Node 22 ships with npm 10.
       - if: steps.version.outputs.publish == 'true'
-        run: npm install -g npm@latest
+        run: npm install -g npm@^11.5.1
       - if: steps.version.outputs.publish == 'true'
         run: npm ci
       # `release` builds dist/ and then publishes; it does not rely on a
