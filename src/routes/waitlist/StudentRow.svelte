@@ -39,6 +39,11 @@
 			<span>{row.cid}</span>
 			<IssueLink issueKey={row.issueKey} url={row.issueUrl} />
 		</div>
+		{#if row.keptInLineBy}
+			<p class="mt-1 text-xs text-sky-300">Kept in line by {row.keptInLineBy}</p>
+		{:else if row.mayKeepInLine}
+			<p class="mt-1 text-xs text-orange-300">Off the home roster</p>
+		{/if}
 	</td>
 
 	<td class="px-3 py-3 whitespace-nowrap">

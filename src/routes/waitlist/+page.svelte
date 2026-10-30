@@ -33,7 +33,12 @@
 	<!-- Present only for training:students:manage; the load sends nobody else the rows. -->
 	{#if data.sheet}
 		<div>
-			<ManagePanel rows={data.sheet.rows} vatusaKeySet={data.sheet.vatusaKeySet} {form} />
+			<ManagePanel
+				rows={data.sheet.rows}
+				leftTheRoster={data.sheet.leftTheRoster}
+				vatusaKeySet={data.sheet.vatusaKeySet}
+				{form}
+			/>
 		</div>
 	{/if}
 

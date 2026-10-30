@@ -3,8 +3,15 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import { findCourse } from '$lib/courses';
-	import { allStatuses, filterRows, groupByCourse, type WaitlistRow } from '$lib/waitlist';
+	import {
+		allStatuses,
+		filterRows,
+		groupByCourse,
+		type LeftRosterRow,
+		type WaitlistRow
+	} from '$lib/waitlist';
 	import IconTable from '~icons/mdi/table-account';
+	import LeftTheRoster from './LeftTheRoster.svelte';
 	import SheetFilters from './SheetFilters.svelte';
 	import StudentRow from './StudentRow.svelte';
 
@@ -18,10 +25,13 @@
 	 */
 	let {
 		rows: all,
+		leftTheRoster,
 		vatusaKeySet,
 		form
 	}: {
 		rows: WaitlistRow[];
+		/** Requests in their restore window, for the Left the roster group. */
+		leftTheRoster: LeftRosterRow[];
 		/** Whether VATUSA can be asked to assign a course, or only the card dated. */
 		vatusaKeySet: boolean;
 		form: { sheetError?: string; sheetDone?: string; sheetNote?: string | null } | null | undefined;
@@ -92,3 +102,10 @@
 		</div>
 	{/if}
 </Panel>
+
+<!-- Below the sheet, sharing its banner and busy state. -->
+{#if leftTheRoster.length > 0}
+	<div class="mt-6">
+		<LeftTheRoster rows={leftTheRoster} bind:busy />
+	</div>
+{/if}
