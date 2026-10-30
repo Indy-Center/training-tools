@@ -6,7 +6,13 @@ import { enrollmentsTable, type InsertEnrollment } from '$lib/db/schema/enrollme
 import { rosterMembersTable, type InsertRosterMember } from '$lib/db/schema/roster';
 import { teachersTable } from '$lib/db/schema/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
-import { getOpenEnrollment, getWaitlistPosition, getWaitlistStats } from './index';
+import {
+	getOpenEnrollment,
+	getUnfiledEnrollments,
+	getWaitlistPosition,
+	getWaitlistStats,
+	retryFiling
+} from './index';
 import { reconcileEnrollments } from './reconcile';
 import { processRosterRemovals } from './roster-removals';
 
@@ -426,5 +432,68 @@ describe('processRosterRemovals: the first run', () => {
 		fakeJira({ 'TRK-1': { status: 'Waitlist', updated: updatedAt } });
 		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: true, closed: 1 });
 		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: false });
+	});
+
+	// A pass takes 25. The rest are still the first run's, not a later pass's.
+	it('is not over while old departures wait beyond one pass', async () => {
+		for (let i = 1; i <= 26; i += 1) {
+			const cid = String(1000000 + i);
+			await addMember({ cid, leftHomeAt: LONG_AGO, removedAt: LONG_AGO });
+			await addRequest({ id: `r${i}`, cid, createdAt: new Date(Date.UTC(2026, 8, 1, 0, i)) });
+		}
+		const { env, channel, direct } = fakeLarry();
+
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({
+			firstRun: true,
+			due: 26,
+			closed: 25,
+			deferred: 1
+		});
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({
+			firstRun: true,
+			closed: 1,
+			deferred: 0
+		});
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: false });
+
+		const last = await row('r26');
+		expect(last.restoreClosedReason).toBe('expired');
+		expect(direct).toEqual([]);
+		expect(channel.map((m) => m.title)).toEqual([
+			'Closed 25 requests from students who left the home roster',
+			'Closed 1 request from students who left the home roster'
+		]);
+	});
+});
+
+describe('unfiled requests removed here', () => {
+	beforeEach(async () => {
+		await addRequest({
+			id: 'a',
+			cid: '1000001',
+			status: 'removed',
+			rosterRemovedAt: LEFT,
+			rosterRemovedFrom: 'waitlist',
+			leftHomeAt: LEFT,
+			restoreBy: new Date(LEFT.getTime() + 30 * DAY)
+		});
+	});
+
+	it('are not listed as unfiled on /admin', async () => {
+		expect(await getUnfiledEnrollments(db)).toEqual([]);
+	});
+
+	it('cannot be filed by Retry, in the window or after it closed', async () => {
+		const jira = fakeJira({});
+		const { env } = fakeLarry();
+
+		expect(await retryFiling(db, env, 'a')).toBe('not-unfiled');
+
+		await db
+			.update(enrollmentsTable)
+			.set({ restoreClosedAt: NOW, restoreClosedReason: 'expired' })
+			.where(eq(enrollmentsTable.id, 'a'));
+		expect(await retryFiling(db, env, 'a')).toBe('not-unfiled');
+		expect(jira.calls).toEqual([]);
 	});
 });

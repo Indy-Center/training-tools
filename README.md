@@ -642,8 +642,9 @@ commented on ("Left the ZID home roster on … restored to … if back on the ho
 roster by …"), moved to Removed and read back, then the row is stamped with
 `roster_removed_at`, the stage it left, the student's `left_home_at` and
 `restore_by` (30 days after leaving). Jira refusing leaves the row for the next
-pass. A request not yet filed is stamped and set to `removed` here, and the
-reconcile never files it. The rule is `$lib/roster-removal.ts`. While
+pass. A request not yet filed is stamped and set to `removed` here; neither the
+reconcile nor `/admin`'s Retry ever files it, and `/admin` does not list it as
+unfiled. The rule is `$lib/roster-removal.ts`. While
 `roster_removed_at` is set and `restore_closed_at` is not, the request is **in
 its restore window**: it still counts as the student's open request (so they
 cannot file another, and `/` says it is paused), but not as waiting, so the
