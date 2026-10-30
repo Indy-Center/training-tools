@@ -3,6 +3,7 @@ import type { Enrollment } from '$lib/db/schema/enrollments';
 import type { Consolidation } from '$lib/consolidation';
 import type { CourseCode } from '$lib/courses';
 import { resolvePlacement } from '$lib/course-placement';
+import { isInRestoreWindow } from '$lib/roster-removal';
 import { getRosterMember } from '$lib/server/roster';
 import { getOwnOpenEnrollment } from '$lib/server/enrollments';
 import { getHeldCredentials } from '$lib/server/certifications';
@@ -73,6 +74,7 @@ export async function loadTrainingContext(locals: App.Locals): Promise<TrainingC
 		ratingShort,
 		inVatusa: isVatusaMember(session.user),
 		openStatus: openEnrollment?.status ?? null,
+		inRestoreWindow: openEnrollment ? isInRestoreWindow(openEnrollment) : false,
 		held
 	};
 

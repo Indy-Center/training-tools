@@ -183,6 +183,41 @@ describe('resolveTrainingFlow with an open request', () => {
 	});
 });
 
+describe('resolveTrainingFlow with a request in its restore window', () => {
+	it('shows a student off the home roster that their request is paused', () => {
+		for (const membership of ['visit', null] as const) {
+			expect(
+				resolveTrainingFlow({
+					membership,
+					ratingId: 3,
+					inVatusa: true,
+					openStatus: 'removed',
+					inRestoreWindow: true
+				})
+			).toBe('left-home-roster');
+		}
+	});
+
+	// Checked before the open status, so a card read back off Removed before the
+	// pass has caught up still reads as paused while the student is away.
+	it('wins over the status the card is at', () => {
+		expect(
+			resolveTrainingFlow({
+				membership: 'visit',
+				ratingId: 3,
+				openStatus: 'waitlist',
+				inRestoreWindow: true
+			})
+		).toBe('left-home-roster');
+	});
+
+	it('is not the flow for a request outside a window', () => {
+		expect(resolveTrainingFlow({ membership: 'visit', ratingId: 3, openStatus: 'removed' })).toBe(
+			'visiting-controller'
+		);
+	});
+});
+
 describe('isOpenEnrollmentStatus', () => {
 	// Guards the two lists drifting apart when a status is added to the schema.
 	it('splits every stored status into open or closed', () => {
