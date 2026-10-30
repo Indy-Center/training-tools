@@ -680,6 +680,9 @@ the request is being restored, and they cannot enroll again.
 restores and before the removals). A request in its window whose `restore_by` has
 passed gets `restore_closed_at` and `restore_closed_reason = 'expired'`; the
 training admins get one line, Jira is not touched and the student is not told.
+A student who is back on the mirror as `home` is never expired: if Jira is still
+refusing their restore at `restore_by`, the window stays open and the restore
+keeps retrying until it goes through or they leave again.
 Once closed it counts as open no more, so the student may enroll again, at the
 back of the line, and it is never removed or restored again. In the same place the
 job clears `kept_in_line_at` and `kept_in_line_by` on an open request whose student

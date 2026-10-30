@@ -666,6 +666,42 @@ describe('processRosterRemovals: expire a window that ran out', () => {
 		expect(channel.map((m) => m.title)).toEqual(['Restored: Jo Rivera']);
 	});
 
+	it('keeps a returned student whose restore Jira refuses in the window past restore_by, until Jira accepts', async () => {
+		await db
+			.update(rosterMembersTable)
+			.set({ membership: 'home', leftHomeAt: null })
+			.where(eq(rosterMembersTable.cid, '1000001'));
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		const { env, channel } = fakeLarry();
+
+		fakeJira({ 'TRK-a': { status: 'Removed' } }, { refuse: true });
+		expect(await processRosterRemovals(db, env, PAST)).toMatchObject({
+			restored: 0,
+			restoreRefused: 1,
+			expired: 0
+		});
+
+		const waiting = await row('a');
+		expect(waiting.status).toBe('removed');
+		expect(waiting.restoreClosedAt).toBeNull();
+		expect(channel.map((m) => m.title)).toEqual(['Restore waiting on the board: Jo Rivera']);
+
+		fakeJira({ 'TRK-a': { status: 'Removed' } });
+		const later = new Date(PAST.getTime() + DAY);
+		expect(await processRosterRemovals(db, env, later)).toMatchObject({
+			restored: 1,
+			expired: 0
+		});
+
+		const restored = await row('a');
+		expect(restored.status).toBe('waitlist');
+		expect(restored.restoreClosedAt).toBeNull();
+		expect(channel.map((m) => m.title)).toEqual([
+			'Restore waiting on the board: Jo Rivera',
+			'Restored: Jo Rivera'
+		]);
+	});
+
 	it('lets the student enroll again, at the back of the line', async () => {
 		await addMember({ cid: '1000003' });
 		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
