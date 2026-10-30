@@ -75,6 +75,8 @@ export type RosterRemovalResult = {
 	closed: number;
 	/** Left for the next pass: Jira refused, or could not be reached. */
 	refused: number;
+	/** Due, but past this pass's batch: left for the next pass. */
+	deferred: number;
 };
 
 /**
@@ -103,9 +105,9 @@ export async function processRosterRemovals(
 
 	const removal = await removeDepartedStudents(db, env, now, firstRun);
 
-	// Finished means nothing due was left behind, so a card Jira refused on the
-	// first pass is still closed at once when it goes through.
-	if (firstRun && removal.refused === 0) await markFinished(db, now);
+	// Finished means nothing due was left behind, so a card Jira refused, or one
+	// past the first pass's batch, is still closed at once when it goes through.
+	if (firstRun && removal.refused === 0 && removal.deferred === 0) await markFinished(db, now);
 
 	return { firstRun, ...removal };
 }
@@ -170,7 +172,8 @@ async function removeDepartedStudents(
 		)
 		.orderBy(asc(enrollmentsTable.createdAt));
 
-	if (candidates.length === 0) return { due: 0, removed: 0, closed: 0, refused: 0 };
+	const nothing = { due: 0, removed: 0, closed: 0, refused: 0, deferred: 0 };
+	if (candidates.length === 0) return nothing;
 
 	// The whole mirror, removed members included: a student who left VATUSA
 	// keeps their row, and it is what dates their leaving.
@@ -191,7 +194,7 @@ async function removeDepartedStudents(
 	const due = candidates.filter((request) =>
 		isDueForRemoval(request, people.get(request.cid) ?? null, now)
 	);
-	if (due.length === 0) return { due: 0, removed: 0, closed: 0, refused: 0 };
+	if (due.length === 0) return nothing;
 
 	const config = resolveJiraConfig(env);
 	const teachers = await listTeachers(db);
@@ -200,7 +203,9 @@ async function removeDepartedStudents(
 	let removed = 0;
 	let refused = 0;
 
-	for (const request of due.slice(0, BATCH_SIZE)) {
+	const batch = due.slice(0, BATCH_SIZE);
+
+	for (const request of batch) {
 		const member = people.get(request.cid)!;
 		const leftHomeAt = member.leftHomeAt!;
 		const restoreBy = restoreByFor(leftHomeAt);
@@ -264,7 +269,13 @@ async function removeDepartedStudents(
 
 	if (summary.length > 0) await notify(env, rosterRemovalSummaryNotice(summary));
 
-	return { due: due.length, removed, closed: summary.length, refused };
+	return {
+		due: due.length,
+		removed,
+		closed: summary.length,
+		refused,
+		deferred: due.length - batch.length
+	};
 }
 
 /**
