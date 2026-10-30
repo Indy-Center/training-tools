@@ -81,7 +81,7 @@ const CHUNK_SIZE = 25;
  * whichever is larger. VATUSA can answer with a short roster without warning
  * (on 2026-10-26 it returned 89 of 164), and nothing in its answer says so.
  */
-export function removalLimit(active: number): number {
+function removalLimit(active: number): number {
 	return Math.max(5, Math.floor(active * 0.05));
 }
 
@@ -90,7 +90,9 @@ const REMOVAL_HOLD_MS = 24 * 60 * 60 * 1000;
 
 /**
  * `sync_state` key: removals held back for being over the limit. `cursorAt` is
- * when the hold started, `value` the CIDs it holds, as a JSON array.
+ * when the hold started, `value` the CIDs it holds, as a JSON array. The CIDs
+ * are a record for whoever looks; each run works out who is held afresh, from
+ * who is missing.
  */
 const REMOVAL_HOLD_KEY = 'roster-removal-hold';
 
@@ -217,6 +219,12 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 		await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
 	}
 
+	// The hold changes before anything else, so a failure later in the run
+	// leaves it safe: a hold that failed to clear stays and is cleared next
+	// run, and removals that failed after it cleared are held again then.
+	if (holdUntil) await writeRemovalHold(db, { startedAt: holdStartedAt, cids: missingCids });
+	else if (hold) await clearRemovalHold(db);
+
 	// Anyone still carrying an older syncedAt was absent from this run. Using the
 	// timestamp as the tombstone marker avoids listing every current CID in a
 	// NOT IN clause, which would exceed D1's 100-parameter limit.
@@ -247,14 +255,12 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	]);
 
 	if (holdUntil) {
-		await writeRemovalHold(db, { startedAt: holdStartedAt, cids: missingCids });
 		throw new Error(
 			`VATUSA roster would remove ${missingCids.length} of ${activeCids.length} members ` +
 				`(limit ${limit}); keeping the mirror. ` +
 				`Applies to whoever is still missing at ${formatUtc(holdUntil)}.`
 		);
 	}
-	if (hold) await clearRemovalHold(db);
 
 	return {
 		fetched: members.length,
