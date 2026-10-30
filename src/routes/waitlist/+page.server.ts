@@ -13,10 +13,17 @@ import {
 	assignVatusaCourse,
 	changeTeacher,
 	completeVatusaCourse,
+	getLeftTheRoster,
 	getWaitlistSheet,
 	removeStudent,
 	withdrawStudent
 } from '$lib/server/enrollments/waitlist';
+import {
+	closeRequestForGood,
+	keepRequestInLine,
+	restoreRequestNow,
+	stopKeepingRequestInLine
+} from '$lib/server/enrollments/roster-admin';
 import { SHEET_STATUSES } from '$lib/waitlist';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
@@ -60,6 +67,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		sheet: canManageStudents(session.roles)
 			? {
 					rows: await getWaitlistSheet(locals.db, platform?.env.JIRA_BASE_URL),
+					leftTheRoster: await getLeftTheRoster(locals.db, platform?.env.JIRA_BASE_URL),
 					// Whether VATUSA can be asked to assign a course, or only the card dated.
 					vatusaKeySet: Boolean(env?.VATUSA_API_KEY?.trim())
 				}
@@ -188,5 +196,70 @@ export const actions: Actions = {
 		if (!result.ok) return fail(502, { sheetError: result.message });
 
 		return { sheetDone: `${enrollment.submittedName} withdrawn.` };
+	},
+
+	/*
+	 * Left the roster: a request a roster removal took off, or one whose student
+	 * is off the home roster and not yet removed. These look the request up
+	 * themselves, since a removed one is not on the sheet. See
+	 * decisions/0037-roster-removal-and-restore.md
+	 */
+
+	/** Put it back where it was now, even if the student is still away. */
+	restoreNow: async (event) => {
+		const { admin, id } = await actingOnRoster(event);
+		const result = await restoreRequestNow(
+			event.locals.db,
+			event.platform?.env,
+			id,
+			admin,
+			new Date()
+		);
+		return result.ok
+			? { sheetDone: result.message }
+			: fail(result.status, { sheetError: result.message });
+	},
+
+	/** End its restore window: the student enrolls again at the back. */
+	closeForGood: async (event) => {
+		const { admin, id } = await actingOnRoster(event);
+		const result = await closeRequestForGood(
+			event.locals.db,
+			event.platform?.env,
+			id,
+			admin,
+			new Date()
+		);
+		return result.ok
+			? { sheetDone: result.message }
+			: fail(result.status, { sheetError: result.message });
+	},
+
+	/** Exempt it from roster removal while the student is away. */
+	keepInLine: async (event) => {
+		const { admin, id } = await actingOnRoster(event);
+		const result = await keepRequestInLine(event.locals.db, id, admin, new Date());
+		return result.ok
+			? { sheetDone: result.message }
+			: fail(result.status, { sheetError: result.message });
+	},
+
+	/** Lift the exemption: the next pass removes it if the 24 hours have passed. */
+	stopKeepingInLine: async (event) => {
+		const { id } = await actingOnRoster(event);
+		const result = await stopKeepingRequestInLine(event.locals.db, id, new Date());
+		return result.ok
+			? { sheetDone: result.message }
+			: fail(result.status, { sheetError: result.message });
 	}
 };
+
+/** Who is acting, by CID and name, and the request id the form sent. */
+async function actingOnRoster(event: Pick<RequestEvent, 'locals' | 'request'>) {
+	const session = requireRole(event.locals, canManageStudents);
+	const id = (await event.request.formData()).get('id');
+	return {
+		admin: { cid: session.user.cid, name: displayName(session.user) },
+		id: typeof id === 'string' ? id : ''
+	};
+}

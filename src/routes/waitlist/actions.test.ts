@@ -7,5 +7,9 @@ describeNamedActions('/waitlist', actions, [
 	'assignTeacher',
 	'changeTeacher',
 	'removeStudent',
-	'withdrawStudent'
+	'withdrawStudent',
+	'restoreNow',
+	'closeForGood',
+	'keepInLine',
+	'stopKeepingInLine'
 ]);

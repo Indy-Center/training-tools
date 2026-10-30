@@ -62,7 +62,7 @@ export type FlowResult = { ok: true } | { ok: false; message: string };
  */
 const BATCH_SIZE = 25;
 
-const NOT_CONFIGURED =
+export const NOT_CONFIGURED =
 	'Jira is not set up for this app right now, so the card cannot be updated. Tell a training admin.';
 const NOT_FILED =
 	'This request has not reached the TRK board yet, so there is no card to update. Tell a training admin.';
