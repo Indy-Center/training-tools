@@ -65,10 +65,10 @@ export function channelSlug(name: string): string {
 }
 
 /**
- * A channel name before any clash is settled. One that `holdsCid` cannot clash,
+ * A channel name before any clash is settled. One that `includesCid` cannot clash,
  * so it is never rewritten.
  */
-type ChosenName = { name: string; holdsCid: boolean };
+type ChosenName = { name: string; includesCid: boolean };
 
 function channelNameFor(teacher: RoomTeacher): ChosenName | null {
 	const roster = teacher.rosterName;
@@ -76,13 +76,13 @@ function channelNameFor(teacher: RoomTeacher): ChosenName | null {
 	const preferred = teacher.preferredName?.trim();
 
 	if (preferred && !(teacher.namePrivacy && isJustFullName(preferred, full))) {
-		return { name: preferred, holdsCid: false };
+		return { name: preferred, includesCid: false };
 	}
 	if (teacher.namePrivacy) {
 		const first = roster?.first.trim();
-		return first ? { name: `${first} ${teacher.cid}`, holdsCid: true } : null;
+		return first ? { name: `${first} ${teacher.cid}`, includesCid: true } : null;
 	}
-	return full ? { name: full, holdsCid: false } : null;
+	return full ? { name: full, includesCid: false } : null;
 }
 
 /** Other apps pre-fill a preferred name with the full name: that is not a choice to show it. */
@@ -153,8 +153,8 @@ export function planTeacherRooms(
 		uses.set(slug, (uses.get(slug) ?? 0) + 1);
 	}
 
-	for (const { teacher, name, holdsCid } of named) {
-		const clash = !holdsCid && (uses.get(channelSlug(name)) ?? 0) > 1;
+	for (const { teacher, name, includesCid } of named) {
+		const clash = !includesCid && (uses.get(channelSlug(name)) ?? 0) > 1;
 		const first = name.split(/\s+/)[0] ?? name;
 
 		const people = [{ cid: teacher.cid, discordId: teacher.discordId }, ...teacher.students];
