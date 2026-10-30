@@ -96,21 +96,19 @@ const REMOVAL_HOLD_MS = 24 * 60 * 60 * 1000;
  */
 const REMOVAL_HOLD_KEY = 'roster-removal-hold';
 
-type RemovalHold = { startedAt: Date; cids: string[] };
-
-async function readRemovalHold(db: Database): Promise<RemovalHold | null> {
+/** When the current removal hold started, or null when there is none. */
+async function readRemovalHoldStart(db: Database): Promise<Date | null> {
 	const row = await db.query.syncStateTable.findFirst({
 		where: eq(syncStateTable.key, REMOVAL_HOLD_KEY)
 	});
-	if (!row) return null;
-	return { startedAt: row.cursorAt, cids: JSON.parse(row.value ?? '[]') };
+	return row?.cursorAt ?? null;
 }
 
-async function writeRemovalHold(db: Database, hold: RemovalHold): Promise<void> {
-	const value = JSON.stringify(hold.cids);
+async function writeRemovalHold(db: Database, startedAt: Date, cids: string[]): Promise<void> {
+	const value = JSON.stringify(cids);
 	await db
 		.insert(syncStateTable)
-		.values({ key: REMOVAL_HOLD_KEY, cursorAt: hold.startedAt, value })
+		.values({ key: REMOVAL_HOLD_KEY, cursorAt: startedAt, value })
 		.onConflictDoUpdate({ target: syncStateTable.key, set: { value } });
 }
 
@@ -170,14 +168,14 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	const activeCids = existing.filter((row) => row.removedAt === null).map((row) => row.cid);
 	const missingCids = activeCids.filter((cid) => !present.has(cid));
 	const limit = removalLimit(activeCids.length);
-	const hold = await readRemovalHold(db);
-	const holdStartedAt = hold?.startedAt ?? now;
+	const previousHoldStart = await readRemovalHoldStart(db);
+	const holdStartedAt = previousHoldStart ?? now;
 	// The hold is whoever is missing now: returners leave it, newly missing
 	// join it. It applies once it has run for 24 hours, or shrinks to the limit.
+	const overLimit = missingCids.length > limit;
+	const holdExpired = now.getTime() - holdStartedAt.getTime() >= REMOVAL_HOLD_MS;
 	const holdUntil =
-		missingCids.length > limit && now.getTime() - holdStartedAt.getTime() < REMOVAL_HOLD_MS
-			? new Date(holdStartedAt.getTime() + REMOVAL_HOLD_MS)
-			: null;
+		overLimit && !holdExpired ? new Date(holdStartedAt.getTime() + REMOVAL_HOLD_MS) : null;
 
 	for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 		const statements = rows.slice(i, i + CHUNK_SIZE).map((row) =>
@@ -222,8 +220,8 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	// The hold changes before anything else, so a failure later in the run
 	// leaves it safe: a hold that failed to clear stays and is cleared next
 	// run, and removals that failed after it cleared are held again then.
-	if (holdUntil) await writeRemovalHold(db, { startedAt: holdStartedAt, cids: missingCids });
-	else if (hold) await clearRemovalHold(db);
+	if (holdUntil) await writeRemovalHold(db, holdStartedAt, missingCids);
+	else if (previousHoldStart) await clearRemovalHold(db);
 
 	// Anyone still carrying an older syncedAt was absent from this run. Using the
 	// timestamp as the tombstone marker avoids listing every current CID in a
