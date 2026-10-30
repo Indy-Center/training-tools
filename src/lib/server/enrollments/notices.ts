@@ -438,3 +438,109 @@ export function rosterRemovalSummaryNotice(
 		].join('\n')
 	};
 }
+
+/*
+ * Restore: a request a roster removal took off, put back where it was. `stage`
+ * is TRK's name for where it went back to (`Waitlist`, `In Training`, …), as
+ * the card's comment says it.
+ */
+
+/**
+ * A request was restored, by this app or on the board. `keptInLine` when its
+ * student is still away (restored on the board); `teacherCleared` holds the
+ * initials taken off an In Training card whose teacher is no longer active.
+ */
+export function rosterRestoreNotice(
+	request: NoticeRequest & {
+		stage: string;
+		keptInLine: boolean;
+		teacherCleared: string | null;
+		untold: string[];
+	}
+): Notice {
+	const keptInLine = request.keptInLine
+		? ' They are still off the ZID home roster, so it is kept in line and is not removed again while they are away.'
+		: '';
+	const teacher = request.teacherCleared
+		? `${request.teacherCleared} cleared: no longer an active teacher`
+		: request.teacher;
+
+	return {
+		audience: 'training-admins',
+		title: `Restored: ${request.name}`,
+		summary: `${request.name}'s ${course(request.course)} request was restored to ${request.stage}, at its old place in line.${keptInLine}`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Restored to', value: request.stage },
+			...(teacher ? [{ label: 'Teacher', value: teacher }] : []),
+			...(request.examiner ? [{ label: 'Examiner', value: request.examiner }] : []),
+			...(request.untold.length > 0
+				? [{ label: 'Not told', value: request.untold.join(', ') }]
+				: []),
+			...card(request)
+		]
+	};
+}
+
+/** What the student is told, privately, when their request is restored. */
+export function rosterRestoreStudentMessage(request: {
+	course: string;
+	stage: string;
+	teacherCleared: boolean;
+}): DirectNotice {
+	const teacher = request.teacherCleared
+		? ' Your teacher is not taking students right now, so you wait on the waitlist for a new one.'
+		: '';
+	return {
+		title: 'Your training request is back',
+		summary: `Your ${course(request.course)} request has been restored to ${request.stage}, at its old place in line.${teacher}`,
+		link: SITE_URL
+	};
+}
+
+/** What the teacher a request was restored to is told, privately. */
+export function rosterRestoreTeacherMessage(request: {
+	name: string;
+	course: string;
+}): DirectNotice {
+	return {
+		title: `${request.name} is back in training with you`,
+		summary: `${request.name}'s ${course(request.course)} training has been restored, so they are your student again and take one of your slots.`
+	};
+}
+
+/** What the examiner still named on a restored card is told, privately. */
+export function rosterRestoreExaminerMessage(request: {
+	name: string;
+	course: string;
+	stage: string;
+}): DirectNotice {
+	return {
+		title: `${request.name}'s request is back`,
+		summary: `${request.name}'s ${course(request.course)} request has been restored to ${request.stage}, and you are still named on it as examiner.`
+	};
+}
+
+/**
+ * Jira refused to take a returning student's card off Removed. Sent once per
+ * request, however many passes retry it. `transition` is the one the board
+ * needs; `error` is what Jira said.
+ */
+export function rosterRestoreRefusedNotice(
+	request: NoticeRequest & { stage: string; transition: string; error: string }
+): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `Restore waiting on the board: ${request.name}`,
+		summary: `${request.name} is back on the ZID home roster, but TRK refused to move their ${course(request.course)} request from Removed to ${request.stage}, so it has not been restored. It is tried again on every pass, and this is the only notice. Has the "${request.transition}" transition been added to the board?`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Restore to', value: request.stage },
+			{ label: 'Jira said', value: request.error },
+			...card(request)
+		]
+	};
+}
