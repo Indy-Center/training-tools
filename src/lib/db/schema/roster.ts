@@ -3,7 +3,7 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 
-export type RosterMember = InferSelectModel<typeof rosterMembersTable>;
+export type RosterMemberRow = InferSelectModel<typeof rosterMembersTable>;
 export type InsertRosterMember = InferInsertModel<typeof rosterMembersTable>;
 
 /** Which side of the VATUSA roster a controller sits on. */

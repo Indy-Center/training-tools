@@ -1,4 +1,4 @@
-import type { RosterMember } from '$lib/db/schema/roster';
+import type { RosterMemberRow } from '$lib/db/schema/roster';
 import type { Enrollment } from '$lib/db/schema/enrollments';
 import type { Consolidation } from '$lib/consolidation';
 import type { CourseCode } from '$lib/courses';
@@ -13,7 +13,7 @@ import { isVatusaMember } from '$lib/user';
 
 export type TrainingContext = {
 	flow: TrainingFlow;
-	rosterMember: RosterMember | null;
+	rosterMember: RosterMemberRow | null;
 	openEnrollment: Enrollment | null;
 	/** Credential codes held unrevoked. Empty for anyone not on the roster. */
 	held: string[];
