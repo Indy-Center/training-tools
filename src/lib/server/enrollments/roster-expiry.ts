@@ -19,7 +19,9 @@ import { rosterExpiryNotice } from './notices';
  * Step 4. A request in its window whose `restore_by` has passed is closed,
  * `expired`, and the training admins get one line. The card is already at
  * Removed, so Jira is not touched, and the student is not told. A student back
- * on the home roster was restored by step 3 and is no longer in a window.
+ * on the home roster as `home` is skipped: step 3 restores them, and when Jira
+ * refuses that restore the window stays open for it to retry (the admins were
+ * told once) until it goes through or the student leaves again.
  *
  * Guarded on the window still being open, so a second pass, or two at once,
  * close it and tell the admins once. Returns how many this call closed.
@@ -43,6 +45,18 @@ export async function expireLapsedWindows(
 
 	let expired = 0;
 	for (const request of lapsed) {
+		const member = await db.query.rosterMembersTable.findFirst({
+			columns: {
+				firstName: true,
+				lastName: true,
+				membership: true,
+				removedAt: true,
+				leftHomeAt: true
+			},
+			where: eq(rosterMembersTable.cid, request.cid)
+		});
+		if (isBackOnHomeRoster(member ?? null)) continue;
+
 		const [closed] = await db
 			.update(enrollmentsTable)
 			.set({ restoreClosedAt: now, restoreClosedReason: 'expired', updatedAt: now })
@@ -57,10 +71,6 @@ export async function expireLapsedWindows(
 		if (!closed) continue;
 		expired += 1;
 
-		const member = await db.query.rosterMembersTable.findFirst({
-			columns: { firstName: true, lastName: true },
-			where: eq(rosterMembersTable.cid, request.cid)
-		});
 		await notify(
 			env,
 			rosterExpiryNotice({
