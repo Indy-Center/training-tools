@@ -15,6 +15,11 @@ export type SyncState = InferSelectModel<typeof syncStateTable>;
  * The Jira teacher-dropdown check (`jira-teacher-options`) keeps a signature
  * of the drift it last reported in `value`, so training admins hear about a
  * new difference once rather than every ten minutes.
+ *
+ * The roster sync (`roster-removal-hold`) keeps removals it refused for being
+ * over the limit: `cursorAt` is when the hold started, `value` the held CIDs
+ * (a record only; each run works out who is held from who is missing).
+ * Losing that row restarts the hold's 24 hours.
  */
 export const syncStateTable = sqliteTable('sync_state', {
 	key: text('key').primaryKey(),

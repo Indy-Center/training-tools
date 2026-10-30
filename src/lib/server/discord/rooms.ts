@@ -92,6 +92,7 @@ export async function syncTeacherRooms(
 				cid: rosterMembersTable.cid,
 				firstName: rosterMembersTable.firstName,
 				lastName: rosterMembersTable.lastName,
+				data: rosterMembersTable.data,
 				discordId: rosterMembersTable.discordId
 			})
 			.from(rosterMembersTable),
@@ -120,6 +121,7 @@ export async function syncTeacherRooms(
 				channelId: teacher.discordChannelId,
 				preferredName: identity.known.get(teacher.cid)?.preferredName ?? null,
 				rosterName: person ? { first: person.firstName, last: person.lastName } : null,
+				namePrivacy: person?.data.flag_nameprivacy === true,
 				discordId: discordIdOf(teacher.cid),
 				students: assignmentsFor(teacher, enrollments).students.map((student) => ({
 					cid: student.cid,

@@ -25,6 +25,7 @@ import {
 } from '$lib/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { notify } from '$lib/server/notify';
+import { overLimitError } from '$lib/server/change-limit';
 import { getPeople } from '$lib/server/roster';
 import { assignmentsFor, getAssignedEnrollments, teacherLabel } from './index';
 import { leftRosterNotice, qualificationChangesNotice } from './notices';
@@ -83,9 +84,48 @@ function sameRoles(a: readonly string[], b: readonly string[]): boolean {
 	return a.length === b.length && a.every((role, i) => role === b[i]);
 }
 
+/** The most teachers one run may remove, or take a role from. */
+const TEACHER_CHANGE_LIMIT = 2;
+
+/**
+ * Throw rather than apply a run that removes more than `TEACHER_CHANGE_LIMIT`
+ * teachers, or takes a role from more than that many who stay. Either is more
+ * likely VATUSA answering
+ * wrongly (a short roster, or members without their `roles`) than a real
+ * change, and a real one that size is rare enough for an admin to check. A
+ * promotion swaps MTR for INS, so it does not count as losing a role.
+ */
+function refuseLargeChanges(teachers: readonly Teacher[], writes: readonly TeacherWrite[]) {
+	const before = new Map(teachers.map((teacher) => [teacher.cid, teacher.roles]));
+	const active = teachers.filter((teacher) => teacher.removedAt === null).length;
+
+	const refuse = (would: string, count: number) =>
+		overLimitError({
+			would: `Teacher roster would ${would}`,
+			count,
+			of: active,
+			noun: 'teachers',
+			limit: TEACHER_CHANGE_LIMIT,
+			keeping: 'it'
+		});
+
+	const removed = writes.filter((write) => write.removedAt !== null).length;
+	if (removed > TEACHER_CHANGE_LIMIT) throw refuse('remove', removed);
+
+	const losingRoles = writes.filter((write) => {
+		const held = before.get(write.cid);
+		if (write.removedAt !== null || write.isNew || !held) return false;
+		const lost = held.some((role) => !write.roles.includes(role));
+		const gained = write.roles.some((role) => !held.includes(role));
+		return lost && !gained;
+	}).length;
+	if (losingRoles > TEACHER_CHANGE_LIMIT) throw refuse('end roles for', losingRoles);
+}
+
 /**
  * Work out what the teacher roster sync should change. Pure, so every rule is
- * testable without D1.
+ * testable without D1. Throws, before anything is written, when the change is
+ * too large to trust (see `refuseLargeChanges`).
  *
  * In order:
  *
@@ -181,6 +221,8 @@ export function planTeacherRoster(input: {
 		}
 		summary.left += 1;
 	}
+
+	refuseLargeChanges(input.teachers, writes);
 
 	// Who is on the teacher roster after this run, and on what terms.
 	const onRoster = new Map<string, RosterFacts>(wanted);
@@ -279,7 +321,9 @@ export function planTeacherRoster(input: {
  * teaching role while we have teachers on file: either means the upstream data
  * is wrong, and applying it would mark every teacher as departed and start the
  * clock on their qualifications. A stale teacher roster beats an empty one,
- * the same call the roster sync makes.
+ * the same call the roster sync makes. For the same reason the plan refuses a
+ * run that removes, or takes a role from, more than `TEACHER_CHANGE_LIMIT`
+ * teachers at once.
  */
 export async function syncTeacherRoster(db: Database, env?: Partial<Env>, now = new Date()) {
 	const [rosterRows, teachers, current] = await Promise.all([

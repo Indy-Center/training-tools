@@ -382,6 +382,15 @@ VATUSA roster, refreshed by cron and **soft-removed** — departed members keep
 their row with `removedAt` stamped, so we can tell "never on the roster" from
 "left last week". Active queries filter `removedAt IS NULL`.
 
+VATUSA can answer with a short roster that looks like a valid one, so the sync
+**refuses to remove more than 5 members, or 5% of the active roster, in one
+run**. Everyone present is still updated and added; the removals are held (in
+`sync_state`) and the job fails, which alerts the tech team. Members who come
+back leave the hold. Whoever is still missing 24 hours later is removed, or
+sooner if the hold shrinks to the limit. The teacher roster sync refuses, with no
+hold, to remove or take a role from more than 2 teachers at once; an admin
+checks those.
+
 Training data this app owns (certifications, endorsements, currency) keys on
 `cid` **independently** and must never take a foreign key onto `roster_members`
 — otherwise falling off the VATUSA roster would delete someone's training
@@ -389,7 +398,9 @@ history.
 
 **D1 allows only 100 bound parameters per query** and the facility has more
 members than that, so never write `IN (...)` over the full CID list. The sync
-documents the patterns that avoid it.
+documents the patterns that avoid it. Tests can run code against real queries
+with `testDb()` (`$lib/server/test-db.ts`): an in-memory D1 over `node:sqlite`,
+with every migration applied, which throws past 100 parameters as D1 does.
 
 ### Certifications and endorsements
 
@@ -486,8 +497,10 @@ and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules and
   those 48 hours nothing changes, so a role removed on VATUSA by mistake and put back
   costs nothing. A teacher who returns later starts again with a new channel.
 - **Channel name:** their preferred name from identity when they have one,
-  otherwise their roster name; kept in step if either changes. Two teachers who
-  would collide are both named by first name and CID.
+  otherwise their roster name; kept in step if either changes. With VATUSA name
+  privacy set it is their first name and CID instead, unless they have a
+  preferred name that is not just their full name. Two teachers who would
+  collide are both named by first name and CID.
 - **Existing roles and channels are adopted by name**, then remembered by ID
   (`teachers.discord_role_id`, `discord_channel_id`). An adopted channel keeps
   the permissions it has; only one Larry creates is set to "role + Training
