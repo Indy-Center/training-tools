@@ -439,6 +439,24 @@ export function rosterRemovalSummaryNotice(
 	};
 }
 
+/**
+ * A request's restore window ran out without the student returning, so it is
+ * closed for good. One line for the training admins; the student is not told.
+ * `restoreBy` is a facility day (`2026-11-19`).
+ */
+export function rosterExpiryNotice(request: {
+	name: string;
+	cid: string;
+	course: string;
+	restoreBy: string;
+}): Notice {
+	return {
+		audience: 'training-admins',
+		title: `Request closed: ${request.name}`,
+		summary: `${student(request)} did not return to the ZID home roster by ${formatCardDate(request.restoreBy, 'long')}; their ${course(request.course)} request is closed for good.`
+	};
+}
+
 /*
  * Restore: a request a roster removal took off, put back where it was. `stage`
  * is TRK's name for where it went back to (`Waitlist`, `In Training`, …), as

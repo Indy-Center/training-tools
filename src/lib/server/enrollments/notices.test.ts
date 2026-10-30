@@ -8,6 +8,7 @@ import {
 	examStatus,
 	needsCatpNotice,
 	newEnrollmentNotice,
+	rosterExpiryNotice,
 	rosterRemovalExaminerMessage,
 	rosterRemovalNotice,
 	rosterRemovalStudentMessage,
@@ -363,6 +364,15 @@ describe('roster removal notices', () => {
 		expect(message.title).toBe("Jo Rivera's rating exam is paused");
 		expect(message.summary).toBe(
 			'Jo Rivera has left the ZID home roster, so the Terminal Radar Control (T-RC) rating exam you claimed is paused. If they are back by October 31, 2026, their request is restored to where it was.'
+		);
+	});
+
+	it('gives the admins one line when a restore window runs out', () => {
+		const notice = rosterExpiryNotice({ ...request, restoreBy: '2026-11-19' });
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toBe('Request closed: Jo Rivera');
+		expect(notice.summary).toBe(
+			'Jo Rivera (1234567) did not return to the ZID home roster by November 19, 2026; their Terminal Radar Control (T-RC) request is closed for good.'
 		);
 	});
 

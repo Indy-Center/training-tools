@@ -31,6 +31,7 @@ import {
 	TRK_STAGE_NAMES,
 	type RosterRestoreResult
 } from './roster-restores';
+import { clearKeptInLineForReturned, expireLapsedWindows } from './roster-expiry';
 import { syncEnrollmentIssue } from './status-sync';
 
 /**
@@ -60,6 +61,10 @@ const BATCH_SIZE = 25;
 
 export type RosterRemovalResult = RosterRestoreResult &
 	RemovalCounts & {
+		/** Step 4: windows that ran out, closed `expired` this pass. */
+		expired: number;
+		/** Step 4: kept-in-line exemptions cleared for students back home. */
+		keptInLineCleared: number;
 		/** True until a pass has finished with nothing left due. */
 		firstRun: boolean;
 	};
@@ -87,7 +92,9 @@ type RemovalCounts = {
  * 1. finish restores the board made — `finishBoardRestores()`,
  * 2. close windows the board ended — `closeBoardEndedWindows()`,
  * 3. restore — `restoreReturnedStudents()` (all three in `./roster-restores.ts`),
- * 4. expire (06),
+ * 4. expire — `expireLapsedWindows()`, then clear the kept-in-line exemption of
+ *    students back home — `clearKeptInLineForReturned()` (both in
+ *    `./roster-expiry.ts`),
  * 5. remove — `removeDepartedStudents()`, below.
  *
  * Restores and expiry go first so a student back on the last day is restored,
@@ -104,7 +111,8 @@ export async function processRosterRemovals(
 	const closedOnBoard = await closeBoardEndedWindows(db, now);
 	const { restored, restoreRefused } = await restoreReturnedStudents(db, env, now);
 
-	// Step 4, expire, goes here.
+	const expired = await expireLapsedWindows(db, env, now);
+	const keptInLineCleared = await clearKeptInLineForReturned(db, now);
 
 	const removal = await removeDepartedStudents(db, env, now, firstRun);
 
@@ -112,7 +120,16 @@ export async function processRosterRemovals(
 	// past the first pass's batch, is still closed at once when it goes through.
 	if (firstRun && removal.refused === 0 && removal.deferred === 0) await markFinished(db, now);
 
-	return { firstRun, finished, closedOnBoard, restored, restoreRefused, ...removal };
+	return {
+		firstRun,
+		finished,
+		closedOnBoard,
+		restored,
+		restoreRefused,
+		expired,
+		keptInLineCleared,
+		...removal
+	};
 }
 
 async function hasFinishedOnce(db: Database): Promise<boolean> {

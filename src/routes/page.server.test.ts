@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { testDb } from '$lib/server/test-db';
 import { enrollmentsTable } from '$lib/db/schema/enrollments';
@@ -101,6 +102,22 @@ describe('/ as a student whose request is paused by a roster removal', () => {
 			});
 		});
 	}
+});
+
+describe('/ once the restore window has expired', () => {
+	it('no longer shows the paused request, and ?/enroll no longer refuses for it', async () => {
+		await member({ leftHomeAt: LEFT, membership: 'visit' });
+		await db
+			.update(enrollmentsTable)
+			.set({ restoreClosedAt: RESTORE_BY, restoreClosedReason: 'expired' })
+			.where(eq(enrollmentsTable.id, 'a'));
+
+		const data = (await visit()) as Exclude<Awaited<ReturnType<typeof visit>>, void>;
+		expect(data.flow).not.toBe('left-home-roster');
+		expect(data.request).toBeNull();
+		// Not refused for the closed request: a visitor is sent on, as with none.
+		await expect(enroll()).rejects.toMatchObject({ status: 303 });
+	});
 });
 
 // Home again, before the roster removals pass has restored the request.
