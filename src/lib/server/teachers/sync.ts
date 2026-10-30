@@ -124,7 +124,8 @@ function refuseLargeChanges(teachers: readonly Teacher[], writes: readonly Teach
 
 /**
  * Work out what the teacher roster sync should change. Pure, so every rule is
- * testable without D1.
+ * testable without D1. Throws, before anything is written, when the change is
+ * too large to trust (see `refuseLargeChanges`).
  *
  * In order:
  *
