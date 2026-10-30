@@ -28,7 +28,7 @@ export type ArrivalGrantResult = {
  *
  * A Worker invocation has a subrequest budget, and the first pass after this
  * ships faces every roster member at once rather than the usual zero. Anyone
- * left over is picked up on the next 15-minute tick, so the cap costs time and
+ * left over is picked up on the next 10-minute tick, so the cap costs time and
  * nothing else.
  *
  * Members decidable without a lookup — already certified, or a rating that

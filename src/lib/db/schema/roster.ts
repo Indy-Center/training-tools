@@ -3,7 +3,7 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 
-export type RosterMember = InferSelectModel<typeof rosterMembersTable>;
+export type RosterMemberRow = InferSelectModel<typeof rosterMembersTable>;
 export type InsertRosterMember = InferInsertModel<typeof rosterMembersTable>;
 
 /** Which side of the VATUSA roster a controller sits on. */
@@ -71,7 +71,7 @@ export const rosterMembersTable = sqliteTable(
 		 * Ours, not VATUSA's, so the sync upsert deliberately leaves it out of its
 		 * `set` clause — a roster refresh must not clear it. Without it, every
 		 * member who legitimately qualifies for nothing gets re-checked against the
-		 * VATSIM API every 15 minutes forever.
+		 * VATSIM API every 10 minutes forever.
 		 *
 		 * This is bookkeeping *about* the mirror rather than training data, so it
 		 * does not breach the rule above; losing it to a mirror rebuild costs a

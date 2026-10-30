@@ -26,6 +26,12 @@ describe('jobHealthState', () => {
 		expect(jobHealthState({ lastRunAt: minutesAgo(long), lastOk: false }, now)).toBe('stale');
 	});
 
+	// The cron fires every 10 minutes, so three missed runs is half an hour.
+	it('is stale after three missed 10-minute runs', () => {
+		expect(jobHealthState({ lastRunAt: minutesAgo(31), lastOk: true }, now)).toBe('stale');
+		expect(jobHealthState({ lastRunAt: minutesAgo(30), lastOk: true }, now)).toBe('ok');
+	});
+
 	it('allows a late run before calling it stale', () => {
 		expect(jobHealthState({ lastRunAt: minutesAgo(STALE_AFTER_MINUTES), lastOk: true }, now)).toBe(
 			'ok'

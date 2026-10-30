@@ -11,7 +11,7 @@ import { getRoomsPanel } from '$lib/server/discord/rooms';
 import { resolveJiraConfig } from '$lib/server/jira/client';
 import { getJobHealth, JIRA_WEBHOOK_JOB } from '$lib/server/job-health';
 import { scheduledJobs } from '$lib/server/scheduled';
-import { jobHealthState } from '$lib/job-health';
+import { CRON_INTERVAL_MINUTES, jobHealthState } from '$lib/job-health';
 import { displayName } from '$lib/user';
 import type { JobHealth } from '$lib/db/schema/job-health';
 import type { Actions, PageServerLoad } from './$types';
@@ -87,7 +87,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		awaitingAudit: auditQueue.length,
 		// Given up on: these need a person.
 		stuck: requests.filter((request) => request.attempts >= MAX_JIRA_SYNC_ATTEMPTS),
-		// Still inside the retry budget: the cron tries again every fifteen minutes.
+		// Still inside the retry budget: the cron tries again every ten minutes.
 		retrying: requests.filter((request) => request.attempts < MAX_JIRA_SYNC_ATTEMPTS),
 		maxAttempts: MAX_JIRA_SYNC_ATTEMPTS,
 		// Listed from the cron's own job list, so a job that has never run still
@@ -112,7 +112,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 			{
 				label: 'Jira webhook secret',
 				set: Boolean(env?.JIRA_WEBHOOK_SECRET?.trim()),
-				missing: 'Board changes are only picked up by the 15-minute sweep.'
+				missing: `Board changes are only picked up by the ${CRON_INTERVAL_MINUTES}-minute sweep.`
 			},
 			{
 				label: 'VATUSA API key',

@@ -59,9 +59,11 @@
 		"CMS_URL": "https://cms.flyindycenter.com"
 	},
 	"routes": [{ "pattern": "training.flyindycenter.com", "custom_domain": true }],
-	// Roster mirror refresh. VATUSA changes slowly and the facility is ~157
-	// members, so every 15 minutes is ample.
-	"triggers": { "crons": ["*/15 * * * *"] },
+	// One trigger runs every scheduled job (src/lib/server/scheduled.ts). Every
+	// 10 minutes so a new controller reaches the community site, which reads the
+	// roster from here every 5, within about 15. CRON_INTERVAL_MINUTES in
+	// src/lib/job-health.ts mirrors this.
+	"triggers": { "crons": ["*/10 * * * *"] },
 	"services": [
 		{ "binding": "IDENTITY", "service": "identity" },
 		{ "binding": "LARRY", "service": "indy-larry" }

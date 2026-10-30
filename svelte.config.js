@@ -8,7 +8,11 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: vitePreprocess(),
 	kit: {
-		adapter: adapter()
+		adapter: adapter(),
+		alias: {
+			// The TrainingRpc contract, published to npm from rpc/ (README, RPC for other Workers).
+			$rpc: 'rpc/src'
+		}
 	}
 };
 

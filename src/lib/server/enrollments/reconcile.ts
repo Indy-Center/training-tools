@@ -21,14 +21,14 @@ const BATCH_SIZE = 25;
 /**
  * File any enrollments that never reached Jira.
  *
- * Runs on the same 15-minute cron as the roster sync. Selects only rows with no
+ * Runs on the same 10-minute cron as the roster sync. Selects only rows with no
  * issue key, so a row that filed successfully is never touched again and a
  * duplicate issue would need two concurrent cron runs — which Cloudflare does
  * not do for a single scheduled trigger.
  *
  * Rows past MAX_JIRA_SYNC_ATTEMPTS are skipped: at that point the failure is
  * structural (a revoked token, a field Jira no longer accepts) and retrying it
- * every fifteen minutes just buries the real error.
+ * every ten minutes just buries the real error.
  */
 export async function reconcileEnrollments(
 	db: Database,

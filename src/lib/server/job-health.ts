@@ -71,7 +71,7 @@ export async function recordJobRun(db: Database, run: JobRun): Promise<void> {
  * failed before it. Pure.
  *
  * Told when a job **starts** failing and when it **recovers** — not on every
- * failed run, which for a broken job would be a message every fifteen minutes.
+ * failed run, which for a broken job would be a message every ten minutes.
  */
 export function jobAlert(run: JobRun, failuresBefore: number): Notice | null {
 	if (!run.ok && failuresBefore === 0) {

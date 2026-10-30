@@ -6,6 +6,7 @@ import { completeAudit, getAuditQueue, getEnrollment } from '$lib/server/enrollm
 import { getPeople } from '$lib/server/roster';
 import { findCredential, highestCertification } from '$lib/certifications';
 import { holdLabels } from '$lib/course-completion';
+import { CRON_INTERVAL_MINUTES } from '$lib/job-health';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -80,8 +81,7 @@ export const actions: Actions = {
 				});
 			}
 			return fail(409, {
-				auditError:
-					'The certification for this request has not been applied yet. It is retried every 15 minutes; if it stays like this, check the Admin page.'
+				auditError: `The certification for this request has not been applied yet. It is retried every ${CRON_INTERVAL_MINUTES} minutes; if it stays like this, check the Admin page.`
 			});
 		}
 

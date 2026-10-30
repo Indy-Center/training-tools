@@ -20,7 +20,7 @@ import {
  *
  * Two ways in, one way to write:
  *
- * - `sweepEnrollmentStatuses()` runs on the 15-minute cron and is the source of
+ * - `sweepEnrollmentStatuses()` runs on the 10-minute cron and is the source of
  *   truth. It catches everything the webhook misses — deliveries Jira gave up
  *   on, changes made before the webhook existed, the first backfill.
  * - The Jira webhook applies the delivered issue directly, so a student sees
@@ -163,7 +163,7 @@ export async function applyIssueMove(
  * the board and a transition made by a script are dated alike. Called wherever
  * a card is read — the webhook, the sweep, and the read-back after a step here
  * — so a move is dated within seconds, and one the webhook missed within
- * fifteen minutes. Never throws: a date that could not be written is logged,
+ * ten minutes. Never throws: a date that could not be written is logged,
  * and is not a reason to fail the read that found the move.
  */
 export async function dateCardMove(

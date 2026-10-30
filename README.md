@@ -32,7 +32,7 @@ repository, or reach the Indy Center staff through
   automatically when a course is finished and on arrival by rating.
 - **Discord, kept in step**: a role and a private channel per teacher, the
   pairing message, rating exams for evaluators to claim, and alerts to staff.
-- **A background job every 15 minutes** that keeps all of it honest, with a
+- **A background job every 10 minutes** that keeps all of it honest, with a
   page showing each job's last run.
 
 **What it leans on, and what you would swap**
@@ -164,12 +164,12 @@ has one. Scheduling and the student's next lesson will join it there.
 
 Those statuses, the assigned `Teacher` and the rating exam's `RE Instructor` are
 read back from the TRK issue two ways: a Jira webhook (`POST /api/jira/webhook`) within seconds of a change, and
-the 15-minute cron sweep as the backstop. A request the student withdrew here is
+the 10-minute cron sweep as the backstop. A request the student withdrew here is
 never reopened by Jira.
 
 ## Scheduled work
 
-Every 15 minutes (`*/15 * * * *`), in this order:
+Every 10 minutes (`*/10 * * * *`), in this order:
 
 | Job                       | Does                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------ |
@@ -221,6 +221,61 @@ onto their roster row. VATUSA's public roster never includes emails, so
 `/certifications/{cid}` shows one only for people who have signed in here at
 least once. Discord ids come from the VATUSA roster on each sync.
 
+## RPC for other Workers
+
+`src/worker.ts` exports a `TrainingRpc` `WorkerEntrypoint` beside its fetch and
+scheduled handlers. Another Worker on the account binds to it:
+
+```jsonc
+"services": [{ "binding": "TRAINING", "service": "training-tools", "entrypoint": "TrainingRpc" }]
+```
+
+It has one read-only method. `getRoster()` returns:
+
+- `credentials`: every available credential, certifications lowest to highest
+  and then endorsements. Each has `code`, `kind`, `name`, `order` (from 1) and
+  `description`.
+- `members`: everyone on the controller roster now. Removed members are left out.
+  Each has `cid`, `firstName`, `lastName`, `namePrivacy`, `rating` (short code),
+  `facilityJoinedAt`, `roles` (VATUSA facility roles at ZID, such as `ATM` or
+  `MTR`), `certification` (the highest held, or null) and `endorsements`.
+  `lastName` is present even when `namePrivacy` is set; a caller must not show it
+  publicly then.
+
+The answer holds only what is held now: no history, revoked credentials or grant
+details. It is two queries whatever the roster's size
+(`src/lib/server/roster/read.ts`).
+
+The contract is `rpc/src/index.ts`. Adding a field or a method is made there in
+place. A breaking change (renaming, removing or retyping a field) goes into a new
+entrypoint class, `TrainingRpcV2`, beside the old one, so a caller never breaks
+mid-deploy. The only caller so far is community-website (DEV-116).
+
+**Types for callers** are published to npm as `@indy-center/training-tools`,
+like `@indy-center/indy-larry-worker`. Install it as a dependency
+(`npm install @indy-center/training-tools`) and type the binding in the
+caller's `Env` as `TRAINING: TrainingBinding`; `Roster`, `RosterMember` and
+`AvailableCredential` are exported too. It is types only, built from `rpc/src/`;
+callers also need `@cloudflare/workers-types` (or `wrangler types`) for
+`Service` and `Rpc`. It is public, so it installs with no npm login, and it holds
+nothing that isn't already in this repository.
+
+`rpc/src/index.ts` is also where `src/worker.ts` takes the entrypoint's types
+from (as `$rpc`), so the class and the package can't drift: the class
+implements the published `TrainingRpc` interface, and `src/worker.test.ts` fails
+`npm run check` if the class has a method the package doesn't declare.
+
+To publish a change to `rpc/src/`: bump `version` in `rpc/package.json` and
+merge. The `publish-types` job in `build-and-deploy.yml` runs after the deploy,
+publishes any version npm doesn't have yet, and does nothing when the version is
+unchanged. It uses npm's trusted publishing, so there is no token to keep: on
+npmjs.com the package's settings name this repository and the workflow file
+`build-and-deploy.yml`, with no environment. To publish by hand instead, run
+`npm ci && npm run release` in `rpc/` (needs publish rights on the
+`@indy-center` npm org). `release` builds `dist/` and then publishes; a bare
+`npm publish` builds only through the `prepack` hook, which npm skips when it is
+set to ignore scripts, and would then publish nothing but `package.json`.
+
 ## Bindings
 
 | Binding    | Type                     | What it's for                                                |
@@ -261,7 +316,7 @@ exist.
 
 ```
 src/
-├── worker.ts                  worker entry: SvelteKit fetch + the roster cron
+├── worker.ts                  worker entry: SvelteKit fetch, the cron, and the TrainingRpc entrypoint
 ├── hooks.server.ts            db client + session load + the route gate
 ├── app.d.ts                   App.Locals / App.Platform (IDENTITY is optional here on purpose)
 ├── lib/
@@ -300,7 +355,7 @@ src/
 │   │   ├── guards.ts          requireSession / requireRole, for every load and action
 │   │   ├── vatusa.ts          VATUSA roster fetch (no API key needed)
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
-│   │   ├── roster/            roster lookup, search, and the reconciling sync
+│   │   ├── roster/            roster lookup, search, the reconciling sync, and the RPC's roster read
 │   │   ├── certifications/    grant/revoke, and the arrival pass
 │   │   ├── teachers/          teacher roster sync, profiles, qualifications, dropdown check
 │   │   ├── notify/            Discord notices, queued through Larry
@@ -315,6 +370,9 @@ src/
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
 └── routes/                    plain nested folders, no route groups
+
+rpc/                           the npm package @indy-center/training-tools (its own package.json)
+└── src/index.ts               the TrainingRpc contract: getRoster()'s answer and the binding type (types only)
 ```
 
 ### Roster data
@@ -486,7 +544,7 @@ That needs Larry 1.2.0 or later.
 **A status renamed on the board stops the app reading every card in it.** The
 board import checks each card's status on every run and tells the tech team
 once per distinct set of problems (`sync_state`, like the dropdown check), so
-a rename shows up within fifteen minutes rather than when a student asks.
+a rename shows up within ten minutes rather than when a student asks.
 
 A card at Needs CATP is described as a failed exam only when it arrived from
 Rating Exam; staff can also move one there from In Training.
@@ -770,7 +828,7 @@ behind the scenes is seen before a student has to report it.
   back in the cron's queue. Requests still inside their retries are listed
   separately, with nothing to do.
 - **Scheduled jobs.** Each of the seven, with when it last ran and one of four
-  states: OK, Failing (its last run threw), Not running (no run for 45 minutes —
+  states: OK, Failing (its last run threw), Not running (no run for 30 minutes —
   three missed intervals), or No runs recorded. A failure shows its message and
   how many runs in a row; the last error stays visible after a recovery.
 - **Jira webhook.** The last verified delivery. It is never "Not running": it
@@ -954,6 +1012,31 @@ stay unfiled.
 
 **Never run `wrangler d1 delete` or `wrangler d1 create` to fix local state** —
 both operate on production.
+
+### Comparing credentials with community-website
+
+Before the community site stops keeping its own credentials (DEV-116),
+`scripts/compare-credentials.ts` lists every CID whose credentials differ between
+the site's database (`website-db`) and this app's, so edits made on the site
+since the September import can be signed off:
+
+```bash
+npx wrangler login                                       # once
+node scripts/compare-credentials.ts > comparison.txt
+```
+
+It needs a Cloudflare login on this app's account with read access to both
+databases (`wrangler login`, or `CLOUDFLARE_API_TOKEN` with D1 read), and Node
+22.18 or later. It only runs SELECTs, through `wrangler d1 execute --remote`, and
+prints CIDs, site user ids and credential codes, never names or emails.
+
+The site's rows are mapped the way data migration `0003` did: site user to CID,
+one certification per CID (the highest), endorsements as they are. This app's
+side is what is held now. Each differing CID shows what the site holds, what
+this app holds, and the difference; site rows it cannot map (a code this app
+does not have, such as `APP-SOLO`, or a user with no CID) are listed at the end.
+The comparison itself is `src/lib/credential-comparison.ts`, tested on made-up
+rows.
 
 ## Tests
 

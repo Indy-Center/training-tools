@@ -41,3 +41,52 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_WORKERS_API_KEY }}
+
+  # Publishes the TrainingRpc types (rpc/) to npm as @indy-center/training-tools
+  # when rpc/package.json names a version npm doesn't have yet. Merging without a
+  # version bump publishes nothing. After the deploy, so a published contract is
+  # never ahead of the Worker that serves it.
+  #
+  # No token: npm trusts this workflow directly ("trusted publishing"). On
+  # npmjs.com the package's settings name this repository and this file,
+  # build-and-deploy.yml, with no environment. Renaming the file or moving this
+  # job to another workflow breaks publishing until that setting is changed.
+  publish-types:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # what npm checks to know the publish came from this workflow
+    defaults:
+      run:
+        working-directory: rpc
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: rpc/package-lock.json
+      - name: Is this version on npm already?
+        id: version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already on npm; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships with npm 10.
+      - if: steps.version.outputs.publish == 'true'
+        run: npm install -g npm@^11.5.1
+      - if: steps.version.outputs.publish == 'true'
+        run: npm ci
+      # `release` builds dist/ and then publishes; it does not rely on a
+      # prepublish hook.
+      - name: Publish
+        if: steps.version.outputs.publish == 'true'
+        run: npm run release

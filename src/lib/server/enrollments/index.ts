@@ -51,7 +51,7 @@ export {
 /**
  * Stop retrying a push after this many failures.
  *
- * A malformed payload or a revoked token would otherwise be retried every 15
+ * A malformed payload or a revoked token would otherwise be retried every 10
  * minutes forever. Past the cap the row stops being picked up and becomes a
  * findable record with `jiraSyncError` set, which is a problem a human fixes.
  */
@@ -132,7 +132,7 @@ export type WaitlistPosition = {
  * Where a waitlisted request sits in its course's queue, first come first served.
  *
  * Counted from D1's statuses, which are read back from Jira by the webhook
- * (seconds) and the cron sweep (at most 15 minutes). Between the two, someone
+ * (seconds) and the cron sweep (at most 10 minutes). Between the two, someone
  * staff have just moved on to training can briefly still count as waiting.
  * Requests not filed with Jira yet count too — they are in the queue, the
  * board just has not been told.
@@ -235,7 +235,7 @@ export type SubmitResult = {
  * the staff board is our problem to retry, not theirs to redo.
  *
  * One attempt, no inline retry loop — making someone wait on a service that is
- * already unhappy helps nobody when the cron will pick it up within 15 minutes.
+ * already unhappy helps nobody when the cron will pick it up within 10 minutes.
  *
  * See decisions/0008-enrollment-record-in-d1-jira-owns-the-queue.md
  */

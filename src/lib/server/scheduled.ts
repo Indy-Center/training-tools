@@ -17,7 +17,7 @@ import {
 import type { JobRun } from '$lib/server/job-health';
 
 /**
- * What the 15-minute cron does, in order.
+ * What the 10-minute cron does, in order.
  *
  * Each job is run, logged and recorded by `runScheduledJobs()`, so adding one
  * is adding an entry here — not another copy of the try/catch around it.
@@ -29,7 +29,7 @@ export type ScheduledJob = {
 	description: string;
 	/**
 	 * Do the work and return what is worth logging, or null to stay quiet —
-	 * most runs of most jobs change nothing, and a log line every fifteen
+	 * most runs of most jobs change nothing, and a log line every ten
 	 * minutes saying so buries the ones that matter.
 	 */
 	run: () => Promise<object | null>;
@@ -65,7 +65,7 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 		},
 		{
 			// After the roster sync, which it reads: a brand-new arrival is certified
-			// in the same run rather than waiting another fifteen minutes.
+			// in the same run rather than waiting another ten minutes.
 			name: 'arrival certifications',
 			description: 'Grants new arrivals the certification their rating entitles them to.',
 			run: async () => {

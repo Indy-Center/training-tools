@@ -86,7 +86,7 @@ async function wantedValues(db: Database) {
  * roster, store the result for `/teachers`, and tell training admins when the
  * difference is new.
  *
- * Told once per distinct difference, not every fifteen minutes: the last
+ * Told once per distinct difference, not every ten minutes: the last
  * difference actually sent is compared first. One that could not be sent is
  * retried next run; one that clears and later returns is reported again.
  *

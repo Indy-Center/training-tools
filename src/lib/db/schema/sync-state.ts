@@ -14,7 +14,7 @@ export type SyncState = InferSelectModel<typeof syncStateTable>;
  *
  * The Jira teacher-dropdown check (`jira-teacher-options`) keeps a signature
  * of the drift it last reported in `value`, so training admins hear about a
- * new difference once rather than every fifteen minutes.
+ * new difference once rather than every ten minutes.
  */
 export const syncStateTable = sqliteTable('sync_state', {
 	key: text('key').primaryKey(),

@@ -14,7 +14,7 @@ describe('jobAlert', () => {
 		expect(notice?.fields).toEqual([{ label: 'Error', value: 'VATUSA down' }]);
 	});
 
-	// A broken job runs every fifteen minutes; one message, not one per run.
+	// A broken job runs every ten minutes; one message, not one per run.
 	it('stays quiet while it keeps failing', () => {
 		expect(jobAlert(failed, 1)).toBeNull();
 		expect(jobAlert(failed, 12)).toBeNull();

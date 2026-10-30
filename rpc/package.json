@@ -1,0 +1,32 @@
+{
+	"name": "@indy-center/training-tools",
+	"version": "1.0.0",
+	"description": "Types for calling the Indy Center training app's TrainingRpc entrypoint from another Worker",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Indy-Center/training-tools.git",
+		"directory": "rpc"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"dist"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"release": "npm run build && npm publish",
+		"prepack": "npm run build"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^5.20260930.2",
+		"typescript": "^5.9.3"
+	}
+}

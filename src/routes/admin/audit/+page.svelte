@@ -7,6 +7,7 @@
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import { findCourse } from '$lib/courses';
 	import { formatDate } from '$lib/format';
+	import { CRON_INTERVAL_MINUTES } from '$lib/job-health';
 	import IconArrowLeft from '~icons/mdi/arrow-left';
 	import IconCheck from '~icons/mdi/check-circle';
 	import IconClipboardCheck from '~icons/mdi/clipboard-check-outline';
@@ -89,11 +90,11 @@
 							<p class="mt-2 text-xs text-orange-300">
 								On hold: the card is missing {request.missing.join(', ')}, so no certification has
 								been applied. Fill it in on the card, or move the card back if it is here by
-								mistake. It is checked again every 15 minutes.
+								mistake. It is checked again every {CRON_INTERVAL_MINUTES} minutes.
 							</p>
 						{:else if !request.appliedAt}
 							<p class="mt-2 text-xs text-orange-300">
-								The certification for this course has not been applied yet. It is retried every 15
+								The certification for this course has not been applied yet. It is retried every {CRON_INTERVAL_MINUTES}
 								minutes, and the audit can be completed once it has.
 							</p>
 						{/if}
