@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Teacher, TeacherQualification } from '$lib/db/schema/teachers';
+import { teachersTable, type Teacher, type TeacherQualification } from '$lib/db/schema/teachers';
+import { rosterMembersTable } from '$lib/db/schema/roster';
+import { activityLogTable } from '$lib/db/schema/activity-log';
 import type { QualificationLevel, TeacherRole } from '$lib/teachers';
-import { planTeacherRoster, type RosterFacts } from './sync';
+import { FACILITY_ID } from '$lib/config';
+import { testDb } from '$lib/server/test-db';
+import { planTeacherRoster, syncTeacherRoster, type RosterFacts } from './sync';
 
 const NOW = new Date('2026-09-30T12:00:00Z');
 const S2 = 3;
@@ -121,6 +125,81 @@ describe('planTeacherRoster — membership', () => {
 		});
 		expect(result.teachers).toEqual([]);
 		expect(result.events).toEqual([]);
+	});
+});
+
+describe('planTeacherRoster — refusing large changes', () => {
+	const staff = ['1', '2', '3', '4', '5'].map((cid) => teacher(cid, ['MTR']));
+	const onRoster = (cids: string[], roles: TeacherRole[] = ['MTR']) =>
+		cids.map((cid) => ({ cid, rating: S3, roles }));
+
+	it('applies two leavers', () => {
+		const result = plan({ roster: onRoster(['1', '2', '3']), teachers: staff });
+		expect(result.summary.left).toBe(2);
+	});
+
+	it('refuses three leavers', () => {
+		expect(() => plan({ roster: onRoster(['1', '2']), teachers: staff })).toThrow(
+			'Teacher roster would remove 3 of 5 teachers (limit 2); keeping it.'
+		);
+	});
+
+	it('refuses three teachers losing a role', () => {
+		const both = ['1', '2', '3', '4', '5'].map((cid) => teacher(cid, ['INS', 'MTR']));
+		expect(() =>
+			plan({
+				roster: [...onRoster(['1', '2', '3'], ['INS']), ...onRoster(['4', '5'], ['INS', 'MTR'])],
+				teachers: both
+			})
+		).toThrow('Teacher roster would end roles for 3 of 5 teachers (limit 2); keeping it.');
+	});
+
+	// Mentor to instructor ends MTR, but swaps it for INS rather than losing one.
+	it('applies three promotions at once', () => {
+		const result = plan({
+			roster: [...onRoster(['1', '2', '3'], ['INS']), ...onRoster(['4', '5'])],
+			teachers: staff
+		});
+		expect(result.summary.roleChanges).toBe(6);
+	});
+});
+
+describe('syncTeacherRoster — refusing large changes', () => {
+	it('writes nothing when it refuses', async () => {
+		const db = testDb();
+		// Migration 0010 seeds the real teacher roster; start from ours instead.
+		await db.delete(teachersTable);
+		const roles = (held: boolean) => (held ? [{ facility: FACILITY_ID, role: 'MTR' }] : []);
+		// Five mentors on file; VATUSA now sends three of them without their roles.
+		await db.insert(rosterMembersTable).values(
+			['1', '2', '3', '4', '5'].map((cid) => ({
+				cid,
+				firstName: 'Jo',
+				lastName: cid,
+				rating: S3,
+				ratingShort: 'S3',
+				membership: 'home' as const,
+				facility: FACILITY_ID,
+				data: { roles: roles(cid > '3') } as never
+			}))
+		);
+		await db.insert(teachersTable).values(
+			['1', '2', '3', '4', '5'].map((cid) => ({
+				cid,
+				roles: ['MTR' as const],
+				joinedAt: new Date('2026-01-01T00:00:00Z'),
+				updatedAt: new Date('2026-01-01T00:00:00Z')
+			}))
+		);
+
+		const teachersBefore = await db.select().from(teachersTable);
+		const activityBefore = await db.select().from(activityLogTable);
+
+		await expect(syncTeacherRoster(db, undefined, NOW)).rejects.toThrow(
+			'Teacher roster would remove 3 of 5 teachers (limit 2); keeping it.'
+		);
+		expect(await db.select().from(teachersTable)).toEqual(teachersBefore);
+		expect(await db.select().from(activityLogTable)).toEqual(activityBefore);
 	});
 });
 
