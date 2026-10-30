@@ -62,3 +62,51 @@ export function isInRestoreWindow(
 ): boolean {
 	return request.rosterRemovedAt !== null && request.restoreClosedAt === null;
 }
+
+/**
+ * On the home roster as `home`: mirror row present and not removed, and no
+ * `left_home_at`. A request in its window whose student is this is restored.
+ */
+export function isBackOnHomeRoster(
+	member: {
+		membership: 'home' | 'visit';
+		removedAt: Date | null;
+		leftHomeAt: Date | null;
+	} | null
+): boolean {
+	return (
+		member !== null &&
+		member.removedAt === null &&
+		member.membership === 'home' &&
+		member.leftHomeAt === null
+	);
+}
+
+/**
+ * What a request in its window means once its card is read back off Removed by
+ * some other route than the automatic restore (staff on the board, Restore now,
+ * or a restore whose last step was not reached):
+ *
+ * - `restored`: Waitlist, In Training or Rating Exam, or Needs CATP when that is
+ *   where it was removed from. Finished as a restore.
+ * - `closed`: Withdrawn, or Needs CATP from any other stage. The window closes,
+ *   `moved-on-board`, and the card's new stage stands.
+ * - null: still Removed, or somewhere TRK cannot take a card from Removed
+ *   (Audit, Completed). Left alone.
+ */
+export function boardMoveOutcome(
+	request: Pick<Enrollment, 'status' | 'rosterRemovedFrom'>
+): 'restored' | 'closed' | null {
+	switch (request.status) {
+		case 'waitlist':
+		case 'in-training':
+		case 'rating-exam':
+			return 'restored';
+		case 'needs-catp':
+			return request.rosterRemovedFrom === 'needs-catp' ? 'restored' : 'closed';
+		case 'withdrawn':
+			return 'closed';
+		default:
+			return null;
+	}
+}
