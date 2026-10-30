@@ -11,13 +11,14 @@ import {
 import { FACILITY_ID } from '$lib/config';
 import type { AvailableCredential, Roster, RosterMember } from '$rpc';
 
-/** An active member's columns from the roster mirror. */
+/** The roster mirror's columns the answer is built from. */
 export type MemberRow = {
 	cid: string;
 	firstName: string;
 	lastName: string;
 	ratingShort: string;
 	facilityJoinedAt: string | null;
+	removedAt: Date | null;
 	/** VATUSA's record; only the name-privacy flag and the roles are read. */
 	data: {
 		flag_nameprivacy?: boolean | null;
@@ -25,8 +26,7 @@ export type MemberRow = {
 	};
 };
 
-/** A credential someone holds now. */
-export type HeldRow = { cid: string; code: string };
+export type HeldRow = { cid: string; code: string; revokedAt: Date | null };
 
 /**
  * What `TrainingRpc.getRoster()` answers: the controller roster now and the
@@ -34,8 +34,7 @@ export type HeldRow = { cid: string; code: string };
  *
  * Two queries whatever the roster's size — the active roster and every live
  * credential — grouped in memory, never an `IN (...)` over CIDs (D1 allows 100
- * bound parameters; the facility has more members than that). The queries alone
- * leave out removed members and revoked credentials.
+ * bound parameters; the facility has more members than that).
  */
 export async function readRoster(db: Database): Promise<Roster> {
 	const [members, held] = await Promise.all([
@@ -46,13 +45,18 @@ export async function readRoster(db: Database): Promise<Roster> {
 				lastName: rosterMembersTable.lastName,
 				ratingShort: rosterMembersTable.ratingShort,
 				facilityJoinedAt: rosterMembersTable.facilityJoinedAt,
+				removedAt: rosterMembersTable.removedAt,
 				data: rosterMembersTable.data
 			})
 			.from(rosterMembersTable)
 			.where(isNull(rosterMembersTable.removedAt))
 			.orderBy(rosterMembersTable.cid),
 		db
-			.select({ cid: certificationsTable.cid, code: certificationsTable.code })
+			.select({
+				cid: certificationsTable.cid,
+				code: certificationsTable.code,
+				revokedAt: certificationsTable.revokedAt
+			})
 			.from(certificationsTable)
 			.where(isNull(certificationsTable.revokedAt))
 	]);
@@ -60,10 +64,16 @@ export async function readRoster(db: Database): Promise<Roster> {
 	return buildRoster(members, held);
 }
 
-/** The answer from active members and the credentials held now. */
+/**
+ * The answer from plain rows. Removed members and revoked credentials are left
+ * out here as well as in the queries: the queries keep to the repo's rule that
+ * active-roster reads filter in SQL, and this is where the rule is tested,
+ * since nothing here runs tests against D1.
+ */
 export function buildRoster(members: readonly MemberRow[], held: readonly HeldRow[]): Roster {
 	const codesByCid = new Map<string, Set<string>>();
 	for (const row of held) {
+		if (row.revokedAt) continue;
 		const codes = codesByCid.get(row.cid) ?? new Set<string>();
 		codes.add(row.code);
 		codesByCid.set(row.cid, codes);
@@ -71,7 +81,9 @@ export function buildRoster(members: readonly MemberRow[], held: readonly HeldRo
 
 	return {
 		credentials: availableCredentials(),
-		members: members.map((row) => toMember(row, codesByCid.get(row.cid) ?? new Set()))
+		members: members
+			.filter((row) => !row.removedAt)
+			.map((row) => toMember(row, codesByCid.get(row.cid) ?? new Set()))
 	};
 }
 
