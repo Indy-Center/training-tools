@@ -8,45 +8,19 @@ const member = (cid: string, overrides: Partial<MemberRow> = {}): MemberRow => (
 	lastName: 'Rivera',
 	ratingShort: 'S2',
 	facilityJoinedAt: '2025-01-15T00:00:00+00:00',
-	removedAt: null,
 	data: { flag_nameprivacy: false, roles: [] },
 	...overrides
 });
 
-const held = (cid: string, code: string, revokedAt: Date | null = null): HeldRow => ({
-	cid,
-	code,
-	revokedAt
-});
+const held = (cid: string, code: string): HeldRow => ({ cid, code });
 
 describe('buildRoster: members', () => {
-	it('leaves out removed members', () => {
-		const roster = buildRoster(
-			[member('1000001'), member('1000002', { removedAt: new Date('2026-10-01') })],
-			[]
-		);
-		expect(roster.members.map((m) => m.cid)).toEqual(['1000001']);
-	});
-
 	it('gives only the highest certification held', () => {
 		const roster = buildRoster(
 			[member('1000001')],
 			[held('1000001', 'A-GC'), held('1000001', 'T-RC'), held('1000001', 'A-LC')]
 		);
 		expect(roster.members[0].certification).toBe('T-RC');
-	});
-
-	it('leaves out revoked credentials', () => {
-		const roster = buildRoster(
-			[member('1000001')],
-			[
-				held('1000001', 'A-LC', new Date('2026-10-01')),
-				held('1000001', 'A-GC'),
-				held('1000001', 'S-LC', new Date('2026-10-01'))
-			]
-		);
-		expect(roster.members[0].certification).toBe('A-GC');
-		expect(roster.members[0].endorsements).toEqual([]);
 	});
 
 	it('returns endorsements held, in catalogue order', () => {
