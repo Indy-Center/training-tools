@@ -9,6 +9,7 @@ import {
 } from '$lib/db/schema/roster';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { activityInsert, runInBatches } from '$lib/server/activity';
+import { overLimitError } from '$lib/server/change-limit';
 
 export type RosterSyncResult = {
 	fetched: number;
@@ -253,11 +254,15 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	]);
 
 	if (holdUntil) {
-		throw new Error(
-			`VATUSA roster would remove ${missingCids.length} of ${activeCids.length} members ` +
-				`(limit ${limit}); keeping the mirror. ` +
-				`Applies to whoever is still missing at ${formatUtc(holdUntil)}.`
-		);
+		throw overLimitError({
+			would: 'VATUSA roster would remove',
+			count: missingCids.length,
+			of: activeCids.length,
+			noun: 'members',
+			limit,
+			keeping: 'the mirror',
+			then: `Applies to whoever is still missing at ${formatUtc(holdUntil)}.`
+		});
 	}
 
 	return {

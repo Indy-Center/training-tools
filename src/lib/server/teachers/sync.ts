@@ -25,6 +25,7 @@ import {
 } from '$lib/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { notify } from '$lib/server/notify';
+import { overLimitError } from '$lib/server/change-limit';
 import { getPeople } from '$lib/server/roster';
 import { assignmentsFor, getAssignedEnrollments, teacherLabel } from './index';
 import { leftRosterNotice, qualificationChangesNotice } from './notices';
@@ -97,13 +98,18 @@ function refuseLargeChanges(teachers: readonly Teacher[], writes: readonly Teach
 	const before = new Map(teachers.map((teacher) => [teacher.cid, teacher.roles]));
 	const active = teachers.filter((teacher) => teacher.removedAt === null).length;
 
+	const refuse = (would: string, count: number) =>
+		overLimitError({
+			would: `Teacher roster would ${would}`,
+			count,
+			of: active,
+			noun: 'teachers',
+			limit: TEACHER_CHANGE_LIMIT,
+			keeping: 'it'
+		});
+
 	const removed = writes.filter((write) => write.removedAt !== null).length;
-	if (removed > TEACHER_CHANGE_LIMIT) {
-		throw new Error(
-			`Teacher roster would remove ${removed} of ${active} teachers ` +
-				`(limit ${TEACHER_CHANGE_LIMIT}); keeping it.`
-		);
-	}
+	if (removed > TEACHER_CHANGE_LIMIT) throw refuse('remove', removed);
 
 	const losingRoles = writes.filter((write) => {
 		const held = before.get(write.cid);
@@ -112,12 +118,7 @@ function refuseLargeChanges(teachers: readonly Teacher[], writes: readonly Teach
 		const gained = write.roles.some((role) => !held.includes(role));
 		return lost && !gained;
 	}).length;
-	if (losingRoles > TEACHER_CHANGE_LIMIT) {
-		throw new Error(
-			`Teacher roster would end roles for ${losingRoles} of ${active} teachers ` +
-				`(limit ${TEACHER_CHANGE_LIMIT}); keeping it.`
-		);
-	}
+	if (losingRoles > TEACHER_CHANGE_LIMIT) throw refuse('end roles for', losingRoles);
 }
 
 /**
