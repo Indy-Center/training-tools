@@ -85,23 +85,15 @@ export function compareCredentials({
 	const siteCodes = new Map<string, Set<string>>();
 
 	for (const row of site) {
-		const known = cidByUser.has(row.userId);
 		const cid = cidByUser.get(row.userId) ?? null;
 		const entry = catalogue.find((credential) => credential.code === row.code);
-		const reason: UnmappedReason | null = !known
-			? 'no-user'
-			: !cid
-				? 'no-cid'
-				: !entry
-					? 'unknown-code'
-					: entry.kind !== TABLE_KIND[row.table]
-						? 'wrong-kind'
-						: null;
-		if (reason || !cid) {
-			unmapped.push({ ...row, cid, reason: reason ?? 'no-cid' });
-			continue;
-		}
-		addCode(siteCodes, cid, row.code);
+		const skip = (reason: UnmappedReason) => unmapped.push({ ...row, cid, reason });
+
+		if (!cidByUser.has(row.userId)) skip('no-user');
+		else if (!cid) skip('no-cid');
+		else if (!entry) skip('unknown-code');
+		else if (entry.kind !== TABLE_KIND[row.table]) skip('wrong-kind');
+		else addCode(siteCodes, cid, row.code);
 	}
 
 	const trainingCodes = new Map<string, Set<string>>();
