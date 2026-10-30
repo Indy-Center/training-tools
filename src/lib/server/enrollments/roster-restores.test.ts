@@ -327,7 +327,7 @@ describe('processRosterRemovals: restore a student back on the home roster', () 
 		expect((await row('b')).status).toBe('removed');
 	});
 
-	it('restores an unfiled request here, and the reconcile can then file it', async () => {
+	it('restores an unfiled request here, without Jira', async () => {
 		await addMember({ cid: '1000001' });
 		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist', jiraIssueKey: null });
 		const jira = fakeJira({});
