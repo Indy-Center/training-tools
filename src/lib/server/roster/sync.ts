@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { syncStateTable } from '$lib/db/schema/sync-state';
 import { fetchRoster } from '$lib/server/vatusa';
@@ -162,9 +162,18 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	// bound parameters per query and the facility has more members than that,
 	// while the table itself is small enough to scan cheaply.
 	const existing = await db
-		.select({ cid: rosterMembersTable.cid, removedAt: rosterMembersTable.removedAt })
+		.select({
+			cid: rosterMembersTable.cid,
+			removedAt: rosterMembersTable.removedAt,
+			membership: rosterMembersTable.membership
+		})
 		.from(rosterMembersTable);
 
+	// Active home members: the ones who leave the home roster by turning up as
+	// a visitor, or by disappearing (stamped below, with `removedAt`).
+	const activeHome = new Set(
+		existing.filter((row) => row.removedAt === null && row.membership === 'home').map((r) => r.cid)
+	);
 	const previousRemovedAt = new Map(existing.map((row) => [row.cid, row.removedAt]));
 	const addedCids = rows.filter((row) => !previousRemovedAt.has(row.cid)).map((row) => row.cid);
 	const restoredCids = rows
@@ -211,6 +220,13 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 						data: row.data,
 						syncedAt: row.syncedAt,
 						removedAt: null,
+						// Home again clears it; home to visitor dates it. Anything else
+						// (a visitor still, a returner who is only a visitor) keeps it.
+						...(row.membership === 'home'
+							? { leftHomeAt: null }
+							: activeHome.has(row.cid)
+								? { leftHomeAt: now }
+								: {}),
 						// Someone coming back gets looked at again: they may have earned a
 						// rating elsewhere, or gone long enough without controlling that the
 						// answer has changed. Everyone else keeps their stamp, which is why
@@ -238,7 +254,15 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 		? []
 		: await db
 				.update(rosterMembersTable)
-				.set({ removedAt: now })
+				.set({
+					removedAt: now,
+					// Same write as `removedAt`, so a held removal stamps neither. A home
+					// member gets the date they left; a visitor keeps whatever they had
+					// (their date from stopping being home, or none).
+					leftHomeAt: sql`CASE WHEN ${rosterMembersTable.membership} = 'home'
+						THEN coalesce(${rosterMembersTable.leftHomeAt}, ${Math.floor(now.getTime() / 1000)})
+						ELSE ${rosterMembersTable.leftHomeAt} END`
+				})
 				.where(and(lt(rosterMembersTable.syncedAt, now), isNull(rosterMembersTable.removedAt)))
 				.returning({ cid: rosterMembersTable.cid });
 
