@@ -22,6 +22,7 @@
 import { COMMUNITY_URL } from '$lib/config';
 import type { TrainingFlow } from '$lib/training-flow';
 import { ENROLLMENT_COPY } from '$lib/content/enrollment';
+import backOnHomeRoster from './back-on-home-roster.md';
 import becomeController from './become-controller.md';
 import certificationUpdate from './certification-update.md';
 import consolidating from './consolidating.md';
@@ -151,6 +152,12 @@ export const TRAINING_COPY = {
 	'left-home-roster': {
 		title: 'Your request is paused',
 		body: leftHomeRoster
+	},
+	// The same request, its student home again: the next pass restores it.
+	// Filled in with `fillCopy`: `{course}`.
+	'back-on-home-roster': {
+		title: 'Your request is coming back',
+		body: backOnHomeRoster
 	}
 } as const satisfies Record<TrainingFlow, CopyBlock>;
 

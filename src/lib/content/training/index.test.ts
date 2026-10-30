@@ -12,6 +12,15 @@ describe('fillCopy', () => {
 		);
 	});
 
+	it('fills in the being-restored copy with its course', () => {
+		const copy = fillCopy(TRAINING_COPY['back-on-home-roster'], {
+			course: 'Simple Local Control (S-LC)'
+		});
+		expect(copy.body.replace(/<!--[\s\S]*?-->/g, '').trim()).toBe(
+			'<p>Welcome back. Your Simple Local Control (S-LC) request is being restored to where it was.</p>'
+		);
+	});
+
 	it('escapes what it fills in, and leaves unknown names alone', () => {
 		const copy = fillCopy({ title: 't', body: '<p>{a} {b}</p>' }, { a: '<b>x</b> & "y"' });
 		expect(copy.body).toBe('<p>&lt;b&gt;x&lt;/b&gt; &amp; &quot;y&quot; {b}</p>');
