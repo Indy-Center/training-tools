@@ -77,13 +77,20 @@ export function parseFacilityJoin(value: string | null | undefined): Date | null
 /** D1 caps how much one batch can carry, so upserts go in chunks. */
 const CHUNK_SIZE = 25;
 
+/** The fewest members the removal limit ever allows. */
+const REMOVAL_LIMIT_MIN = 5;
+
+/** The share of the active mirror one run may remove, when that is more. */
+const REMOVAL_LIMIT_SHARE = 0.05;
+
 /**
- * The most members one run may remove: 5, or 5% of the active mirror,
- * whichever is larger. VATUSA can answer with a short roster without warning
- * (on 2026-10-26 it returned 89 of 164), and nothing in its answer says so.
+ * The most members one run may remove: `REMOVAL_LIMIT_MIN`, or
+ * `REMOVAL_LIMIT_SHARE` of the active mirror, whichever is larger. VATUSA can
+ * answer with a short roster without warning (on 2026-10-26 it returned 89 of
+ * 164), and nothing in its answer says so.
  */
 function removalLimit(active: number): number {
-	return Math.max(5, Math.floor(active * 0.05));
+	return Math.max(REMOVAL_LIMIT_MIN, Math.floor(active * REMOVAL_LIMIT_SHARE));
 }
 
 /** How long a removal over the limit waits before it applies anyway. */

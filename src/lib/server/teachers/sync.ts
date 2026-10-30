@@ -88,8 +88,9 @@ function sameRoles(a: readonly string[], b: readonly string[]): boolean {
 const TEACHER_CHANGE_LIMIT = 2;
 
 /**
- * Throw rather than apply a run that removes more than two teachers, or takes
- * a role from more than two who stay. Either is more likely VATUSA answering
+ * Throw rather than apply a run that removes more than `TEACHER_CHANGE_LIMIT`
+ * teachers, or takes a role from more than that many who stay. Either is more
+ * likely VATUSA answering
  * wrongly (a short roster, or members without their `roles`) than a real
  * change, and a real one that size is rare enough for an admin to check. A
  * promotion swaps MTR for INS, so it does not count as losing a role.
@@ -320,7 +321,8 @@ export function planTeacherRoster(input: {
  * is wrong, and applying it would mark every teacher as departed and start the
  * clock on their qualifications. A stale teacher roster beats an empty one,
  * the same call the roster sync makes. For the same reason the plan refuses a
- * run that removes, or takes a role from, more than two teachers at once.
+ * run that removes, or takes a role from, more than `TEACHER_CHANGE_LIMIT`
+ * teachers at once.
  */
 export async function syncTeacherRoster(db: Database, env?: Partial<Env>, now = new Date()) {
 	const [rosterRows, teachers, current] = await Promise.all([
