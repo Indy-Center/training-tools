@@ -9,6 +9,7 @@ const teacher = (overrides: Partial<RoomTeacher> = {}): RoomTeacher => ({
 	channelId: null,
 	preferredName: null,
 	rosterName: { first: 'Joanna', last: 'Rivera' },
+	namePrivacy: false,
 	discordId: '500000000000000001',
 	students: [],
 	...overrides
@@ -97,6 +98,57 @@ describe('planTeacherRooms', () => {
 			teacher({ cid: '102', initials: 'SW', rosterName: { first: 'Sam', last: 'Wu' } })
 		]);
 		expect(rooms.map((room) => room.channelName)).toEqual(['Joanna 100', 'joanna 101', 'Sam Wu']);
+	});
+
+	describe('with name privacy set', () => {
+		it('names the channel by first name and CID', () => {
+			const [room] = plan([teacher({ namePrivacy: true })]).rooms;
+			expect(room).toMatchObject({ roleName: 'JR', channelName: 'Joanna 100' });
+		});
+
+		it('still uses a preferred name they chose', () => {
+			const [room] = plan([teacher({ namePrivacy: true, preferredName: ' Jane ' })]).rooms;
+			expect(room).toMatchObject({ roleName: 'JR', channelName: 'Jane' });
+		});
+
+		// Other apps pre-fill a preferred name with the full name: not a choice to show it.
+		it('ignores a preferred name that is just their full name', () => {
+			const { rooms } = plan([
+				teacher({ namePrivacy: true, preferredName: 'joanna  RIVERA' }),
+				teacher({ cid: '101', namePrivacy: true, preferredName: 'Joanna Rivera' })
+			]);
+			expect(rooms.map((room) => [room.roleName, room.channelName])).toEqual([
+				['JR', 'Joanna 100'],
+				['JR', 'Joanna 101']
+			]);
+		});
+
+		it('judges a clash on the names actually chosen', () => {
+			const { rooms } = plan([
+				teacher(),
+				teacher({ cid: '101', initials: 'JX', namePrivacy: true })
+			]);
+			expect(rooms.map((room) => [room.roleName, room.channelName])).toEqual([
+				['JR', 'Joanna Rivera'],
+				['JX', 'Joanna 101']
+			]);
+		});
+
+		it('never rewrites their name, even when another teacher clashes with it', () => {
+			const { rooms } = plan([
+				teacher({ preferredName: 'mary ann 101' }),
+				teacher({
+					cid: '101',
+					initials: 'MAL',
+					namePrivacy: true,
+					rosterName: { first: 'Mary Ann', last: 'Lee' }
+				})
+			]);
+			expect(rooms.map((room) => [room.roleName, room.channelName])).toEqual([
+				['JR', 'mary 100'],
+				['MAL', 'Mary Ann 101']
+			]);
+		});
 	});
 
 	it('passes on the IDs Larry gave last time, so a rename in Discord is followed', () => {

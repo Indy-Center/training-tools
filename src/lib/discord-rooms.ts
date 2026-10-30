@@ -26,6 +26,8 @@ export type RoomTeacher = {
 	preferredName: string | null;
 	/** From the VATUSA roster mirror. Null only for a CID the mirror has never held. */
 	rosterName: { first: string; last: string } | null;
+	/** VATUSA's `flag_nameprivacy`: no last name in the channel. False when the mirror lacks them. */
+	namePrivacy: boolean;
 	discordId: string | null;
 	/** Their students at In Training, Rating Exam or Needs CATP — never their own request. */
 	students: RoomStudent[];
@@ -62,12 +64,22 @@ export function channelSlug(name: string): string {
 		.replace(/^-+|-+$/g, '');
 }
 
-/** Their preferred name when they have set one, otherwise the roster's. */
-function displayName(teacher: RoomTeacher): string | null {
+/**
+ * Their channel's name before any clash is settled. `withCid` names already
+ * hold the CID, so they cannot clash and are never rewritten.
+ */
+function channelNameFor(teacher: RoomTeacher): { name: string; withCid: boolean } | null {
+	const roster = teacher.rosterName;
+	const first = roster?.first.trim() ?? '';
+	const full = roster ? `${roster.first} ${roster.last}`.trim() : '';
 	const preferred = teacher.preferredName?.trim();
-	if (preferred) return preferred;
-	if (!teacher.rosterName) return null;
-	return `${teacher.rosterName.first} ${teacher.rosterName.last}`.trim() || null;
+
+	// Under privacy, a preferred name that is just their full name was pre-filled, not chosen.
+	const choseToShow = !teacher.namePrivacy || channelSlug(preferred ?? '') !== channelSlug(full);
+	if (preferred && choseToShow) return { name: preferred, withCid: false };
+
+	if (teacher.namePrivacy) return first ? { name: `${first} ${teacher.cid}`, withCid: true } : null;
+	return full ? { name: full, withCid: false } : null;
 }
 
 /**
@@ -81,8 +93,13 @@ function displayName(teacher: RoomTeacher): string | null {
  *   mistake — loses nothing. After that the role and the channel are deleted,
  *   and anyone still assigned to them loses access with it. One who left before
  *   any room existed has nothing to delete and is not given one.
+ * - **The channel is named for them:** their preferred name, else the roster's
+ *   first and last name. With VATUSA name privacy set it is their first name
+ *   and CID instead, and a preferred name counts only if it is not just their
+ *   full name.
  * - **Two teachers who would get the same channel** are both named by first
- *   name and CID instead, so neither depends on who was there first.
+ *   name and CID instead, so neither depends on who was there first. A name
+ *   that already holds the CID is left alone.
  */
 export function planTeacherRooms(
 	teachers: readonly RoomTeacher[],
@@ -92,7 +109,7 @@ export function planTeacherRooms(
 	const rooms: TeacherRoom[] = [];
 	const skipped: RoomSkip[] = [];
 	const remove: RoomRemoval[] = [];
-	const named: { teacher: RoomTeacher; name: string }[] = [];
+	const named: { teacher: RoomTeacher; name: string; withCid: boolean }[] = [];
 
 	for (const teacher of teachers) {
 		const hadRoom = teacher.roleId !== null || teacher.channelId !== null;
@@ -112,13 +129,13 @@ export function planTeacherRooms(
 			continue;
 		}
 
-		const name = displayName(teacher);
-		if (!name) {
+		const chosen = channelNameFor(teacher);
+		if (!chosen) {
 			skipped.push({ cid: teacher.cid, reason: 'no-name' });
 			continue;
 		}
 
-		named.push({ teacher, name });
+		named.push({ teacher, ...chosen });
 	}
 
 	const uses = new Map<string, number>();
@@ -127,8 +144,8 @@ export function planTeacherRooms(
 		uses.set(slug, (uses.get(slug) ?? 0) + 1);
 	}
 
-	for (const { teacher, name } of named) {
-		const clash = (uses.get(channelSlug(name)) ?? 0) > 1;
+	for (const { teacher, name, withCid } of named) {
+		const clash = !withCid && (uses.get(channelSlug(name)) ?? 0) > 1;
 		const first = name.split(/\s+/)[0] ?? name;
 
 		const people = [{ cid: teacher.cid, discordId: teacher.discordId }, ...teacher.students];
