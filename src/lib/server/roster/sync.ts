@@ -1,5 +1,6 @@
-import { and, isNull, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
+import { syncStateTable } from '$lib/db/schema/sync-state';
 import { fetchRoster } from '$lib/server/vatusa';
 import {
 	rosterMembersTable,
@@ -76,6 +77,51 @@ export function parseFacilityJoin(value: string | null | undefined): Date | null
 const CHUNK_SIZE = 25;
 
 /**
+ * The most members one run may remove: 5, or 5% of the active mirror,
+ * whichever is larger. VATUSA can answer with a short roster without warning
+ * (on 2026-10-26 it returned 89 of 164), and nothing in its answer says so.
+ */
+export function removalLimit(active: number): number {
+	return Math.max(5, Math.floor(active * 0.05));
+}
+
+/** How long a removal over the limit waits before it applies anyway. */
+const REMOVAL_HOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * `sync_state` key: removals held back for being over the limit. `cursorAt` is
+ * when the hold started, `value` the CIDs it holds, as a JSON array.
+ */
+const REMOVAL_HOLD_KEY = 'roster-removal-hold';
+
+type RemovalHold = { startedAt: Date; cids: string[] };
+
+async function readRemovalHold(db: Database): Promise<RemovalHold | null> {
+	const row = await db.query.syncStateTable.findFirst({
+		where: eq(syncStateTable.key, REMOVAL_HOLD_KEY)
+	});
+	if (!row) return null;
+	return { startedAt: row.cursorAt, cids: JSON.parse(row.value ?? '[]') };
+}
+
+async function writeRemovalHold(db: Database, hold: RemovalHold): Promise<void> {
+	const value = JSON.stringify(hold.cids);
+	await db
+		.insert(syncStateTable)
+		.values({ key: REMOVAL_HOLD_KEY, cursorAt: hold.startedAt, value })
+		.onConflictDoUpdate({ target: syncStateTable.key, set: { value } });
+}
+
+async function clearRemovalHold(db: Database): Promise<void> {
+	await db.delete(syncStateTable).where(eq(syncStateTable.key, REMOVAL_HOLD_KEY));
+}
+
+/** `2026-10-27 03:30 UTC` */
+function formatUtc(date: Date): string {
+	return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+/**
  * Pull the VATUSA roster and reconcile it into our mirror.
  *
  * Upserts everyone present, soft-removes everyone who has disappeared. We
@@ -86,15 +132,21 @@ const CHUNK_SIZE = 25;
  * Throws if the upstream fetch fails or returns an empty roster, so a VATUSA
  * outage leaves the previous mirror intact instead of marking the whole
  * facility as removed.
+ *
+ * Also refuses to remove more than `removalLimit` members in one run, since a
+ * short answer looks like a valid one. Everyone present is still upserted,
+ * added and restored; only the removals wait, in a hold kept in `sync_state`,
+ * and the run throws so the job shows as failing. The hold applies to whoever
+ * is still missing 24 hours after it started, or as soon as it shrinks to the
+ * limit, so a real mass departure lands a day late rather than never.
  */
-export async function syncRoster(db: Database): Promise<RosterSyncResult> {
+export async function syncRoster(db: Database, now = new Date()): Promise<RosterSyncResult> {
 	const members = await fetchRoster();
 
 	if (members.length === 0) {
 		throw new Error('VATUSA roster returned zero members; refusing to sync');
 	}
 
-	const now = new Date();
 	const rows = members.map((member) => toRosterRow(member, now));
 
 	// Classify before writing, so the counts describe what actually changed.
@@ -111,6 +163,19 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 		.filter((row) => previousRemovedAt.get(row.cid) != null)
 		.map((row) => row.cid);
 	const restoredCidSet = new Set(restoredCids);
+
+	const present = new Set(rows.map((row) => row.cid));
+	const activeCids = existing.filter((row) => row.removedAt === null).map((row) => row.cid);
+	const missingCids = activeCids.filter((cid) => !present.has(cid));
+	const limit = removalLimit(activeCids.length);
+	const hold = await readRemovalHold(db);
+	const holdStartedAt = hold?.startedAt ?? now;
+	// The hold is whoever is missing now: returners leave it, newly missing
+	// join it. It applies once it has run for 24 hours, or shrinks to the limit.
+	const holdUntil =
+		missingCids.length > limit && now.getTime() - holdStartedAt.getTime() < REMOVAL_HOLD_MS
+			? new Date(holdStartedAt.getTime() + REMOVAL_HOLD_MS)
+			: null;
 
 	for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 		const statements = rows.slice(i, i + CHUNK_SIZE).map((row) =>
@@ -155,11 +220,13 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 	// Anyone still carrying an older syncedAt was absent from this run. Using the
 	// timestamp as the tombstone marker avoids listing every current CID in a
 	// NOT IN clause, which would exceed D1's 100-parameter limit.
-	const removedRows = await db
-		.update(rosterMembersTable)
-		.set({ removedAt: now })
-		.where(and(lt(rosterMembersTable.syncedAt, now), isNull(rosterMembersTable.removedAt)))
-		.returning({ cid: rosterMembersTable.cid });
+	const removedRows = holdUntil
+		? []
+		: await db
+				.update(rosterMembersTable)
+				.set({ removedAt: now })
+				.where(and(lt(rosterMembersTable.syncedAt, now), isNull(rosterMembersTable.removedAt)))
+				.returning({ cid: rosterMembersTable.cid });
 
 	const removedCids = removedRows.map((row) => row.cid);
 
@@ -178,6 +245,16 @@ export async function syncRoster(db: Database): Promise<RosterSyncResult> {
 		...restoredCids.map((cid) => activityInsert(db, { cid, event: 'roster.returned', at: now })),
 		...removedCids.map((cid) => activityInsert(db, { cid, event: 'roster.left', at: now }))
 	]);
+
+	if (holdUntil) {
+		await writeRemovalHold(db, { startedAt: holdStartedAt, cids: missingCids });
+		throw new Error(
+			`VATUSA roster would remove ${missingCids.length} of ${activeCids.length} members ` +
+				`(limit ${limit}); keeping the mirror. ` +
+				`Applies to whoever is still missing at ${formatUtc(holdUntil)}.`
+		);
+	}
+	if (hold) await clearRemovalHold(db);
 
 	return {
 		fetched: members.length,
