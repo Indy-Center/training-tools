@@ -382,6 +382,12 @@ VATUSA roster, refreshed by cron and **soft-removed** — departed members keep
 their row with `removedAt` stamped, so we can tell "never on the roster" from
 "left last week". Active queries filter `removedAt IS NULL`.
 
+`leftHomeAt` dates the end of a home membership: the sync stamps it when a home
+member is absent or turns up as a visitor, clears it when they are home again,
+and otherwise leaves it, so it is the first day of the current time away. It is
+written with `removedAt`, so a held removal stamps neither. It is not served by
+`getRoster()`.
+
 VATUSA can answer with a short roster that looks like a valid one, so the sync
 **refuses to remove more than 5 members, or 5% of the active roster, in one
 run**. Everyone present is still updated and added; the removals are held (in

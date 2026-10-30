@@ -66,6 +66,15 @@ export const rosterMembersTable = sqliteTable(
 		removedAt: integer('removed_at', { mode: 'timestamp' }),
 
 		/**
+		 * When the member stopped being on the home roster: absent, or present as
+		 * a visitor. Set by the sync on the run that finds a home member gone,
+		 * cleared on any run that finds them home again, otherwise left alone, so
+		 * it is the first date of the current time away. Null for someone who was
+		 * never home. Ours, not served by `getRoster()`.
+		 */
+		leftHomeAt: integer('left_home_at', { mode: 'timestamp' }),
+
+		/**
 		 * When the arrival-certification job last looked at this member.
 		 *
 		 * Ours, not VATUSA's, so the sync upsert deliberately leaves it out of its

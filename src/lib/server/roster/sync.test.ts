@@ -231,3 +231,98 @@ describe('syncRoster — removals', () => {
 		await expect(syncRoster(db, at(2))).rejects.toThrow('missing at 2026-10-27 05:30 UTC');
 	});
 });
+
+describe('syncRoster — leftHomeAt', () => {
+	const DAY = 24 * 60 * 60 * 1000;
+	const day = (n: number) => new Date(NOW.getTime() + n * DAY);
+	const FILLER = [2000001, 2000002, 2000003];
+	let db: Database;
+
+	function vatusaAnswers(list: VatusaRosterMember[]) {
+		vi.mocked(fetchRoster).mockResolvedValueOnce([
+			...FILLER.map((cid) => member({ cid })),
+			...list
+		]);
+	}
+
+	async function leftHomeAt(cid = 3000001): Promise<Date | null> {
+		const rows = await db.select().from(rosterMembersTable);
+		return rows.find((row) => row.cid === String(cid))!.leftHomeAt;
+	}
+
+	beforeEach(async () => {
+		vi.mocked(fetchRoster).mockReset();
+		db = testDb();
+	});
+
+	it('is stamped when a home member goes absent', async () => {
+		vatusaAnswers([member({ cid: 3000001 })]);
+		await syncRoster(db, day(0));
+		expect(await leftHomeAt()).toBeNull();
+		vatusaAnswers([]);
+		await syncRoster(db, day(1));
+		expect(await leftHomeAt()).toEqual(day(1));
+	});
+
+	it('is stamped when a home member becomes a visitor', async () => {
+		vatusaAnswers([member({ cid: 3000001 })]);
+		await syncRoster(db, day(0));
+		vatusaAnswers([member({ cid: 3000001, membership: 'visit' })]);
+		await syncRoster(db, day(1));
+		expect(await leftHomeAt()).toEqual(day(1));
+	});
+
+	it('stays null when a visitor who was never home goes absent', async () => {
+		vatusaAnswers([member({ cid: 3000001, membership: 'visit' })]);
+		await syncRoster(db, day(0));
+		vatusaAnswers([]);
+		await syncRoster(db, day(1));
+		expect(await leftHomeAt()).toBeNull();
+	});
+
+	it('is cleared when the member is back as home', async () => {
+		vatusaAnswers([member({ cid: 3000001 })]);
+		await syncRoster(db, day(0));
+		vatusaAnswers([]);
+		await syncRoster(db, day(1));
+		vatusaAnswers([member({ cid: 3000001 })]);
+		await syncRoster(db, day(2));
+		expect(await leftHomeAt()).toBeNull();
+	});
+
+	it('keeps the first date while the member stays away', async () => {
+		vatusaAnswers([member({ cid: 3000001 })]);
+		await syncRoster(db, day(0));
+		vatusaAnswers([]);
+		await syncRoster(db, day(1));
+		vatusaAnswers([]);
+		await syncRoster(db, day(2));
+		expect(await leftHomeAt()).toEqual(day(1));
+	});
+
+	it('keeps the date when the member is back only as a visitor, then vanishes', async () => {
+		vatusaAnswers([member({ cid: 3000001 })]);
+		await syncRoster(db, day(0));
+		vatusaAnswers([member({ cid: 3000001, membership: 'visit' })]);
+		await syncRoster(db, day(1));
+		vatusaAnswers([member({ cid: 3000001, membership: 'visit' })]);
+		await syncRoster(db, day(2));
+		expect(await leftHomeAt()).toEqual(day(1));
+		vatusaAnswers([]);
+		await syncRoster(db, day(3));
+		expect(await leftHomeAt()).toEqual(day(1));
+	});
+
+	it('is not stamped while the removal is held', async () => {
+		const many = Array.from({ length: 20 }, (_, i) => member({ cid: 4000000 + i }));
+		vatusaAnswers([member({ cid: 3000001 }), ...many]);
+		await syncRoster(db, day(0));
+		vi.mocked(fetchRoster).mockResolvedValueOnce([member({ cid: 2000001 })]);
+		await expect(syncRoster(db, day(1))).rejects.toThrow();
+		expect(await leftHomeAt()).toBeNull();
+
+		vi.mocked(fetchRoster).mockResolvedValueOnce([member({ cid: 2000001 })]);
+		await syncRoster(db, day(2));
+		expect(await leftHomeAt()).toEqual(day(2));
+	});
+});
