@@ -60,6 +60,11 @@ describe('planTeacherRooms', () => {
 		expect(room.channelName).toBe('Jo Rivera');
 	});
 
+	it('uses a preferred name that is just their full name, without name privacy', () => {
+		const [room] = plan([teacher({ preferredName: 'joanna rivera' })]).rooms;
+		expect(room).toMatchObject({ roleName: 'JR', channelName: 'joanna rivera' });
+	});
+
 	it('puts the teacher and their students in the role, the teacher first', () => {
 		const [room] = plan([
 			teacher({
@@ -115,12 +120,24 @@ describe('planTeacherRooms', () => {
 		it('ignores a preferred name that is just their full name', () => {
 			const { rooms } = plan([
 				teacher({ namePrivacy: true, preferredName: 'joanna  RIVERA' }),
-				teacher({ cid: '101', namePrivacy: true, preferredName: 'Joanna Rivera' })
+				teacher({ cid: '101', namePrivacy: true, preferredName: 'Joánna Rivera' })
 			]);
 			expect(rooms.map((room) => [room.roleName, room.channelName])).toEqual([
 				['JR', 'Joanna 100'],
 				['JR', 'Joanna 101']
 			]);
+		});
+
+		// Both slug to nothing, which is not the same as being the same name.
+		it('keeps a preferred name that Discord cannot write', () => {
+			const [room] = plan([
+				teacher({
+					namePrivacy: true,
+					preferredName: '李娜',
+					rosterName: { first: '王', last: '芳' }
+				})
+			]).rooms;
+			expect(room).toMatchObject({ roleName: 'JR', channelName: '李娜' });
 		});
 
 		it('judges a clash on the names actually chosen', () => {

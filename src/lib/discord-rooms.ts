@@ -65,21 +65,30 @@ export function channelSlug(name: string): string {
 }
 
 /**
- * Their channel's name before any clash is settled. `withCid` names already
- * hold the CID, so they cannot clash and are never rewritten.
+ * A channel name before any clash is settled. One that `holdsCid` cannot clash,
+ * so it is never rewritten.
  */
-function channelNameFor(teacher: RoomTeacher): { name: string; withCid: boolean } | null {
+type ChosenName = { name: string; holdsCid: boolean };
+
+function channelNameFor(teacher: RoomTeacher): ChosenName | null {
 	const roster = teacher.rosterName;
-	const first = roster?.first.trim() ?? '';
 	const full = roster ? `${roster.first} ${roster.last}`.trim() : '';
 	const preferred = teacher.preferredName?.trim();
 
-	// Under privacy, a preferred name that is just their full name was pre-filled, not chosen.
-	const choseToShow = !teacher.namePrivacy || channelSlug(preferred ?? '') !== channelSlug(full);
-	if (preferred && choseToShow) return { name: preferred, withCid: false };
+	if (preferred && !(teacher.namePrivacy && isJustFullName(preferred, full))) {
+		return { name: preferred, holdsCid: false };
+	}
+	if (teacher.namePrivacy) {
+		const first = roster?.first.trim();
+		return first ? { name: `${first} ${teacher.cid}`, holdsCid: true } : null;
+	}
+	return full ? { name: full, holdsCid: false } : null;
+}
 
-	if (teacher.namePrivacy) return first ? { name: `${first} ${teacher.cid}`, withCid: true } : null;
-	return full ? { name: full, withCid: false } : null;
+/** Other apps pre-fill a preferred name with the full name: that is not a choice to show it. */
+function isJustFullName(preferred: string, full: string): boolean {
+	const slug = channelSlug(preferred);
+	return slug !== '' && slug === channelSlug(full);
 }
 
 /**
@@ -109,7 +118,7 @@ export function planTeacherRooms(
 	const rooms: TeacherRoom[] = [];
 	const skipped: RoomSkip[] = [];
 	const remove: RoomRemoval[] = [];
-	const named: { teacher: RoomTeacher; name: string; withCid: boolean }[] = [];
+	const named: ({ teacher: RoomTeacher } & ChosenName)[] = [];
 
 	for (const teacher of teachers) {
 		const hadRoom = teacher.roleId !== null || teacher.channelId !== null;
@@ -144,8 +153,8 @@ export function planTeacherRooms(
 		uses.set(slug, (uses.get(slug) ?? 0) + 1);
 	}
 
-	for (const { teacher, name, withCid } of named) {
-		const clash = !withCid && (uses.get(channelSlug(name)) ?? 0) > 1;
+	for (const { teacher, name, holdsCid } of named) {
+		const clash = !holdsCid && (uses.get(channelSlug(name)) ?? 0) > 1;
 		const first = name.split(/\s+/)[0] ?? name;
 
 		const people = [{ cid: teacher.cid, discordId: teacher.discordId }, ...teacher.students];
