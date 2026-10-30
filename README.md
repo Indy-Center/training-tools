@@ -398,7 +398,9 @@ history.
 
 **D1 allows only 100 bound parameters per query** and the facility has more
 members than that, so never write `IN (...)` over the full CID list. The sync
-documents the patterns that avoid it.
+documents the patterns that avoid it. Tests can run code against real queries
+with `testDb()` (`$lib/server/test-db.ts`): an in-memory D1 over `node:sqlite`,
+with every migration applied, which throws past 100 parameters as D1 does.
 
 ### Certifications and endorsements
 
