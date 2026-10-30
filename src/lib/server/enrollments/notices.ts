@@ -454,13 +454,11 @@ export function rosterExpiryNotice(request: {
 	restoreBy: string;
 	closedBy?: string;
 }): Notice {
-	const summary = request.closedBy
-		? `${student(request)} left the ZID home roster; their ${course(request.course)} request is closed for good, closed by ${request.closedBy}.`
-		: `${student(request)} did not return to the ZID home roster by ${formatCardDate(request.restoreBy, 'long')}; their ${course(request.course)} request is closed for good.`;
+	const closedBy = request.closedBy ? `, closed by ${request.closedBy}` : '';
 	return {
 		audience: 'training-admins',
 		title: `Request closed: ${request.name}`,
-		summary
+		summary: `${student(request)} did not return to the ZID home roster by ${formatCardDate(request.restoreBy, 'long')}; their ${course(request.course)} request is closed for good${closedBy}.`
 	};
 }
 

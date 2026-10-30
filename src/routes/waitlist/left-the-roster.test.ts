@@ -113,8 +113,13 @@ const TARGETS = ['Waitlist', 'In Training', 'Rating Exam', 'Needs CATP', 'Withdr
 /**
  * TRK, as far as these actions touch it. A card at Removed offers the way back
  * (ticket 02's transitions) unless `refuse`; a card anywhere else offers Removed.
+ * `beforeTransitions` runs as the transitions are asked for: another admin
+ * acting in between.
  */
-function fakeJira(cards: Record<string, Card>, options: { refuse?: boolean } = {}) {
+function fakeJira(
+	cards: Record<string, Card>,
+	options: { refuse?: boolean; beforeTransitions?: () => Promise<void> } = {}
+) {
 	const calls: { method: string; path: string; body: any }[] = [];
 	let clock = new Date('2026-10-22T00:00:00Z').getTime();
 
@@ -131,6 +136,7 @@ function fakeJira(cards: Record<string, Card>, options: { refuse?: boolean } = {
 
 			if (rest === '/comment') return Response.json({}, { status: 201 });
 			if (rest === '/transitions' && init.method === 'GET') {
+				await options.beforeTransitions?.();
 				const offered =
 					card.status === 'Removed'
 						? options.refuse
@@ -457,6 +463,37 @@ describe('/waitlist ?/restoreNow', () => {
 		expect(result.data).toEqual({ sheetError: GONE_FROM_WINDOW });
 		expect(jira.calls).toEqual([]);
 	});
+
+	it('tells the second of two admins pressing at once that it is no longer waiting', async () => {
+		await addMember({ cid: '1000001' });
+		await addRemoved({ id: 'r1', cid: '1000001', from: 'waitlist' });
+		// The first admin's restore lands between this one's read and its move:
+		// the card is at Waitlist, so TRK offers no way there, and the row is done.
+		fakeJira(
+			{ 'TRK-r1': { status: 'Waitlist' } },
+			{
+				beforeTransitions: async () => {
+					await db
+						.update(enrollmentsTable)
+						.set({
+							status: 'waitlist',
+							rosterRemovedAt: null,
+							rosterRemovedFrom: null,
+							leftHomeAt: null,
+							restoreBy: null
+						})
+						.where(eq(enrollmentsTable.id, 'r1'));
+				}
+			}
+		);
+		const { env, channel } = fakeLarry();
+
+		const result = await post('restoreNow', 'r1', env);
+
+		expect(result.status).toBe(409);
+		expect(result.data).toEqual({ sheetError: GONE_FROM_WINDOW });
+		expect(channel).toEqual([]);
+	});
 });
 
 describe('/waitlist ?/closeForGood', () => {
@@ -479,7 +516,7 @@ describe('/waitlist ?/closeForGood', () => {
 			expect.objectContaining({
 				title: 'Request closed: Jo Rivera',
 				description:
-					'Jo Rivera (1000001) left the ZID home roster; their Simple Local Control (S-LC) request is closed for good, closed by Pat Admin.'
+					'Jo Rivera (1000001) did not return to the ZID home roster by November 19, 2026; their Simple Local Control (S-LC) request is closed for good, closed by Pat Admin.'
 			})
 		]);
 	});

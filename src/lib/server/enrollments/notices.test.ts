@@ -385,7 +385,7 @@ describe('roster removal notices', () => {
 		expect(notice.audience).toBe('training-admins');
 		expect(notice.title).toBe('Request closed: Jo Rivera');
 		expect(notice.summary).toBe(
-			'Jo Rivera (1234567) left the ZID home roster; their Terminal Radar Control (T-RC) request is closed for good, closed by Pat Admin.'
+			'Jo Rivera (1234567) did not return to the ZID home roster by November 19, 2026; their Terminal Radar Control (T-RC) request is closed for good, closed by Pat Admin.'
 		);
 	});
 
