@@ -275,7 +275,12 @@ export const enrollmentsTable = sqliteTable(
 		 * Cleared when the student is back on the home roster.
 		 */
 		keptInLineAt: integer('kept_in_line_at', { mode: 'timestamp' }),
-		keptInLineBy: text('kept_in_line_by')
+		keptInLineBy: text('kept_in_line_by'),
+		/**
+		 * When the training admins were told Jira refused this request's restore,
+		 * so a retry every pass tells them once. Cleared when the restore succeeds.
+		 */
+		restoreRefusalToldAt: integer('restore_refusal_told_at', { mode: 'timestamp' })
 	},
 	(table) => [
 		index('enrollments_cid_idx').on(table.cid),

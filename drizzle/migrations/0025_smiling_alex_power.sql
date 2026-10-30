@@ -1,0 +1,1 @@
+ALTER TABLE `enrollments` ADD `restore_refusal_told_at` integer;

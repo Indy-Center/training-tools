@@ -169,6 +169,13 @@
       "when": 1793380316841,
       "tag": "0024_faulty_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1793382070361,
+      "tag": "0025_smiling_alex_power",
+      "breakpoints": true
     }
   ]
 }
