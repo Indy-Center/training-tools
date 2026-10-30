@@ -169,8 +169,10 @@ describe('syncTeacherRoster — refusing large changes', () => {
 		const db = testDb();
 		// Migration 0010 seeds the real teacher roster; start from ours instead.
 		await db.delete(teachersTable);
-		const roles = (held: boolean) => (held ? [{ facility: FACILITY_ID, role: 'MTR' }] : []);
-		// Five mentors on file; VATUSA now sends three of them without their roles.
+		// Five mentors on file; VATUSA now sends 1–3 without their roles.
+		const stillMentors = new Set(['4', '5']);
+		const roles = (cid: string) =>
+			stillMentors.has(cid) ? [{ facility: FACILITY_ID, role: 'MTR' }] : [];
 		await db.insert(rosterMembersTable).values(
 			['1', '2', '3', '4', '5'].map((cid) => ({
 				cid,
@@ -180,7 +182,7 @@ describe('syncTeacherRoster — refusing large changes', () => {
 				ratingShort: 'S3',
 				membership: 'home' as const,
 				facility: FACILITY_ID,
-				data: { roles: roles(cid > '3') } as never
+				data: { roles: roles(cid) } as never
 			}))
 		);
 		await db.insert(teachersTable).values(
