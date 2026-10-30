@@ -8,6 +8,11 @@ import {
 	examStatus,
 	needsCatpNotice,
 	newEnrollmentNotice,
+	rosterRemovalExaminerMessage,
+	rosterRemovalNotice,
+	rosterRemovalStudentMessage,
+	rosterRemovalSummaryNotice,
+	rosterRemovalTeacherMessage,
 	stuckRequestNotice,
 	vatusaOverdueNotice,
 	vatusaReminderMessage,
@@ -288,5 +293,96 @@ describe('vatusaUndeliveredNotice', () => {
 		expect(notice.audience).toBe('training-admins');
 		expect(notice.title).toContain('Jo Rivera');
 		expect(field(notice, 'Message')).toContain('22 days left');
+	});
+});
+
+describe('roster removal notices', () => {
+	const removal = {
+		...request,
+		was: 'in-training',
+		leftHomeOn: '2026-10-01',
+		restoreBy: '2026-10-31',
+		untold: []
+	};
+
+	it('tells the training admins what was removed, from where, and until when', () => {
+		const notice = rosterRemovalNotice(removal);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toBe('Left the home roster: Jo Rivera');
+		expect(notice.summary).toBe(
+			'Jo Rivera has been off the ZID home roster for more than 24 hours, so their Terminal Radar Control (T-RC) request was removed automatically. It is restored if they are back on the home roster by October 31, 2026.'
+		);
+		expect(field(notice, 'Was')).toBe('In training');
+		expect(field(notice, 'Left the home roster')).toBe('October 1, 2026');
+		expect(field(notice, 'Teacher')).toBe('SW');
+		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+		expect(field(notice, 'Not told')).toBeUndefined();
+	});
+
+	it('says who could not be told', () => {
+		const notice = rosterRemovalNotice({
+			...removal,
+			untold: ['the student (no Discord ID)', 'teacher SW (no Discord ID)']
+		});
+		expect(field(notice, 'Not told')).toBe(
+			'the student (no Discord ID), teacher SW (no Discord ID)'
+		);
+	});
+
+	it('tells the student when to be back by', () => {
+		const message = rosterRemovalStudentMessage({ course: 'T-RC', restoreBy: '2026-10-31' });
+		expect(message.title).toBe('Your training request is paused');
+		expect(message.summary).toBe(
+			"You've left the ZID home roster, so your Terminal Radar Control (T-RC) request has been taken off the training queue. If you are back on the home roster by October 31, 2026, it is restored to where it was."
+		);
+	});
+
+	it('tells the teacher their student has gone and the slot is free', () => {
+		const message = rosterRemovalTeacherMessage({
+			name: 'Jo Rivera',
+			course: 'T-RC',
+			restoreBy: '2026-10-31'
+		});
+		expect(message.title).toBe('Jo Rivera has left the home roster');
+		expect(message.summary).toBe(
+			'Jo Rivera has left the ZID home roster, so their Terminal Radar Control (T-RC) training is paused and no longer takes one of your slots. If they are back by October 31, 2026, their request is restored to where it was.'
+		);
+	});
+
+	it('tells the examiner the exam they claimed is off', () => {
+		const message = rosterRemovalExaminerMessage({
+			name: 'Jo Rivera',
+			course: 'T-RC',
+			restoreBy: '2026-10-31'
+		});
+		expect(message.title).toBe("Jo Rivera's rating exam is paused");
+		expect(message.summary).toBe(
+			'Jo Rivera has left the ZID home roster, so the Terminal Radar Control (T-RC) rating exam you claimed is paused. If they are back by October 31, 2026, their request is restored to where it was.'
+		);
+	});
+
+	it('sums up a first run in one notice, a line per request', () => {
+		const notice = rosterRemovalSummaryNotice([
+			{ ...request, was: 'waitlist', leftHomeOn: '2026-08-01' },
+			{
+				...request,
+				name: 'Sam Lee',
+				cid: '7654321',
+				issueKey: null,
+				issueUrl: null,
+				was: 'in-training',
+				leftHomeOn: '2026-07-15'
+			}
+		]);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.title).toBe('Closed 2 requests from students who left the home roster');
+		expect(notice.summary).toBe(
+			[
+				'These students left the ZID home roster more than 30 days ago, so their requests were removed and closed for good. Nobody was messaged. Each can enroll again, at the back of the line.',
+				'',
+				'Jo Rivera (1234567): Terminal Radar Control (T-RC), On the waitlist, left August 1, 2026 ([TRK-42](https://jira.test/browse/TRK-42))',
+				'Sam Lee (7654321): Terminal Radar Control (T-RC), In training, left July 15, 2026'
+			].join('\n')
+		);
 	});
 });

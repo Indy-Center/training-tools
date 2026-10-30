@@ -8,7 +8,12 @@ import { CLOSED_ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 import { resolveJiraConfig } from '$lib/server/jira/client';
 import { transitionIssueToStatus, WITHDRAWN_STATUS } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
-import { findSelectOption, toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
+import {
+	findSelectOption,
+	REMOVED_STATUS,
+	toFacilityDate,
+	updateIssueFields
+} from '$lib/server/jira/progress';
 import { TEACHER_FIELD } from '$lib/server/jira/status';
 import { getPeople, getRosterEmails } from '$lib/server/roster';
 import {
@@ -482,9 +487,6 @@ export async function changeTeacher(
 		await note(config, issueKey, `Teacher changed from ${was} to ${label} by ${by}.`);
 	});
 }
-
-/** TRK's status for someone staff took off the list. Matched by name. */
-const REMOVED_STATUS = 'Removed';
 
 /**
  * Staff take someone off the list: the card moves to Removed. For a request

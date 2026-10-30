@@ -180,6 +180,7 @@ Every 10 minutes (`*/10 * * * *`), in this order:
 | jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)               |
 | enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                         |
 | enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)               |
+| roster removals           | Removes requests whose student left the home roster (`processRosterRemovals`)              |
 | examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)               |
 | certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                  |
 | vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)        |
@@ -197,11 +198,13 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters ten times, and each is commented in `scheduled.ts`: certification
+Order matters eleven times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs after it so an issue filed moments ago is read back in the same run;
+the roster removals run after the sweep, so each card is judged where it is now,
+and before the announcements, so a restored request is not announced as an arrival;
 and the examiner cleanup and certification pass run after it, so a card the sweep
 has just seen go back into training, or arrive at Audit, is dealt
 with in the same run; and the announcements run last, so a card certified a
@@ -548,11 +551,11 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                |
-| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                              |
-| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                   |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP; a request removed because its student left the home roster |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                                                                                          |
+| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                                                                               |
 
 The rating exam post is the one notice this app goes on looking after. It
 carries a **Status** line ("Waiting for an examiner", then "Claimed by …") and
@@ -569,10 +572,12 @@ A card at Needs CATP is described as a failed exam only when it arrived from
 Rating Exam; staff can also move one there from In Training.
 
 Only the people a notice names are pinged; nothing typed into a field can mention
-anyone. **Students and teachers are messaged by the app in two cases**: a
+anyone. **Students and teachers are messaged by the app in three cases**: a
 pairing, posted in the teacher's own channel (see [The waitlist, for
-staff](#the-waitlist-for-staff)), and reminders about an assigned VATUSA course,
-sent privately. Those do not use an audience from the table above.
+staff](#the-waitlist-for-staff)), reminders about an assigned VATUSA course,
+sent privately, and a roster removal, sent privately to the student, their
+teacher and their examiner (see [Enrollments](#enrollments)). Those do not use
+an audience from the table above.
 
 **Arrivals are announced once.** `enrollments.announced_status` records the last
 status a request was announced at; `announceArrivals()` handles any request
@@ -628,6 +633,28 @@ student's own teacher.
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
+
+**A student who leaves the home roster comes off their request by themselves**
+(decisions/0037, the `roster removals` job). Once their `left_home_at` is more
+than 24 hours ago, an open request at Waitlist, In Training, Rating Exam or
+Needs CATP (never Audit) that is not **kept in line** is removed: the card is
+commented on ("Left the ZID home roster on … restored to … if back on the home
+roster by …"), moved to Removed and read back, then the row is stamped with
+`roster_removed_at`, the stage it left, the student's `left_home_at` and
+`restore_by` (30 days after leaving). Jira refusing leaves the row for the next
+pass. A request not yet filed is stamped and set to `removed` here; neither the
+reconcile nor `/admin`'s Retry ever files it, and `/admin` does not list it as
+unfiled. The rule is `$lib/roster-removal.ts`. While
+`roster_removed_at` is set and `restore_closed_at` is not, the request is **in
+its restore window**: it still counts as the student's open request (so they
+cannot file another, and `/` says it is paused), but not as waiting, so the
+people behind it on `/waitlist` move up. The training admins are told, and the
+student, the teacher (if at In Training) and the examiner (if one had claimed it)
+are messaged privately; anyone with no Discord ID, or a student who chose email,
+is named in the admins' notice instead. **The first run** (until a pass finishes
+with nothing left due; `sync_state` key `roster-removals-first-run`) removes and
+closes at once, as `expired`, any request whose student left more than 30 days
+ago, with one summary for the admins and no DMs.
 
 **The form offers the next course in the student's progression, and sometimes
 one beside it.** It comes from the certifications this app holds, walking the
