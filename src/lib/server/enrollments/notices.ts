@@ -339,3 +339,102 @@ export function vatusaUndeliveredNotice(
 		]
 	};
 }
+
+/*
+ * Roster removal: a request taken off because its student left the home
+ * roster. Dates arrive as facility days (`YYYY-MM-DD`, from `toFacilityDate()`).
+ * See `$lib/server/enrollments/roster-removals.ts`.
+ */
+
+/**
+ * A request was removed because its student left the home roster. `was` is the
+ * status it left; `untold` names everyone the removal should have reached
+ * privately and could not.
+ */
+export function rosterRemovalNotice(
+	request: NoticeRequest & {
+		was: string;
+		leftHomeOn: string;
+		restoreBy: string;
+		untold: string[];
+	}
+): Notice {
+	return {
+		audience: 'training-admins',
+		title: `Left the home roster: ${request.name}`,
+		summary: `${request.name} has been off the ZID home roster for more than 24 hours, so their ${course(request.course)} request was removed automatically. It is restored if they are back on the home roster by ${formatCardDate(request.restoreBy, 'long')}.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Was', value: STATUS_LABELS[request.was] ?? request.was },
+			...(request.teacher ? [{ label: 'Teacher', value: request.teacher }] : []),
+			...(request.examiner ? [{ label: 'Examiner', value: request.examiner }] : []),
+			{ label: 'Left the home roster', value: formatCardDate(request.leftHomeOn, 'long') },
+			...(request.untold.length > 0
+				? [{ label: 'Not told', value: request.untold.join(', ') }]
+				: []),
+			...card(request)
+		]
+	};
+}
+
+/** What the student is told, privately, when their request is removed. */
+export function rosterRemovalStudentMessage(request: {
+	course: string;
+	restoreBy: string;
+}): DirectNotice {
+	return {
+		title: 'Your training request is paused',
+		summary: `You've left the ZID home roster, so your ${course(request.course)} request has been taken off the training queue. If you are back on the home roster by ${formatCardDate(request.restoreBy, 'long')}, it is restored to where it was.`,
+		link: SITE_URL
+	};
+}
+
+/** What the teacher of a student in training is told, privately. */
+export function rosterRemovalTeacherMessage(request: {
+	name: string;
+	course: string;
+	restoreBy: string;
+}): DirectNotice {
+	return {
+		title: `${request.name} has left the home roster`,
+		summary: `${request.name} has left the ZID home roster, so their ${course(request.course)} training is paused and no longer takes one of your slots. If they are back by ${formatCardDate(request.restoreBy, 'long')}, their request is restored to where it was.`
+	};
+}
+
+/** What the examiner who had claimed the rating exam is told, privately. */
+export function rosterRemovalExaminerMessage(request: {
+	name: string;
+	course: string;
+	restoreBy: string;
+}): DirectNotice {
+	return {
+		title: `${request.name}'s rating exam is paused`,
+		summary: `${request.name} has left the ZID home roster, so the ${course(request.course)} rating exam you claimed is paused. If they are back by ${formatCardDate(request.restoreBy, 'long')}, their request is restored to where it was.`
+	};
+}
+
+/**
+ * The first run's removals of students who left more than 30 days ago: removed
+ * and closed in the same pass, with nobody messaged. One notice for all of
+ * them, a line each, in the description rather than as fields so that more
+ * than Discord's 25 fields still fit.
+ */
+export function rosterRemovalSummaryNotice(
+	requests: (NoticeRequest & { was: string; leftHomeOn: string })[]
+): Notice {
+	const lines = requests.map((request) => {
+		const where = card(request)[0]?.value;
+		return `${student(request)}: ${course(request.course)}, ${STATUS_LABELS[request.was] ?? request.was}, left ${formatCardDate(request.leftHomeOn, 'long')}${where ? ` (${where})` : ''}`;
+	});
+
+	return {
+		audience: 'training-admins',
+		title: `Closed ${requests.length} ${requests.length === 1 ? 'request' : 'requests'} from students who left the home roster`,
+		summary: [
+			'These students left the ZID home roster more than 30 days ago, so their requests were removed and closed for good. Nobody was messaged. Each can enroll again, at the back of the line.',
+			'',
+			...lines
+		].join('\n')
+	};
+}
