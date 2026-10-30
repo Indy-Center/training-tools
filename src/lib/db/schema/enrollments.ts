@@ -60,6 +60,22 @@ export type EnrollmentStatus = (typeof ENROLLMENT_STATUSES)[number];
 export const CLOSED_ENROLLMENT_STATUSES = ['completed', 'removed', 'withdrawn'] as const;
 
 /**
+ * The open statuses a roster removal takes a request from. Never
+ * `certification-update`: the course is passed, so nothing is taken away.
+ */
+export const ROSTER_REMOVABLE_STATUSES = [
+	'waitlist',
+	'in-training',
+	'rating-exam',
+	'needs-catp'
+] as const satisfies readonly EnrollmentStatus[];
+export type RosterRemovableStatus = (typeof ROSTER_REMOVABLE_STATUSES)[number];
+
+/** Why a restore window ended without a restore. */
+export const RESTORE_CLOSED_REASONS = ['expired', 'closed-by-admin', 'moved-on-board'] as const;
+export type RestoreClosedReason = (typeof RESTORE_CLOSED_REASONS)[number];
+
+/**
  * A controller's request for training in a course.
  *
  * **This is the record we own.** The queue the training staff work is Jira
@@ -230,7 +246,36 @@ export const enrollmentsTable = sqliteTable(
 		 * `createdAt` is the issue's `Waitlisted` date, because that is the queue
 		 * position staff gave them. See `$lib/server/enrollments/import.ts`.
 		 */
-		importedAt: integer('imported_at', { mode: 'timestamp' })
+		importedAt: integer('imported_at', { mode: 'timestamp' }),
+
+		/**
+		 * A **roster removal**: the app took this request off because its student
+		 * left the home roster. See `$lib/roster-removal.ts` and
+		 * decisions/0037-roster-removal-and-restore.md
+		 *
+		 * `rosterRemovedAt` is when, `rosterRemovedFrom` the status it left,
+		 * `leftHomeAt` the student's `roster_members.left_home_at` at the time
+		 * (the restore window starts there) and `restoreBy` that plus 30 days. All
+		 * null until a removal, and cleared again by a restore.
+		 *
+		 * The request is **in its restore window** while `rosterRemovedAt` is set
+		 * and `restoreClosedAt` is null. It still counts as open then, so the
+		 * student cannot file another (`getOpenEnrollment()`). Not served by RPC.
+		 */
+		rosterRemovedAt: integer('roster_removed_at', { mode: 'timestamp' }),
+		rosterRemovedFrom: text('roster_removed_from', { enum: ROSTER_REMOVABLE_STATUSES }),
+		leftHomeAt: integer('left_home_at', { mode: 'timestamp' }),
+		restoreBy: integer('restore_by', { mode: 'timestamp' }),
+		/** When the window ended without a restore, and why. Once set, never removed or restored again. */
+		restoreClosedAt: integer('restore_closed_at', { mode: 'timestamp' }),
+		restoreClosedReason: text('restore_closed_reason', { enum: RESTORE_CLOSED_REASONS }),
+		/**
+		 * **Kept in line**: exempt from roster removal while the student is away.
+		 * `keptInLineBy` is the admin's CID, or null when the board did it.
+		 * Cleared when the student is back on the home roster.
+		 */
+		keptInLineAt: integer('kept_in_line_at', { mode: 'timestamp' }),
+		keptInLineBy: text('kept_in_line_by')
 	},
 	(table) => [
 		index('enrollments_cid_idx').on(table.cid),
