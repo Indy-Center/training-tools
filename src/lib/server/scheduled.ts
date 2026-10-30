@@ -144,7 +144,9 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 					result.finished +
 					result.closedOnBoard +
 					result.restored +
-					result.restoreRefused;
+					result.restoreRefused +
+					result.expired +
+					result.keptInLineCleared;
 				return acted > 0 ? result : null;
 			}
 		},

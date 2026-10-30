@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getWaitlistPosition } from '$lib/server/enrollments';
+import { eq } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { testDb } from '$lib/server/test-db';
 import { enrollmentsTable } from '$lib/db/schema/enrollments';
@@ -101,6 +103,76 @@ describe('/ as a student whose request is paused by a roster removal', () => {
 			});
 		});
 	}
+});
+
+describe('/ once the restore window has expired', () => {
+	it('no longer shows the paused request, and ?/enroll no longer refuses for it', async () => {
+		await member({ leftHomeAt: LEFT, membership: 'visit' });
+		await db
+			.update(enrollmentsTable)
+			.set({ restoreClosedAt: RESTORE_BY, restoreClosedReason: 'expired' })
+			.where(eq(enrollmentsTable.id, 'a'));
+
+		const data = (await visit()) as Exclude<Awaited<ReturnType<typeof visit>>, void>;
+		expect(data.flow).not.toBe('left-home-roster');
+		expect(data.request).toBeNull();
+		// Not refused for the closed request: a visitor is sent on, as with none.
+		await expect(enroll()).rejects.toMatchObject({ status: 303 });
+	});
+});
+
+describe('/ as a home controller whose restore window expired', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('offers enrolling, and files the new request behind everyone already waiting', async () => {
+		// VATSIM's session history, empty: nothing for the consolidation check to count.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => Response.json({ items: [], count: 0 }))
+		);
+		await member({ membership: 'home' });
+		await db
+			.update(enrollmentsTable)
+			.set({ restoreClosedAt: RESTORE_BY, restoreClosedReason: 'expired' })
+			.where(eq(enrollmentsTable.id, 'a'));
+
+		const data = (await visit()) as Exclude<Awaited<ReturnType<typeof visit>>, void>;
+		expect(data.flow).toBe('enroll');
+		expect(data.request).toBeNull();
+		expect(data.enroll).not.toBeNull();
+
+		// Someone already waiting for the course the form offers.
+		const offered = data.courseOptions[0];
+		await db.insert(enrollmentsTable).values({
+			id: 'w',
+			cid: '1000009',
+			course: offered,
+			submittedName: 'Ana Ruiz',
+			createdAt: new Date('2026-10-25T00:00:00Z')
+		});
+
+		const form = new FormData();
+		form.set('course', offered);
+		form.set('notificationPreference', 'discord');
+		form.set('availability', 'Evenings');
+		form.set('agreed', 'on');
+		await expect(
+			actions.enroll({
+				locals: locals(),
+				request: new Request('https://training.test/?/enroll', { method: 'POST', body: form }),
+				platform: undefined
+			} as unknown as EnrollEvent)
+		).rejects.toMatchObject({ status: 303 });
+
+		const filed = await db.query.enrollmentsTable.findMany({
+			where: eq(enrollmentsTable.cid, CID)
+		});
+		const fresh = filed.find((row) => row.id !== 'a')!;
+		expect(fresh.course).toBe(offered);
+		expect(await getWaitlistPosition(db, fresh)).toEqual({ ahead: 1, waiting: 2 });
+	});
 });
 
 // Home again, before the roster removals pass has restored the request.

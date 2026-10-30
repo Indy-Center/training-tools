@@ -676,6 +676,15 @@ training admins, the student, the teacher it was restored to and an examiner
 still on the card are told. Until the pass runs, `/` tells a returning student
 the request is being restored, and they cannot enroll again.
 
+**A window that runs out is closed** (`roster-expiry.ts`, the same job, after the
+restores and before the removals). A request in its window whose `restore_by` has
+passed gets `restore_closed_at` and `restore_closed_reason = 'expired'`; the
+training admins get one line, Jira is not touched and the student is not told.
+Once closed it counts as open no more, so the student may enroll again, at the
+back of the line, and it is never removed or restored again. In the same place the
+job clears `kept_in_line_at` and `kept_in_line_by` on an open request whose student
+is on the mirror as `home` again, so a later departure counts from scratch.
+
 **The form offers the next course in the student's progression, and sometimes
 one beside it.** It comes from the certifications this app holds, walking the
 `rank` ladder and each credential's `requires` — so an advanced-ground controller

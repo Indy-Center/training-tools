@@ -13,7 +13,7 @@ import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { RE_INSTRUCTOR_FIELD, TEACHER_FIELD } from '$lib/server/jira/status';
 import { announceArrivals } from './announce';
-import { getWaitlistPosition } from './index';
+import { getOpenEnrollment, getWaitlistPosition } from './index';
 import { processRosterRemovals } from './roster-removals';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -603,5 +603,178 @@ describe('a student who leaves again after a restore', () => {
 		expect(again.rosterRemovedAt).toEqual(later);
 		expect(again.leftHomeAt).toEqual(leftAgain);
 		expect(again.restoreBy).toEqual(new Date(leftAgain.getTime() + 30 * DAY));
+	});
+});
+
+describe('processRosterRemovals: expire a window that ran out', () => {
+	const PAST = new Date(RESTORE_BY.getTime() + 1000);
+	const BEFORE = new Date(RESTORE_BY.getTime() - 1000);
+
+	beforeEach(async () => {
+		await addMember({ cid: '1000001', membership: 'visit', leftHomeAt: LEFT });
+	});
+
+	it('closes a window one second past, tells the admins once, and leaves Jira and the student alone', async () => {
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		const jira = fakeJira({ 'TRK-a': { status: 'Removed' } });
+		const { env, channel, direct } = fakeLarry();
+
+		expect(await processRosterRemovals(db, env, PAST)).toMatchObject({ expired: 1 });
+
+		const closed = await row('a');
+		expect(closed.restoreClosedAt).toEqual(PAST);
+		expect(closed.restoreClosedReason).toBe('expired');
+		expect(closed.status).toBe('removed');
+		expect(jira.calls).toEqual([]);
+		expect(direct).toEqual([]);
+		expect(channel).toHaveLength(1);
+		expect(channel[0].description).toBe(
+			'Jo Rivera (1000001) did not return to the ZID home roster by November 19, 2026; their Simple Local Control (S-LC) request is closed for good.'
+		);
+
+		const later = new Date(PAST.getTime() + 10 * 60_000);
+		expect(await processRosterRemovals(db, env, later)).toMatchObject({ expired: 0 });
+		expect(channel).toHaveLength(1);
+		expect((await row('a')).restoreClosedAt).toEqual(PAST);
+	});
+
+	it('leaves a window one second before open', async () => {
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		fakeJira({ 'TRK-a': { status: 'Removed' } });
+		const { env, channel } = fakeLarry();
+
+		expect(await processRosterRemovals(db, env, BEFORE)).toMatchObject({ expired: 0 });
+
+		expect((await row('a')).restoreClosedAt).toBeNull();
+		expect(channel).toEqual([]);
+	});
+
+	it('restores a student who is back on the pass restore_by passes, rather than expiring them', async () => {
+		await db
+			.update(rosterMembersTable)
+			.set({ membership: 'home', leftHomeAt: null })
+			.where(eq(rosterMembersTable.cid, '1000001'));
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		fakeJira({ 'TRK-a': { status: 'Removed' } });
+		const { env, channel } = fakeLarry();
+
+		expect(await processRosterRemovals(db, env, PAST)).toMatchObject({ restored: 1, expired: 0 });
+
+		const restored = await row('a');
+		expect(restored.status).toBe('waitlist');
+		expect(restored.restoreClosedAt).toBeNull();
+		expect(channel.map((m) => m.title)).toEqual(['Restored: Jo Rivera']);
+	});
+
+	it('lets the student enroll again, at the back of the line', async () => {
+		await addMember({ cid: '1000003' });
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		await db.insert(enrollmentsTable).values({
+			id: 'w',
+			cid: '1000003',
+			course: 'S-LC',
+			submittedName: 'Ana Ruiz',
+			createdAt: new Date('2026-09-10T00:00:00Z')
+		});
+		fakeJira({ 'TRK-a': { status: 'Removed' } });
+		expect((await getOpenEnrollment(db, '1000001'))?.id).toBe('a');
+
+		await processRosterRemovals(db, fakeLarry().env, PAST);
+
+		expect(await getOpenEnrollment(db, '1000001')).toBeNull();
+		await db.insert(enrollmentsTable).values({
+			id: 'n',
+			cid: '1000001',
+			course: 'S-LC',
+			submittedName: 'Jo Rivera',
+			createdAt: PAST
+		});
+		expect(await getWaitlistPosition(db, await row('n'))).toEqual({ ahead: 1, waiting: 2 });
+	});
+
+	it('never removes or restores a closed request again', async () => {
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		const jira = fakeJira({ 'TRK-a': { status: 'Removed' } });
+		await processRosterRemovals(db, fakeLarry().env, PAST);
+		await db
+			.update(rosterMembersTable)
+			.set({ membership: 'home', leftHomeAt: null })
+			.where(eq(rosterMembersTable.cid, '1000001'));
+
+		await processRosterRemovals(db, fakeLarry().env, new Date(PAST.getTime() + DAY));
+
+		expect(jira.calls).toEqual([]);
+		expect((await row('a')).status).toBe('removed');
+	});
+});
+
+describe('processRosterRemovals: clear kept in line for a student back home', () => {
+	const KEPT = new Date('2026-10-10T00:00:00Z');
+
+	async function addKept(id: string, cid: string, overrides: Partial<InsertEnrollment> = {}) {
+		await db.insert(enrollmentsTable).values({
+			id,
+			cid,
+			course: 'S-LC',
+			status: 'waitlist',
+			submittedName: 'Jo Rivera',
+			createdAt: CREATED,
+			keptInLineAt: KEPT,
+			keptInLineBy: '1999999',
+			...overrides
+		});
+	}
+
+	it('clears it on the next pass, and the student is then removed after 24 hours away', async () => {
+		await addMember({ cid: '1000001' });
+		await addKept('a', '1000001');
+
+		expect(await processRosterRemovals(db, undefined, NOW)).toMatchObject({
+			keptInLineCleared: 1
+		});
+		const cleared = await row('a');
+		expect(cleared.keptInLineAt).toBeNull();
+		expect(cleared.keptInLineBy).toBeNull();
+
+		// Away again: the exemption is gone, so 24 hours later the request comes off.
+		const leftAgain = new Date(NOW.getTime() + DAY);
+		await db
+			.update(rosterMembersTable)
+			.set({ membership: 'visit', leftHomeAt: leftAgain })
+			.where(eq(rosterMembersTable.cid, '1000001'));
+		const later = new Date(leftAgain.getTime() + DAY + 60_000);
+		expect(await processRosterRemovals(db, undefined, later)).toMatchObject({
+			keptInLineCleared: 0,
+			due: 1,
+			removed: 1
+		});
+		expect((await row('a')).rosterRemovedAt).toEqual(later);
+	});
+
+	it('leaves it kept while the student is still away', async () => {
+		await addMember({ cid: '1000001', membership: 'visit', leftHomeAt: LEFT });
+		await addKept('a', '1000001');
+
+		expect(await processRosterRemovals(db, undefined, NOW)).toMatchObject({
+			keptInLineCleared: 0
+		});
+
+		const kept = await row('a');
+		expect(kept.keptInLineAt).toEqual(KEPT);
+		expect(kept.keptInLineBy).toBe('1999999');
+	});
+
+	it('clears one the board kept (no admin) and leaves a closed request alone', async () => {
+		await addMember({ cid: '1000001' });
+		await addMember({ cid: '1000003' });
+		await addKept('a', '1000001', { keptInLineBy: null });
+		await addKept('b', '1000003', { status: 'withdrawn', withdrawnAt: KEPT });
+
+		expect(await processRosterRemovals(db, undefined, NOW)).toMatchObject({
+			keptInLineCleared: 1
+		});
+
+		expect((await row('a')).keptInLineAt).toBeNull();
+		expect((await row('b')).keptInLineAt).toEqual(KEPT);
 	});
 });
