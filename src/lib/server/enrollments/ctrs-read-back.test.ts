@@ -121,12 +121,18 @@ function fakeServices(
 				return Response.json({
 					transitions: [
 						{ id: '41', name: 'Pass', to: { id: '4', name: 'Audit' } },
-						{ id: '42', name: 'Fail', to: { id: '5', name: 'Needs CATP' } }
+						{ id: '42', name: 'Fail', to: { id: '5', name: 'Needs CATP' } },
+						{ id: '43', name: 'Training complete', to: { id: '3', name: 'Rating Exam' } }
 					]
 				});
 			}
 			if (rest === '/transitions') {
-				card.status = body.transition.id === '41' ? 'Audit' : 'Needs CATP';
+				card.status =
+					body.transition.id === '41'
+						? 'Audit'
+						: body.transition.id === '43'
+							? 'Rating Exam'
+							: 'Needs CATP';
 				card.updated += 60_000;
 				return new Response(null, { status: 204 });
 			}
@@ -309,6 +315,170 @@ describe('the ctrs records job, Rating Exam half', () => {
 		await addCard({ id: '1', cid: '1000001' });
 		const { env } = fakeEnv();
 		const result = await checkCtrsRecords(db, { ...env, VATUSA_API_KEY: '' }, NOW);
-		expect(result).toMatchObject({ skipped: 'no-api-key', ratingExam: { checked: 0 } });
+		expect(result).toMatchObject({
+			skipped: 'no-api-key',
+			ratingExam: { checked: 0 },
+			inTraining: { checked: 0 }
+		});
+	});
+});
+
+describe('the ctrs records job, In Training half', () => {
+	const recommend = (overrides: Partial<Record> = {}) =>
+		pass({ ots_status: 3, instructor_id: 1000900, ...overrides });
+
+	const addTraining = (overrides: Partial<InsertEnrollment> & { id: string; cid: string }) =>
+		addCard({ status: 'in-training', teacher: 'CD', ...overrides });
+
+	it("moves the teacher's Recommend to Rating Exam, dated from the session", async () => {
+		await addTraining({ id: '1', cid: '1000001' });
+		const jira = fakeServices({ '1000001': [recommend()] });
+		const { env } = fakeEnv();
+
+		const result = await checkCtrsRecords(db, env, NOW);
+
+		expect(result.inTraining).toEqual({ checked: 1, moved: 1, told: 0, errors: 0 });
+		expect(result.ratingExam.checked).toBe(0);
+		expect(jira.puts('TRK-1')).toContainEqual({ [JIRA_FIELDS.trainingCompleted]: '2026-10-25' });
+		expect(jira.comments('TRK-1')).toContain(
+			"Recommended for a rating exam: CTRS record 501 of 2026-10-25, filed by Casey Dunn (1000900), found in VATUSA's records. (through training.flyindycenter.com)"
+		);
+		expect((await row('1')).status).toBe('rating-exam');
+	});
+
+	it("tells once, and doesn't move, when another instructor filed it", async () => {
+		await addTraining({ id: '1', cid: '1000001', teacher: 'AB' });
+		const jira = fakeServices({ '1000001': [recommend()] });
+		const { env, sent } = fakeEnv();
+
+		const first = await checkCtrsRecords(db, env, NOW);
+		const second = await checkCtrsRecords(db, env, NOW);
+
+		expect(first.inTraining).toMatchObject({ moved: 0, told: 1 });
+		expect(second.inTraining).toMatchObject({ moved: 0, told: 0 });
+		expect(sent).toHaveLength(1);
+		expect(sent[0].description).toBe(
+			"Jo Rivera (1000001)'s Advanced Local Control (A-LC) has a CTRS record of October 25, 2026 recommending a rating exam, filed by Casey Dunn, who isn't their teacher on the card (AB). The card was not moved. Ask the teacher to mark the training complete on /teach, or move the card by hand."
+		);
+		expect((await row('1')).ctrsNotice).toBe('501');
+		expect((await row('1')).status).toBe('in-training');
+		expect(jira.comments('TRK-1')).toEqual([]);
+	});
+
+	it('tells when the card has no teacher', async () => {
+		await addTraining({ id: '1', cid: '1000001', teacher: null });
+		fakeServices({ '1000001': [recommend()] });
+		const { env, sent } = fakeEnv();
+
+		const result = await checkCtrsRecords(db, env, NOW);
+
+		expect(result.inTraining).toMatchObject({ moved: 0, told: 1 });
+		expect(sent[0].description).toContain('(no teacher)');
+		expect((await row('1')).status).toBe('in-training');
+	});
+
+	it('ignores a Recommend from before status_since', async () => {
+		await addTraining({ id: '1', cid: '1000001' });
+		fakeServices({ '1000001': [recommend({ session_date: '2026-10-19 19:00:00' })] });
+		const { env, sent } = fakeEnv();
+
+		const result = await checkCtrsRecords(db, env, NOW);
+
+		expect(result.inTraining).toEqual({ checked: 1, moved: 0, told: 0, errors: 0 });
+		expect(sent).toEqual([]);
+	});
+
+	describe('Custom Training', () => {
+		it('moves the only open card on a Recommend of any position type', async () => {
+			await addTraining({ id: '1', cid: '1000001', course: 'CUSTOM' });
+			await addCard({ id: '2', cid: '1000001', course: 'S-GC', status: 'completed' });
+			fakeServices({ '1000001': [recommend({ position: 'XXX_CTR' })] });
+			const { env } = fakeEnv();
+
+			const result = await checkCtrsRecords(db, env, NOW);
+
+			expect(result.inTraining).toMatchObject({ moved: 1 });
+			expect((await row('1')).status).toBe('rating-exam');
+		});
+
+		it("tells, and doesn't move, with another open card", async () => {
+			await addTraining({ id: '1', cid: '1000001', course: 'CUSTOM' });
+			await addCard({ id: '2', cid: '1000001', course: 'S-GC', status: 'in-training' });
+			const jira = fakeServices({ '1000001': [recommend({ position: 'XXX_CTR' })] });
+			const { env, sent } = fakeEnv();
+
+			const result = await checkCtrsRecords(db, env, NOW);
+
+			expect(result.inTraining).toMatchObject({ moved: 0, told: 1 });
+			expect(sent[0].description).toBe(
+				"Jo Rivera (1000001) has a CTRS record of October 25, 2026 recommending a rating exam at XXX_CTR, but more than one of their courses could be the one it's for. The card was not moved."
+			);
+			expect((await row('1')).status).toBe('in-training');
+			expect(jira.comments('TRK-1')).toEqual([]);
+		});
+	});
+
+	describe('which cards are read', () => {
+		it('reads only In Training cards on a course that can end in an exam', async () => {
+			await addTraining({ id: '1', cid: '1000001', course: 'A-GC' });
+			await addTraining({ id: '2', cid: '1000002', course: 'S-LC' });
+			await addTraining({ id: '3', cid: '1000003', course: 'T-RC' });
+			await addTraining({ id: '4', cid: '1000004', course: 'CUSTOM' });
+			await addTraining({ id: '5', cid: '1000005', statusSince: null });
+			await addTraining({ id: '6', cid: '1000006', jiraIssueKey: null });
+			await addTraining({ id: '7', cid: '1000007', withdrawnAt: NOW });
+			await addCard({ id: '8', cid: '1000008' });
+			fakeServices({});
+			const { env } = fakeEnv();
+
+			const result = await checkCtrsRecords(db, env, NOW);
+
+			expect(result.inTraining.checked).toBe(2);
+			expect((await row('3')).ctrsCheckedAt).toEqual(NOW);
+			expect((await row('4')).ctrsCheckedAt).toEqual(NOW);
+			for (const id of ['1', '2', '5', '6', '7', '8']) {
+				expect((await row(id)).ctrsCheckedAt).toBeNull();
+			}
+		});
+
+		it('reads at most 20, the least recently checked first and never checked first of all', async () => {
+			for (let i = 1; i <= 25; i += 1) {
+				await addTraining({
+					id: String(i),
+					cid: String(1001000 + i),
+					// 1-5 never checked; the rest checked at ascending times, 6 the oldest.
+					ctrsCheckedAt: i <= 5 ? null : new Date(Date.UTC(2026, 9, 1, 0, i))
+				});
+			}
+			fakeServices({});
+			const { env } = fakeEnv();
+
+			const first = await checkCtrsRecords(db, env, NOW);
+
+			expect(first.inTraining.checked).toBe(20);
+			// The 20 are 1-5 (never) and 6-20; 21-25, checked most recently, wait.
+			for (let i = 1; i <= 20; i += 1) expect((await row(String(i))).ctrsCheckedAt).toEqual(NOW);
+			for (let i = 21; i <= 25; i += 1) {
+				expect((await row(String(i))).ctrsCheckedAt).not.toEqual(NOW);
+			}
+
+			const second = await checkCtrsRecords(db, env, NOW);
+			expect(second.inTraining.checked).toBe(20);
+			expect((await row('25')).ctrsCheckedAt).toEqual(NOW);
+		});
+
+		it('stamps a card whose read failed, and goes on to the next', async () => {
+			await addTraining({ id: '1', cid: '1000001' });
+			await addTraining({ id: '2', cid: '1000002' });
+			fakeServices({ '1000001': 'down', '1000002': [recommend()] });
+			const { env } = fakeEnv();
+
+			const result = await checkCtrsRecords(db, env, NOW);
+
+			expect(result.inTraining).toEqual({ checked: 2, moved: 1, told: 0, errors: 1 });
+			expect((await row('1')).ctrsCheckedAt).toEqual(NOW);
+			expect((await row('1')).status).toBe('in-training');
+			expect((await row('2')).status).toBe('rating-exam');
+		});
 	});
 });

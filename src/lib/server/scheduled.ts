@@ -174,11 +174,22 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			// it is now, and before the certification pass, so a card a CTRS pass
 			// has just moved to Audit is certified in the same run.
 			name: 'ctrs records',
-			description: 'Moves a Rating Exam card on a pass or fail filed on VATUSA.',
+			description:
+				'Moves a Rating Exam card on a pass or fail, and an In Training card on a Recommend, filed on VATUSA.',
 			run: async () => {
 				const result = await checkCtrsRecords(db, env);
 				const { passed, failed, told, errors } = result.ratingExam;
-				return passed + failed + told + errors > 0 ? result : null;
+				const recommended = result.inTraining;
+				return passed +
+					failed +
+					told +
+					errors +
+					recommended.moved +
+					recommended.told +
+					recommended.errors >
+					0
+					? result
+					: null;
 			}
 		},
 		{

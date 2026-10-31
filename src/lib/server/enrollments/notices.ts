@@ -207,7 +207,7 @@ export type CtrsRecordNotice = {
 	position: string;
 };
 
-function ctrsFields(request: NoticeRequest, record: CtrsRecordNotice) {
+function ctrsFields(request: NoticeRequest, record: Pick<CtrsRecordNotice, 'id'>) {
 	return [
 		{ label: 'Student', value: student(request) },
 		{ label: 'Course', value: course(request.course) },
@@ -245,6 +245,45 @@ export function ctrsUnclearCourseNotice(request: NoticeRequest, record: CtrsReco
 		tone: 'warning',
 		title: `CTRS record not acted on: ${request.name}`,
 		summary: `${student(request)} has a CTRS record of ${formatCardDate(record.day, 'long')} giving a ${record.result} at ${record.position}, but more than one of their courses could be the one it's for. The card was not moved.`,
+		link: request.issueUrl ?? undefined,
+		fields: ctrsFields(request, record)
+	};
+}
+
+/**
+ * A Recommend filed on VATUSA for a card In Training that the read-back would
+ * not act on: filed by someone who isn't the card's teacher, or the card has
+ * none (decisions/0038).
+ */
+export function ctrsRecommendNotice(
+	request: NoticeRequest,
+	/** `filedBy`: the filer's name, or their CID; null when the record names nobody. */
+	record: Pick<CtrsRecordNotice, 'id' | 'day'> & { filedBy: string | null }
+): Notice {
+	const filer = record.filedBy ?? 'someone VATUSA does not name';
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `CTRS record not acted on: ${request.name}`,
+		summary: `${student(request)}'s ${course(request.course)} has a CTRS record of ${formatCardDate(record.day, 'long')} recommending a rating exam, filed by ${filer}, who isn't their teacher on the card (${request.teacher?.trim() || 'no teacher'}). The card was not moved. Ask the teacher to mark the training complete on /teach, or move the card by hand.`,
+		link: request.issueUrl ?? undefined,
+		fields: ctrsFields(request, record)
+	};
+}
+
+/**
+ * A Recommend for Custom Training, for a student with another card open: it
+ * could be for either, so neither is moved.
+ */
+export function ctrsUnclearRecommendNotice(
+	request: NoticeRequest,
+	record: Pick<CtrsRecordNotice, 'id' | 'day' | 'position'>
+): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `CTRS record not acted on: ${request.name}`,
+		summary: `${student(request)} has a CTRS record of ${formatCardDate(record.day, 'long')} recommending a rating exam at ${record.position}, but more than one of their courses could be the one it's for. The card was not moved.`,
 		link: request.issueUrl ?? undefined,
 		fields: ctrsFields(request, record)
 	};

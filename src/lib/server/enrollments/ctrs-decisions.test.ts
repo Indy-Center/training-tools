@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CtrsRecord } from '$lib/server/ctrs-records';
-import { decideRatingExam, type ExamCard } from './ctrs-decisions';
+import {
+	decideRatingExam,
+	decideRecommend,
+	type ExamCard,
+	type RecommendCard
+} from './ctrs-decisions';
 
 /** Entered Rating Exam on the facility day 2026-10-20. */
 const SINCE = new Date('2026-10-20T16:00:00Z');
@@ -157,6 +162,122 @@ describe('decideRatingExam', () => {
 			expect(decide({ card: { ...custom, ctrsNotice: '501' }, otherOpenCards: true })).toEqual({
 				action: 'nothing'
 			});
+		});
+	});
+});
+
+describe('decideRecommend', () => {
+	const recommend = (overrides: Partial<CtrsRecord> = {}) =>
+		record({ otsStatus: 3, instructorId: 1000800, ...overrides });
+
+	const decideR = (
+		overrides: {
+			card?: Partial<RecommendCard>;
+			records?: CtrsRecord[];
+			otherOpenCards?: boolean;
+		} = {}
+	) =>
+		decideRecommend({
+			card: {
+				course: 'A-LC',
+				teacher: 'AB',
+				statusSince: SINCE,
+				ctrsNotice: null,
+				...overrides.card
+			},
+			records: overrides.records ?? [recommend()],
+			teachers,
+			otherOpenCards: overrides.otherOpenCards ?? false
+		});
+
+	it("moves on the card's teacher's Recommend, dated from the session", () => {
+		expect(decideR()).toEqual({
+			action: 'act',
+			record: recommend(),
+			instructorCid: '1000800',
+			completedOn: '2026-10-25'
+		});
+	});
+
+	it('matches the teacher by CID when the card holds it', () => {
+		expect(decideR({ card: { teacher: '1000800' } }).action).toBe('act');
+	});
+
+	it("tells, and doesn't move, when another instructor filed it", () => {
+		expect(decideR({ records: [recommend({ instructorId: 1000900 })] })).toEqual({
+			action: 'tell',
+			reason: 'not-teacher',
+			record: recommend({ instructorId: 1000900 }),
+			instructorCid: '1000900'
+		});
+	});
+
+	it('tells when the record names no instructor', () => {
+		expect(decideR({ records: [recommend({ instructorId: null })] })).toMatchObject({
+			action: 'tell',
+			reason: 'not-teacher',
+			instructorCid: null
+		});
+	});
+
+	it('tells when the card has no teacher', () => {
+		expect(decideR({ card: { teacher: null } })).toMatchObject({
+			action: 'tell',
+			reason: 'no-teacher'
+		});
+	});
+
+	it('tells once for a record, and again for a newer one', () => {
+		const other = { records: [recommend({ instructorId: 1000900 })] };
+		expect(decideR({ ...other, card: { ctrsNotice: '501' } })).toEqual({ action: 'nothing' });
+		expect(
+			decideR({
+				records: [
+					recommend({ id: 502, instructorId: 1000900, sessionDate: '2026-10-26 19:00:00' })
+				],
+				card: { ctrsNotice: '501' }
+			})
+		).toMatchObject({ action: 'tell' });
+	});
+
+	it('ignores a Recommend from before the card got back to In Training', () => {
+		expect(decideR({ records: [recommend({ sessionDate: '2026-10-19 19:00:00' })] })).toEqual({
+			action: 'nothing'
+		});
+	});
+
+	it('ignores a pass, a fail, another position type and a card with no status_since', () => {
+		expect(decideR({ records: [recommend({ otsStatus: 1 })] })).toEqual({ action: 'nothing' });
+		expect(decideR({ records: [recommend({ otsStatus: 2 })] })).toEqual({ action: 'nothing' });
+		expect(decideR({ records: [recommend({ position: 'XXX_APP' })] })).toEqual({
+			action: 'nothing'
+		});
+		expect(decideR({ card: { statusSince: null } })).toEqual({ action: 'nothing' });
+	});
+
+	describe('Custom Training', () => {
+		const custom = { card: { course: 'CUSTOM' as const } };
+
+		it('moves the only open card on a Recommend of any position type', () => {
+			expect(decideR({ ...custom, records: [recommend({ position: 'XXX_CTR' })] }).action).toBe(
+				'act'
+			);
+		});
+
+		it('still needs the teacher', () => {
+			expect(decideR({ ...custom, records: [recommend({ instructorId: 1000900 })] })).toMatchObject(
+				{ action: 'tell', reason: 'not-teacher' }
+			);
+		});
+
+		it('tells, and does not move, with another open card; once per record', () => {
+			expect(decideR({ ...custom, otherOpenCards: true })).toMatchObject({
+				action: 'tell',
+				reason: 'unclear-course'
+			});
+			expect(
+				decideR({ card: { course: 'CUSTOM', ctrsNotice: '501' }, otherOpenCards: true })
+			).toEqual({ action: 'nothing' });
 		});
 	});
 });

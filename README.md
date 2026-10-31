@@ -182,7 +182,7 @@ Every 10 minutes (`*/10 * * * *`), in this order:
 | enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`), then dates up to 20 open rows from the changelog (`backfillStatusSince`) |
 | roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`)                                                 |
 | examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                                                                           |
-| ctrs records              | Moves a Rating Exam card on a pass or fail filed on VATUSA's own form (`checkCtrsRecords`)                                                             |
+| ctrs records              | Moves a Rating Exam card on a pass or fail, and an In Training card on a Recommend, filed on VATUSA's own form (`checkCtrsRecords`)                    |
 | certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                                                                              |
 | vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                                                                    |
 | vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                                                                              |
@@ -921,6 +921,22 @@ Either way the training admins are told, once per record:
 `enrollments.ctrs_notice` holds the id last told about (set once Larry accepts
 the notice, cleared when the card changes status). A record with no instructor
 is logged and left alone.
+
+**A Recommend filed on VATUSA moves a card In Training** (decisions/0038). After
+the Rating Exam half, the same job reads the records of up to 20 cards In Training
+on a course that can end in a rating exam, the least recently checked first
+(`enrollments.ctrs_checked_at`, set on every card read, a VATUSA error included).
+It takes ZID's latest Recommend (`ots_status` 3) on the course's position type
+dated on or after the day the card reached In Training. If the record's
+instructor is the card's teacher (initials or CID), the card is marked training
+complete and moves to Rating Exam, with `Training Completed` set to the record's
+session day and a comment giving the record's id, date and filer. Anyone else's
+Recommend, one that names no instructor, or a card with no teacher, moves
+nothing: the training admins are told, once per record (`ctrs_notice`, as above),
+to have the teacher mark the training complete on `/teach` or move the card by
+hand. Custom Training matches a Recommend of any position type, only while it is
+the student's one open card; otherwise the training admins are told it could be
+for either course.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira
