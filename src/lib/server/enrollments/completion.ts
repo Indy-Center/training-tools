@@ -200,18 +200,26 @@ export async function claimExam(
  *
  * Stamps `RE Completed` and moves the card to Certification Update, where the
  * certification is applied. A failed exam is `failExam()`.
+ *
+ * `comment` replaces the usual card note, and `completedOn` (`YYYY-MM-DD`)
+ * today's date in `RE Completed`: the CTRS read-back dates the card from the
+ * record's session, not the day it was found (0038).
  */
 export async function completeExam(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	by: string,
+	comment?: string,
+	completedOn?: string,
 	now = new Date()
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'complete exam', async (config, issueKey) => {
-		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.reCompleted]: toFacilityDate(now) });
+		await updateIssueFields(config, issueKey, {
+			[JIRA_FIELDS.reCompleted]: completedOn ?? toFacilityDate(now)
+		});
 		await transitionIssueToStatus(config, issueKey, CERTIFICATION_UPDATE_STATUS);
-		await note(config, issueKey, `Rating exam marked complete by ${by}.`);
+		await note(config, issueKey, comment ?? `Rating exam marked complete by ${by}.`);
 	});
 }
 
@@ -228,12 +236,15 @@ export async function completeExam(
  * Instructor stays on the card while it waits at Needs CATP, so the TA can see
  * who examined. It comes off when the card goes back to training — see
  * `clearReturnedExaminers()` — so the retake is claimed afresh.
+ *
+ * `comment` replaces the usual card note, as for `completeExam()`.
  */
 export async function failExam(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
-	by: string
+	by: string,
+	comment?: string
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'fail exam', async (config, issueKey) => {
 		await transitionIssueToStatus(config, issueKey, NEEDS_CATP_STATUS);
@@ -241,7 +252,7 @@ export async function failExam(
 		await note(
 			config,
 			issueKey,
-			`Rating exam marked not passed by ${by}; Training Completed cleared.`
+			comment ?? `Rating exam marked not passed by ${by}; Training Completed cleared.`
 		);
 	});
 }
