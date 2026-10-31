@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	CLOSED_ENROLLMENT_STATUSES,
@@ -18,6 +18,7 @@ import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import { notify } from '$lib/server/notify';
 import { stuckRequestNotice, withdrawnNotice } from './notices';
+import { inRestoreWindow } from './restore-window';
 
 export { reconcileEnrollments, type EnrollmentReconcileResult } from './reconcile';
 export { importBoardIssues, type ImportResult } from './import';
@@ -92,10 +93,7 @@ export async function getOpenEnrollment(db: Database, cid: string): Promise<Enro
 		where: and(
 			eq(enrollmentsTable.cid, cid),
 			isNull(enrollmentsTable.withdrawnAt),
-			or(
-				notInArray(enrollmentsTable.status, [...CLOSED_ENROLLMENT_STATUSES]),
-				and(isNotNull(enrollmentsTable.rosterRemovedAt), isNull(enrollmentsTable.restoreClosedAt))
-			)
+			or(notInArray(enrollmentsTable.status, [...CLOSED_ENROLLMENT_STATUSES]), inRestoreWindow())
 		),
 		orderBy: desc(enrollmentsTable.createdAt)
 	});

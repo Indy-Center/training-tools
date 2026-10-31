@@ -8,6 +8,7 @@ import { notify } from '$lib/server/notify';
 import { SHEET_STATUSES } from '$lib/waitlist';
 import { NOT_CONFIGURED } from './completion';
 import { rosterExpiryNotice } from './notices';
+import { inRestoreWindow } from './restore-window';
 import {
 	restoreNow,
 	restoreTransitionName,
@@ -108,13 +109,7 @@ export async function closeRequestForGood(
 	const [closed] = await db
 		.update(enrollmentsTable)
 		.set({ restoreClosedAt: now, restoreClosedReason: 'closed-by-admin', updatedAt: now })
-		.where(
-			and(
-				eq(enrollmentsTable.id, id),
-				isNotNull(enrollmentsTable.rosterRemovedAt),
-				isNull(enrollmentsTable.restoreClosedAt)
-			)
-		)
+		.where(and(eq(enrollmentsTable.id, id), inRestoreWindow()))
 		.returning();
 	if (!closed) return { ok: false, status: 409, message: NOT_IN_WINDOW };
 

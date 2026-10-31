@@ -40,6 +40,7 @@ import {
 	type WaitlistRow
 } from '$lib/waitlist';
 import { note, onCard, type FlowResult } from './completion';
+import { inRestoreWindow } from './restore-window';
 import { syncEnrollmentIssue } from './status-sync';
 
 /**
@@ -198,9 +199,7 @@ export async function getLeftTheRoster(
 		db
 			.select()
 			.from(enrollmentsTable)
-			.where(
-				and(isNotNull(enrollmentsTable.rosterRemovedAt), isNull(enrollmentsTable.restoreClosedAt))
-			)
+			.where(inRestoreWindow())
 			.orderBy(asc(enrollmentsTable.restoreBy), asc(enrollmentsTable.createdAt)),
 		getPeople(db),
 		listTeachers(db)

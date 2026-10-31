@@ -6,6 +6,7 @@ import { isBackOnHomeRoster } from '$lib/roster-removal';
 import { toFacilityDate } from '$lib/server/jira/progress';
 import { notify } from '$lib/server/notify';
 import { rosterExpiryNotice } from './notices';
+import { inRestoreWindow } from './restore-window';
 
 /**
  * Steps 4 and 4b of the `roster removals` job, after the restores and before
@@ -34,13 +35,7 @@ export async function expireLapsedWindows(
 	const lapsed = await db
 		.select()
 		.from(enrollmentsTable)
-		.where(
-			and(
-				isNotNull(enrollmentsTable.rosterRemovedAt),
-				isNull(enrollmentsTable.restoreClosedAt),
-				lt(enrollmentsTable.restoreBy, now)
-			)
-		)
+		.where(and(inRestoreWindow(), lt(enrollmentsTable.restoreBy, now)))
 		.orderBy(asc(enrollmentsTable.createdAt));
 
 	let expired = 0;
@@ -60,13 +55,7 @@ export async function expireLapsedWindows(
 		const [closed] = await db
 			.update(enrollmentsTable)
 			.set({ restoreClosedAt: now, restoreClosedReason: 'expired', updatedAt: now })
-			.where(
-				and(
-					eq(enrollmentsTable.id, request.id),
-					isNotNull(enrollmentsTable.rosterRemovedAt),
-					isNull(enrollmentsTable.restoreClosedAt)
-				)
-			)
+			.where(and(eq(enrollmentsTable.id, request.id), inRestoreWindow()))
 			.returning({ id: enrollmentsTable.id });
 		if (!closed) continue;
 		expired += 1;

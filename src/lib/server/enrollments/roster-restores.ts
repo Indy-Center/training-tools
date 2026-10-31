@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import {
 	enrollmentsTable,
@@ -28,6 +28,7 @@ import {
 	rosterRestoreTeacherMessage,
 	type NoticeRequest
 } from './notices';
+import { inRestoreWindow } from './restore-window';
 import { syncEnrollmentIssue } from './status-sync';
 
 /**
@@ -135,8 +136,7 @@ async function windowRequests(db: Database, removed: boolean): Promise<Enrollmen
 		.from(enrollmentsTable)
 		.where(
 			and(
-				isNotNull(enrollmentsTable.rosterRemovedAt),
-				isNull(enrollmentsTable.restoreClosedAt),
+				inRestoreWindow(),
 				removed ? eq(enrollmentsTable.status, 'removed') : ne(enrollmentsTable.status, 'removed')
 			)
 		)
@@ -426,8 +426,7 @@ async function finishRestore(
 		.where(
 			and(
 				eq(enrollmentsTable.id, request.id),
-				isNotNull(enrollmentsTable.rosterRemovedAt),
-				isNull(enrollmentsTable.restoreClosedAt),
+				inRestoreWindow(),
 				eq(enrollmentsTable.status, request.status)
 			)
 		)
