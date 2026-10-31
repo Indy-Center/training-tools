@@ -256,7 +256,7 @@ describe('decideRecommend', () => {
 	});
 
 	describe('Custom Training', () => {
-		const custom = { card: { course: 'CUSTOM' } };
+		const custom = { card: { course: 'CUSTOM' as const } };
 
 		it('moves the only open card on a Recommend of any position type', () => {
 			expect(decideR({ ...custom, records: [recommend({ position: 'XXX_CTR' })] }).action).toBe(
