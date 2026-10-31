@@ -132,6 +132,9 @@ export async function note(config: JiraConfig, issueKey: string, text: string): 
  * Stamps `Training Completed`, then moves the card: to Rating Exam when the
  * course ends in one, otherwise straight to Audit. Where a course allows either
  * (`afterTrainingOptions()`), `to` is the teacher's choice and is required.
+ *
+ * `comment` replaces the usual card note, for a step that has to say more than
+ * who took it: `/teach`'s button says no training report was filed (0038).
  */
 export async function completeTraining(
 	db: Database,
@@ -139,6 +142,7 @@ export async function completeTraining(
 	enrollment: Enrollment,
 	by: string,
 	to?: AfterTraining,
+	comment?: string,
 	now = new Date()
 ): Promise<FlowResult> {
 	const options = afterTrainingOptions(enrollment.course);
@@ -154,7 +158,7 @@ export async function completeTraining(
 			[JIRA_FIELDS.trainingCompleted]: toFacilityDate(now)
 		});
 		await transitionIssueToStatus(config, issueKey, next);
-		await note(config, issueKey, `Training marked complete by ${by}.`);
+		await note(config, issueKey, comment ?? `Training marked complete by ${by}.`);
 	});
 }
 

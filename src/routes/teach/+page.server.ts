@@ -181,12 +181,16 @@ export const actions: Actions = {
 		const to = options.find((option) => option === next);
 		if (next !== null && !to) return fail(400, { flowError: NOT_YOURS });
 
+		const by = displayName(session.user);
 		const result = await completeTraining(
 			event.locals.db,
 			event.platform?.env,
 			enrollment,
-			displayName(session.user),
-			to
+			by,
+			to,
+			// Not the report form's note: from here nothing was filed with VATUSA, so
+			// the TA checks a CTRS record exists at audit (0038).
+			`Training marked complete by ${by} on /teach; no training report filed through the app.`
 		);
 		return finish(result, 'Training marked complete', enrollment);
 	},
