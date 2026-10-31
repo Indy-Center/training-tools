@@ -3,8 +3,11 @@
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
 
 	type Props = {
-		/** `primary` is the one main action; `secondary` is the outlined alternative. */
-		variant?: 'primary' | 'secondary';
+		/**
+		 * `primary` is the one main action; `secondary` is the outlined alternative;
+		 * `danger` confirms a step that goes against the student, such as a failed exam.
+		 */
+		variant?: 'primary' | 'secondary' | 'danger';
 		size?: 'sm' | 'md' | 'lg';
 		/** Given an `href` this renders a link; without one, a button. */
 		href?: string;
@@ -24,7 +27,8 @@
 
 	const VARIANTS = {
 		primary: 'bg-sky-600 text-white hover:bg-sky-700',
-		secondary: 'border border-slate-600/50 text-gray-300 hover:bg-white/10 hover:text-white'
+		secondary: 'border border-slate-600/50 text-gray-300 hover:bg-white/10 hover:text-white',
+		danger: 'bg-red-600 text-white hover:bg-red-700'
 	};
 
 	const SIZES = {
