@@ -61,7 +61,8 @@ export type RatingExamDecision =
  *   card (`otherOpenCards` false). Otherwise the course is unclear: told.
  * - A record whose instructor is the student's teacher on the card moves
  *   nothing (0021: the examiner is never the teacher): told.
- * - Each record is told once: not again while `ctrsNotice` holds its id.
+ * - Each record is told once: not again while `ctrsNotice` holds its id. A
+ *   Custom Training card never acts on a record whose id it holds.
  */
 export function decideRatingExam(input: {
 	card: ExamCard;
@@ -87,6 +88,8 @@ export function decideRatingExam(input: {
 	if (!record) return nothing;
 
 	const told = card.ctrsNotice === String(record.id);
+	// Once the admins were told the course was unclear, it stays unclear for this record.
+	if (custom && told) return nothing;
 	const instructorCid = record.instructorId === null ? null : String(record.instructorId);
 
 	if (custom && otherOpenCards) {
@@ -186,6 +189,8 @@ export function decideRecommend(input: {
 	if (!record) return nothing;
 
 	const told = card.ctrsNotice === String(record.id);
+	// Once the admins were told the course was unclear, it stays unclear for this record.
+	if (custom && told) return nothing;
 	const instructorCid = record.instructorId === null ? null : String(record.instructorId);
 	const tell = (reason: 'not-teacher' | 'no-teacher' | 'unclear-course'): RecommendDecision =>
 		told ? nothing : { action: 'tell', reason, record, instructorCid };

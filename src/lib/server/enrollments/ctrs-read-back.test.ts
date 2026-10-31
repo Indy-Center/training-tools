@@ -173,6 +173,10 @@ function fakeEnv({ refuse = false } = {}) {
 	return { env, sent };
 }
 
+/** How many of the notices say the record could be for either of two courses. */
+const unclear = (sent: { description: string }[]) =>
+	sent.filter((notice) => notice.description.includes('more than one of their courses')).length;
+
 describe('the ctrs records job, Rating Exam half', () => {
 	it('moves a pass to Audit, dated from the session, and fills RE Instructor', async () => {
 		await addCard({ id: '1', cid: '1000001' });
@@ -309,6 +313,50 @@ describe('the ctrs records job, Rating Exam half', () => {
 			expect((await row('1')).status).toBe('rating-exam');
 			expect(jira.comments('TRK-1')).toEqual([]);
 		});
+
+		it.each([
+			['before', ['s', 'c']],
+			['after', ['c', 's']]
+		])(
+			'judges the other card as the run found it, examined %s the Custom card; a told record stays unmoved',
+			async (_, order) => {
+				for (const id of order) {
+					await addCard(
+						id === 's'
+							? { id, cid: '1000001', course: 'S-GC' }
+							: { id, cid: '1000001', course: 'CUSTOM' }
+					);
+				}
+				const gnd = pass({ position: 'XXX_GND' });
+				fakeServices({ '1000001': [gnd] });
+				const { env, sent } = fakeEnv();
+
+				// The S-GC pass moves S-GC on, but the Custom card is still not moved.
+				const first = await checkCtrsRecords(db, env, NOW);
+				expect(first.ratingExam).toMatchObject({ passed: 1, told: 1 });
+				expect((await row('s')).status).toBe('certification-update');
+				expect((await row('c')).status).toBe('rating-exam');
+				expect((await row('c')).ctrsNotice).toBe('501');
+				expect(unclear(sent)).toBe(1);
+
+				// A second run, with the other card gone: the told record still doesn't move it.
+				const second = await checkCtrsRecords(db, env, NOW);
+				expect(second.ratingExam).toMatchObject({ passed: 0, told: 0, errors: 0 });
+				expect((await row('c')).status).toBe('rating-exam');
+				expect(unclear(sent)).toBe(1);
+
+				// A newer record is judged afresh: it is now the only open card.
+				fakeServices({
+					'1000001': [
+						gnd,
+						pass({ id: 502, session_date: '2026-10-26 19:00:00', position: 'XXX_CTR' })
+					]
+				});
+				const third = await checkCtrsRecords(db, env, NOW);
+				expect(third.ratingExam).toMatchObject({ passed: 1 });
+				expect((await row('c')).status).toBe('certification-update');
+			}
+		);
 	});
 
 	it('does nothing without a VATUSA key', async () => {
@@ -416,6 +464,53 @@ describe('the ctrs records job, In Training half', () => {
 			expect((await row('1')).status).toBe('in-training');
 			expect(jira.comments('TRK-1')).toEqual([]);
 		});
+
+		it.each([
+			['before', ['s', 'c']],
+			['after', ['c', 's']]
+		])(
+			'judges the other card as the run found it, examined %s the Custom card; a told record stays unmoved',
+			async (_, order) => {
+				for (const id of order) {
+					await addTraining(
+						id === 's'
+							? { id, cid: '1000001', course: 'S-GC' }
+							: { id, cid: '1000001', course: 'CUSTOM' }
+					);
+				}
+				fakeServices({ '1000001': [recommend({ position: 'XXX_GND' })] });
+				const { env, sent } = fakeEnv();
+
+				// The S-GC Recommend moves S-GC on, but the Custom card is still not moved.
+				const first = await checkCtrsRecords(db, env, NOW);
+				expect(first.inTraining).toMatchObject({ moved: 1, told: 1 });
+				expect((await row('s')).status).toBe('rating-exam');
+				expect((await row('c')).status).toBe('in-training');
+				expect((await row('c')).ctrsNotice).toBe('501');
+				expect(unclear(sent)).toBe(1);
+
+				// The other card leaves; the told record still doesn't move the Custom card.
+				await db
+					.update(enrollmentsTable)
+					.set({ status: 'completed' })
+					.where(eq(enrollmentsTable.id, 's'));
+				const second = await checkCtrsRecords(db, env, NOW);
+				expect(second.inTraining).toMatchObject({ moved: 0, told: 0, errors: 0 });
+				expect((await row('c')).status).toBe('in-training');
+				expect(unclear(sent)).toBe(1);
+
+				// A newer record is judged afresh: it is now the only open card.
+				fakeServices({
+					'1000001': [
+						recommend({ position: 'XXX_GND' }),
+						recommend({ id: 502, session_date: '2026-10-26 19:00:00', position: 'XXX_CTR' })
+					]
+				});
+				const third = await checkCtrsRecords(db, env, NOW);
+				expect(third.inTraining).toMatchObject({ moved: 1 });
+				expect((await row('c')).status).toBe('rating-exam');
+			}
+		);
 	});
 
 	describe('which cards are read', () => {

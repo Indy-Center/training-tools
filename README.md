@@ -554,11 +554,11 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP; a request removed because its student left the home roster |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                                                                                          |
-| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                                                                               |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP; a request removed because its student left the home roster; a pass, fail or Recommend filed on VATUSA that the app did not act on (filed by the student's teacher, not their teacher, or for a Custom Training course that could be either of two) |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 The rating exam post is the one notice this app goes on looking after. It
 carries a **Status** line ("Waiting for an examiner", then "Claimed by …") and
@@ -915,12 +915,14 @@ gives the record's id and date and who filed it. Nothing moves when:
   is never the teacher), or
 - the card is Custom Training — which matches a record of any position type —
   and the student has another card In Training or at Rating Exam, so the record
-  could be for either.
+  could be for either. "Another card" is judged from the cards' statuses as they
+  stood when the job run started, not after earlier cards in the same run moved.
 
 Either way the training admins are told, once per record:
 `enrollments.ctrs_notice` holds the id last told about (set once Larry accepts
-the notice, cleared when the card changes status). A record with no instructor
-is logged and left alone.
+the notice, cleared when the card changes status). A Custom Training card never
+acts on a record it holds, even if the other card has since left; a newer
+record is judged afresh. A record with no instructor is logged and left alone.
 
 **A Recommend filed on VATUSA moves a card In Training** (decisions/0038). After
 the Rating Exam half, the same job reads the records of up to 20 cards In Training
@@ -935,8 +937,8 @@ Recommend, one that names no instructor, or a card with no teacher, moves
 nothing: the training admins are told, once per record (`ctrs_notice`, as above),
 to have the teacher mark the training complete on `/teach` or move the card by
 hand. Custom Training matches a Recommend of any position type, only while it is
-the student's one open card; otherwise the training admins are told it could be
-for either course.
+the student's one open card (judged, and held back once told, as above);
+otherwise the training admins are told it could be for either course.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira
