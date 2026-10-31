@@ -116,6 +116,19 @@ export const CREDENTIALS = [
 ] as const satisfies readonly Credential[];
 
 /**
+ * The position type VATUSA's CTRS files each rating course's training under
+ * (`GND`, `TWR`, `APP`, `CTR`, the end of a record's `position`). A course not
+ * listed has none: A-GC and the rest are not read back, and Custom Training
+ * matches any position (`latestMatchingRecord`'s `positionType: null`).
+ */
+export const CTRS_POSITION_TYPE = {
+	'S-GC': 'GND',
+	'A-LC': 'TWR',
+	'T-RC': 'APP',
+	'E-RC': 'CTR'
+} as const satisfies Partial<Record<CourseCode, string>>;
+
+/**
  * One entry as it is actually written above, with its literal `code` and `kind`
  * intact. Lookups return this rather than the wider `Credential`, so a code that
  * came out of the catalogue can be handed straight to a drizzle enum column.
