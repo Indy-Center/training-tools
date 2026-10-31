@@ -1,7 +1,7 @@
 import { FACILITY_ID } from '$lib/config';
 import type { VatusaRosterMember, VatusaRosterResponse } from '$lib/types/vatusa';
 import type { TrainingRecord } from '$lib/ctrs';
-import { parseCtrsRecords, type CtrsRecord } from '$lib/ctrs-records';
+import { parseCtrsRecords, type CtrsRecord } from './ctrs-records';
 import type { AcademyExam, AcademyTranscript } from '$lib/vatusa-academy';
 
 const VATUSA_API_BASE_URL = 'https://api.vatusa.net';
