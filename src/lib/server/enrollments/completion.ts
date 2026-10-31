@@ -210,12 +210,13 @@ export async function completeExam(
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	by: string,
+	comment?: string,
 	now = new Date()
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'complete exam', async (config, issueKey) => {
 		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.reCompleted]: toFacilityDate(now) });
 		await transitionIssueToStatus(config, issueKey, CERTIFICATION_UPDATE_STATUS);
-		await note(config, issueKey, `Rating exam marked complete by ${by}.`);
+		await note(config, issueKey, comment ?? `Rating exam marked complete by ${by}.`);
 	});
 }
 
@@ -237,7 +238,8 @@ export async function failExam(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
-	by: string
+	by: string,
+	comment?: string
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'fail exam', async (config, issueKey) => {
 		await transitionIssueToStatus(config, issueKey, NEEDS_CATP_STATUS);
@@ -245,7 +247,7 @@ export async function failExam(
 		await note(
 			config,
 			issueKey,
-			`Rating exam marked not passed by ${by}; Training Completed cleared.`
+			comment ?? `Rating exam marked not passed by ${by}; Training Completed cleared.`
 		);
 	});
 }

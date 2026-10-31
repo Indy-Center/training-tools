@@ -25,6 +25,7 @@ import {
 	canClaimExam,
 	evaluatesCourse
 } from '$lib/course-completion';
+import { examResultNote } from '$lib/exam-result';
 import { isAssignedTo, QUALIFICATION_CREDENTIALS, slotSummary } from '$lib/teachers';
 import { displayName } from '$lib/user';
 import type { Enrollment } from '$lib/db/schema/enrollments';
@@ -224,7 +225,8 @@ export const actions: Actions = {
 			event.locals.db,
 			event.platform?.env,
 			enrollment,
-			displayName(session.user)
+			displayName(session.user),
+			examResultNote('passed', displayName(session.user))
 		);
 		return finish(result, 'Rating exam marked complete', enrollment);
 	},
@@ -239,7 +241,8 @@ export const actions: Actions = {
 			event.locals.db,
 			event.platform?.env,
 			enrollment,
-			displayName(session.user)
+			displayName(session.user),
+			examResultNote('not-passed', displayName(session.user))
 		);
 		return finish(result, 'Rating exam marked not passed', enrollment);
 	}

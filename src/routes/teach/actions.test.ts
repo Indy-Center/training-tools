@@ -64,7 +64,8 @@ function fakeJira() {
 				return Response.json({
 					transitions: [
 						{ id: '1', name: 'To Rating Exam', to: { id: '1', name: 'Rating Exam' } },
-						{ id: '2', name: 'To Audit', to: { id: '2', name: 'Audit' } }
+						{ id: '2', name: 'To Audit', to: { id: '2', name: 'Audit' } },
+						{ id: '3', name: 'To Needs CATP', to: { id: '3', name: 'Needs CATP' } }
 					]
 				});
 			}
@@ -172,5 +173,65 @@ describe('/teach ?/completeTraining', () => {
 
 		expect(result).toEqual({ flowDone: 'Training marked complete for Jo Rivera.' });
 		expect(jira.moves().map((move) => move.body)).toEqual([{ transition: { id: '2' } }]);
+	});
+});
+
+const NOT_YOURS = 'That is not yours to do, or it has already been done. Reload the page.';
+
+describe.each([
+	{
+		action: 'completeExam' as const,
+		done: 'Rating exam marked complete for Jo Rivera.',
+		moveId: '2',
+		comment:
+			'Rating exam marked passed by Sam Teacher on /teach; no training report filed through the app. (through training.flyindycenter.com)'
+	},
+	{
+		action: 'failExam' as const,
+		done: 'Rating exam marked not passed for Jo Rivera.',
+		moveId: '3',
+		comment:
+			'Rating exam marked not passed by Sam Teacher on /teach; no training report filed through the app. Training Completed cleared. (through training.flyindycenter.com)'
+	}
+])('/teach ?/$action', ({ action, done, moveId, comment }) => {
+	const run = (cid: string) => actions[action](post(cid, { id: 'req-1' }));
+
+	beforeEach(async () => {
+		await db.insert(teachersTable).values({ cid: '1000003', roles: ['INS'], initials: 'XX' });
+	});
+
+	it('lets the examiner on the card record it, saying no report was filed', async () => {
+		await addRequest({ status: 'rating-exam', reInstructor: 'OT' });
+		const jira = fakeJira();
+
+		const result = await run('1000002');
+
+		expect(result).toEqual({ flowDone: done });
+		expect(jira.comments()).toEqual([comment]);
+		expect(jira.moves().map((move) => move.body)).toEqual([{ transition: { id: moveId } }]);
+	});
+
+	it('refuses the teacher on the card, even when put there as examiner', async () => {
+		await addRequest({ status: 'rating-exam', reInstructor: 'ST' });
+		const jira = fakeJira();
+
+		expect(await run('1000001')).toMatchObject({ status: 403, data: { flowError: NOT_YOURS } });
+		expect(jira.calls).toEqual([]);
+	});
+
+	it('refuses another evaluator', async () => {
+		await addRequest({ status: 'rating-exam', reInstructor: 'OT' });
+		const jira = fakeJira();
+
+		expect(await run('1000003')).toMatchObject({ status: 403, data: { flowError: NOT_YOURS } });
+		expect(jira.calls).toEqual([]);
+	});
+
+	it('refuses a card not at Rating Exam', async () => {
+		await addRequest({ status: 'in-training', reInstructor: 'OT' });
+		const jira = fakeJira();
+
+		expect(await run('1000002')).toMatchObject({ status: 403, data: { flowError: NOT_YOURS } });
+		expect(jira.calls).toEqual([]);
 	});
 });
