@@ -146,12 +146,17 @@ async function markFinished(db: Database, now: Date): Promise<void> {
 		.onConflictDoNothing();
 }
 
+/** One roster removal: the stage it takes the request from, and its window. */
+type Removal = {
+	stage: RosterRemovableStatus;
+	/** The student's `left_home_at`; the window starts here. */
+	leftHomeAt: Date;
+	/** `leftHomeAt` plus 30 days. */
+	restoreBy: Date;
+};
+
 /** The comment a removed card gets. Both dates are facility days. */
-export function removalComment(
-	leftHomeAt: Date,
-	stage: RosterRemovableStatus,
-	restoreBy: Date
-): string {
+function removalComment({ stage, leftHomeAt, restoreBy }: Removal): string {
 	return `Left the ZID home roster on ${toFacilityDate(leftHomeAt)}. Removed automatically; restored to ${TRK_STAGE_NAMES[stage]} if back on the home roster by ${toFacilityDate(restoreBy)}.`;
 }
 
@@ -205,14 +210,16 @@ async function removeDepartedStudents(
 	for (const request of batch) {
 		const member = people.get(request.cid)!;
 		const leftHomeAt = member.leftHomeAt!;
-		const restoreBy = restoreByFor(leftHomeAt);
-		const stage = request.status as RosterRemovableStatus;
+		const removal: Removal = {
+			stage: request.status as RosterRemovableStatus,
+			leftHomeAt,
+			restoreBy: restoreByFor(leftHomeAt)
+		};
 		// The first run's old departures: their window ended before this existed.
-		const closeNow = firstRun && restoreBy.getTime() < now.getTime();
+		const closeNow = firstRun && removal.restoreBy.getTime() < now.getTime();
 
 		if (request.jiraIssueKey) {
-			const moved =
-				config && (await moveToRemoved(db, env, config, request, leftHomeAt, stage, restoreBy));
+			const moved = config && (await moveToRemoved(db, env, config, request, removal));
 			if (!moved) {
 				refused += 1;
 				continue;
@@ -224,9 +231,9 @@ async function removeDepartedStudents(
 			.set({
 				...(request.jiraIssueKey ? {} : { status: 'removed' as const }),
 				rosterRemovedAt: now,
-				rosterRemovedFrom: stage,
+				rosterRemovedFrom: removal.stage,
 				leftHomeAt,
-				restoreBy,
+				restoreBy: removal.restoreBy,
 				...(closeNow ? { restoreClosedAt: now, restoreClosedReason: 'expired' as const } : {}),
 				updatedAt: now
 			})
@@ -255,12 +262,9 @@ async function removeDepartedStudents(
 		};
 
 		if (closeNow) {
-			summary.push({ ...described, was: stage, leftHomeOn: toFacilityDate(leftHomeAt) });
+			summary.push({ ...described, was: removal.stage, leftHomeOn: toFacilityDate(leftHomeAt) });
 		} else {
-			await announceRemoval(env, request, described, member, people, teachers, {
-				leftHomeAt,
-				restoreBy
-			});
+			await announceRemoval(env, request, described, member, people, teachers, removal);
 		}
 	}
 
@@ -284,14 +288,12 @@ async function moveToRemoved(
 	env: Partial<Env> | undefined,
 	config: JiraConfig,
 	request: Enrollment,
-	leftHomeAt: Date,
-	stage: RosterRemovableStatus,
-	restoreBy: Date
+	removal: Removal
 ): Promise<boolean> {
 	const issueKey = request.jiraIssueKey!;
 
 	try {
-		await commentOnIssue(config, issueKey, removalComment(leftHomeAt, stage, restoreBy));
+		await commentOnIssue(config, issueKey, removalComment(removal));
 		await transitionIssueToStatus(config, issueKey, REMOVED_STATUS);
 	} catch (err) {
 		console.error(
@@ -334,9 +336,9 @@ async function announceRemoval(
 	member: MirrorMember,
 	people: Map<string, MirrorMember>,
 	teachers: Teacher[],
-	dates: { leftHomeAt: Date; restoreBy: Date }
+	removal: Removal
 ): Promise<void> {
-	const restoreBy = toFacilityDate(dates.restoreBy);
+	const restoreBy = toFacilityDate(removal.restoreBy);
 	const untold: string[] = [];
 
 	const tell = async (who: string, discordId: string | null, message: DirectNotice) => {
@@ -387,7 +389,7 @@ async function announceRemoval(
 		rosterRemovalNotice({
 			...described,
 			was: request.status,
-			leftHomeOn: toFacilityDate(dates.leftHomeAt),
+			leftHomeOn: toFacilityDate(removal.leftHomeAt),
 			restoreBy,
 			untold
 		})
