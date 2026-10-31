@@ -171,23 +171,23 @@ never reopened by Jira.
 
 Every 10 minutes (`*/10 * * * *`), in this order:
 
-| Job                       | Does                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                                      |
-| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                              |
-| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                                |
-| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)                         |
-| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)                           |
-| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                                     |
-| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)                           |
-| roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`) |
-| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                           |
-| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                              |
-| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                    |
-| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                              |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                              |
-| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`)             |
-| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                             |
+| Job                       | Does                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                                                                                      |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                                                                              |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                                                                                |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)                                                                         |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)                                                                           |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                                                                                     |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`), then dates up to 20 open rows from the changelog (`backfillStatusSince`) |
+| roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`)                                                 |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                                                                           |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                                                                              |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                                                                    |
+| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                                                                              |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                                                                              |
+| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`)                                                             |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                                                                             |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -613,6 +613,14 @@ students then see their request on `/`, are counted on `/waitlist`, and cannot f
 a duplicate. An issue with no usable CID, course or date is skipped and logged
 each run until someone fixes it on the board. The import is the only code that
 creates rows from Jira; the sweep and webhook only update existing ones.
+
+**`status_since` is the day a card entered its current status.** It is set only by
+the write in `applyIssueMove()` that changes `status` (to the move's observed
+time, else now), and to `createdAt` for a row the form creates. Rows that predate
+it are null; the status sweep job back-fills up to 20 open ones per run from the
+issue's changelog (the latest status change, else the issue's `created`), leaving
+a row whose Jira read failed null for the next run. Closed rows stay null. Nothing
+serves it.
 
 **`/waitlist` shows headcounts and estimates, not measured rates** (DEV-111). Each
 course's length is `estimatedWeeks` in `$lib/courses.ts` — one lesson a week,

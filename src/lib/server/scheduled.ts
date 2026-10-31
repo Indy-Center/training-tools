@@ -7,6 +7,7 @@ import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
 	announceArrivals,
 	announcePairings,
+	backfillStatusSince,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
 	importBoardIssues,
@@ -127,7 +128,12 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			description: 'Reads status, Teacher and RE Instructor back from TRK.',
 			run: async () => {
 				const result = await sweepEnrollmentStatuses(db, env);
-				return result.updated > 0 || result.full || !result.complete ? result : null;
+				// After the sweep's own writes: a card it just moved already has its date.
+				const backfill = await backfillStatusSince(db, env);
+				const quiet = result.updated === 0 && !result.full && result.complete;
+				return quiet && backfill.filled === 0 && backfill.failed === 0
+					? null
+					: { ...result, backfill };
 			}
 		},
 		{

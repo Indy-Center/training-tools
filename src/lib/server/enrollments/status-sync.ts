@@ -127,7 +127,9 @@ export async function applyIssueMove(
 							vatusaCompletedOn,
 							jiraUpdatedAt,
 							jiraStatusSyncedAt: now,
-							updatedAt: now
+							updatedAt: now,
+							// Only a write that changes `status` says when it was entered.
+							...(row.status !== status ? { statusSince: observedAt ?? now } : {})
 						}
 					: { jiraUpdatedAt, jiraStatusSyncedAt: now }
 			)

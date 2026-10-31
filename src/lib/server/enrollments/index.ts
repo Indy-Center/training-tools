@@ -49,6 +49,7 @@ export {
 	type SweepResult,
 	type SyncIssueResult
 } from './status-sync';
+export { backfillStatusSince, type BackfillResult } from './status-since';
 
 /**
  * Stop retrying a push after this many failures.
@@ -279,6 +280,7 @@ export async function submitEnrollment(
 			agreedTermsVersion: input.agreedTermsVersion ?? null,
 			suggestedCourse: input.suggestedCourse ?? null,
 			createdAt: now,
+			statusSince: now,
 			updatedAt: now
 		})
 		.returning();
