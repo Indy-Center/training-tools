@@ -198,6 +198,58 @@ export function certificationHeldNotice(request: NoticeRequest, missing: string[
 	};
 }
 
+/** A CTRS record filed on VATUSA that the read-back would not act on (decisions/0038). */
+export type CtrsRecordNotice = {
+	id: number;
+	/** The record's facility day, `YYYY-MM-DD`. */
+	day: string;
+	result: 'pass' | 'fail';
+	position: string;
+};
+
+function ctrsFields(request: NoticeRequest, record: CtrsRecordNotice) {
+	return [
+		{ label: 'Student', value: student(request) },
+		{ label: 'Course', value: course(request.course) },
+		{ label: 'CTRS record', value: String(record.id) },
+		...card(request)
+	];
+}
+
+/**
+ * A pass or fail at Rating Exam filed by the student's own teacher on the card.
+ * The card stays where it is: the examiner is never the teacher (0021).
+ */
+export function ctrsTeacherRecordNotice(
+	request: NoticeRequest,
+	/** `filedBy`: the teacher's name, or their CID when nobody here has it. */
+	record: CtrsRecordNotice & { filedBy: string }
+): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `CTRS record not acted on: ${request.name}`,
+		summary: `${student(request)}'s ${course(request.course)} has a CTRS record of ${formatCardDate(record.day, 'long')} giving a ${record.result}, filed by ${record.filedBy}, who is their teacher on the card. The card was not moved: the examiner can't be the student's teacher. Check the record on VATUSA, and move the card by hand if it stands.`,
+		link: request.issueUrl ?? undefined,
+		fields: ctrsFields(request, record)
+	};
+}
+
+/**
+ * A pass or fail that would end a Custom Training card, for a student with
+ * another card open: it could be for either, so neither is moved.
+ */
+export function ctrsUnclearCourseNotice(request: NoticeRequest, record: CtrsRecordNotice): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `CTRS record not acted on: ${request.name}`,
+		summary: `${student(request)} has a CTRS record of ${formatCardDate(record.day, 'long')} giving a ${record.result} at ${record.position}, but more than one of their courses could be the one it's for. The card was not moved.`,
+		link: request.issueUrl ?? undefined,
+		fields: ctrsFields(request, record)
+	};
+}
+
 /**
  * A request has failed to reach the TRK board too many times, and the cron has
  * stopped trying. Nobody on the training staff can see it until it is fixed.

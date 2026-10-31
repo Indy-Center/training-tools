@@ -182,6 +182,7 @@ Every 10 minutes (`*/10 * * * *`), in this order:
 | enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`), then dates up to 20 open rows from the changelog (`backfillStatusSince`) |
 | roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`)                                                 |
 | examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                                                                           |
+| ctrs records              | Moves a Rating Exam card on a pass or fail filed on VATUSA's own form (`checkCtrsRecords`)                                                             |
 | certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                                                                              |
 | vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                                                                    |
 | vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                                                                              |
@@ -198,7 +199,7 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters eleven times, and each is commented in `scheduled.ts`: certification
+Order matters twelve times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
@@ -207,7 +208,9 @@ the roster removals run after the sweep, so each card is judged where it is now,
 and before the announcements, so a restored request is not announced as an arrival;
 and the examiner cleanup and certification pass run after it, so a card the sweep
 has just seen go back into training, or arrive at Audit, is dealt
-with in the same run; and the announcements run last, so a card certified a
+with in the same run; the CTRS records job runs before the certification pass,
+so a card a record filed on VATUSA has just moved to Audit is certified in the
+same run; and the announcements run last, so a card certified a
 moment ago is announced in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
@@ -896,6 +899,28 @@ on the card has **Passed** and **Not passed** beside the exam on `/teach`
 (Not passed in the red danger style, with focus on Cancel). They make the same
 moves as the report, and the card comment says no training report was filed
 through the app.
+
+**A pass or fail filed on VATUSA's own form ends the exam too** (decisions/0038).
+The `ctrs records` job reads the CTRS records of every student whose card is at
+Rating Exam, each run, and takes ZID's latest pass or fail on the course's
+position type (GND / TWR / APP / CTR) dated on or after the day the card reached
+Rating Exam (`enrollments.status_since`). A pass moves the card as the
+examiner's passed report would, with `RE Completed` set to the record's session
+day; a fail as the not-passed one. An empty `RE Instructor` is filled with the
+record's instructor (initials, then CID), or `VATUSA`; a different examiner
+already on the card is named in the comment, not replaced. The card comment
+gives the record's id and date and who filed it. Nothing moves when:
+
+- the record was filed by the student's own teacher on the card (the examiner
+  is never the teacher), or
+- the card is Custom Training — which matches a record of any position type —
+  and the student has another card In Training or at Rating Exam, so the record
+  could be for either.
+
+Either way the training admins are told, once per record:
+`enrollments.ctrs_notice` holds the id last told about (set once Larry accepts
+the notice, cleared when the card changes status). A record with no instructor
+is logged and left alone.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira

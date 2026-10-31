@@ -1,0 +1,1 @@
+ALTER TABLE `enrollments` ADD `ctrs_notice` text;
