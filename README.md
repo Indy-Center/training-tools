@@ -660,15 +660,17 @@ admins and no DMs.
 **A student back on the home roster gets the request back** (`roster-restores.ts`,
 the same job, before the removals). A request in its window whose student is on
 the mirror as `home` again is moved off Removed to the stage it left (by the
-target status, so TRK needs the `Restore to …` transitions), its `Removed` date
-cleared and a comment added ("Back on the ZID home roster. Restored to …"), then
+transition named `Restore to <stage>`, or `Needs CATP`, which TRK offers from
+Removed only), its `Removed` date cleared and a comment added ("Back on the ZID home roster. Restored to …"), then
 read back and finished: the restore columns cleared, `announced_status` set so
 it is not announced as an arrival, `createdAt` untouched so it is back at its old
 place. In Training whose teacher is off the teacher roster or on LOA goes to
-Waitlist instead, with `Teacher` cleared on the card first. An unclaimed Rating
-Exam gets a fresh exam post; a claimed one keeps its examiner. Jira refusing
-leaves the row for the next pass, and the training admins are told once per
-request (`restore_refusal_told_at`). **A card moved off Removed any other way**
+Waitlist instead, with `Teacher` cleared on the card once it has moved. An
+unclaimed Rating Exam gets a fresh exam post; a claimed one keeps its examiner.
+Jira refusing leaves the row and the card as they were for the next pass, and
+the training admins are told once per request (`restore_refusal_told_at`). A
+refusal for a card that has already left Removed (another restore got there
+first) is not counted as one. **A card moved off Removed any other way**
 counts the same: at Waitlist, In Training or Rating Exam (or Needs CATP, if it
 was removed from there) it is finished as restored, and kept in line by the
 board (`kept_in_line_by` null) if the student is still away; at Withdrawn, or
@@ -782,10 +784,12 @@ pressed it, and the card's comment says so. Jira refusing shows `TRK refused
 "Restore to …": … Has the transition been added to the board?` and changes
 nothing. **Close for good** ends the window as `closed-by-admin`, without
 touching Jira, and the training admins get the expiry's line saying who closed
-it. On the sheet, a request whose student is off the home roster and not yet
+it; it is refused once the card has left Removed, which the next pass finishes
+as a restore. On the sheet, a request whose student is off the home roster and not yet
 removed has **Keep in line** in its menu (the job then skips it), and a kept
 one is labelled "Kept in line by <admin | the board>" with **Stop keeping in
-line**, after which the next pass removes it if the 24 hours have passed. Each
+line**, after which the next pass removes it if the 24 hours have passed (and
+closes it at once if 30 days have). Each
 action checks the role itself and writes only while the row still holds what
 the button was for, so a second press, or a second admin, gets a refusal ("This
 request is no longer waiting to be restored.", "Already removed. Use Restore now
