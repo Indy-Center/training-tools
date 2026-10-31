@@ -277,7 +277,9 @@ async function readBackRatingExams(
 				isNotNull(enrollmentsTable.statusSince),
 				isNull(enrollmentsTable.withdrawnAt)
 			)
-		);
+		)
+		// The oldest request first; the same moment, by id.
+		.orderBy(asc(enrollmentsTable.createdAt), asc(enrollmentsTable.id));
 
 	for (const card of cards) {
 		result.checked += 1;

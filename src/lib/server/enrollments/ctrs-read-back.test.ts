@@ -320,12 +320,14 @@ describe('the ctrs records job, Rating Exam half', () => {
 		])(
 			'judges the other card as the run found it, examined %s the Custom card; a told record stays unmoved',
 			async (_, order) => {
-				for (const id of order) {
-					await addCard(
-						id === 's'
-							? { id, cid: '1000001', course: 'S-GC' }
-							: { id, cid: '1000001', course: 'CUSTOM' }
-					);
+				// The half reads the oldest request first: `order` is the order it examines them.
+				for (const [i, id] of order.entries()) {
+					await addCard({
+						id,
+						cid: '1000001',
+						course: id === 's' ? 'S-GC' : 'CUSTOM',
+						createdAt: new Date(Date.UTC(2026, 9, 1, 0, i))
+					});
 				}
 				const gnd = pass({ position: 'XXX_GND' });
 				fakeServices({ '1000001': [gnd] });
@@ -469,7 +471,7 @@ describe('the ctrs records job, In Training half', () => {
 			['before', ['s', 'c']],
 			['after', ['c', 's']]
 		])(
-			'judges the other card as the run found it, examined %s the Custom card; a told record stays unmoved',
+			'never moves a Custom card on a record it was told about, the other card examined %s it',
 			async (_, order) => {
 				for (const id of order) {
 					await addTraining(
@@ -511,6 +513,31 @@ describe('the ctrs records job, In Training half', () => {
 				expect((await row('c')).status).toBe('rating-exam');
 			}
 		);
+		it('judges the other card as the run found it, though the Rating Exam half moves it first', async () => {
+			await addCard({ id: 's', cid: '1000001', course: 'S-GC' });
+			await addTraining({ id: 'c', cid: '1000001', course: 'CUSTOM' });
+			fakeServices({
+				'1000001': [
+					pass({ id: 501, position: 'XXX_GND' }),
+					recommend({ id: 502, position: 'XXX_GND' })
+				]
+			});
+			const { env, sent } = fakeEnv();
+
+			// S-GC passes in the Rating Exam half, before the Custom card is examined.
+			const first = await checkCtrsRecords(db, env, NOW);
+			expect(first.ratingExam).toMatchObject({ passed: 1 });
+			expect(first.inTraining).toMatchObject({ moved: 0, told: 1 });
+			expect((await row('s')).status).toBe('certification-update');
+			expect((await row('c')).status).toBe('in-training');
+			expect((await row('c')).ctrsNotice).toBe('502');
+			expect(unclear(sent)).toBe(1);
+
+			const second = await checkCtrsRecords(db, env, NOW);
+			expect(second.inTraining).toMatchObject({ moved: 0, told: 0, errors: 0 });
+			expect((await row('c')).status).toBe('in-training');
+			expect(unclear(sent)).toBe(1);
+		});
 	});
 
 	describe('which cards are read', () => {
