@@ -1,7 +1,7 @@
 import { JiraError, jiraRequest, type JiraConfig } from './client';
 import { BOARD_ISSUE_FIELDS, type JiraBoardIssue } from './board-issue';
 import { STUDENT_ENROLLMENT_ISSUE_TYPE_ID } from './enrollment';
-import { STATUS_FIELDS, type JiraStatusIssue } from './status';
+import { STATUS_FIELDS, parseJiraTimestamp, type JiraStatusIssue } from './status';
 
 /**
  * Reads against TRK's Student Enrollment issues. Each read asks only for the
@@ -94,6 +94,53 @@ export async function searchEnrollmentIssues(
  */
 export async function listBoardIssues(config: JiraConfig): Promise<SearchResult<JiraBoardIssue>> {
 	return searchAll(config, enrollmentJql(config, [], 'created ASC'), BOARD_ISSUE_FIELDS);
+}
+
+type ChangelogResponse = {
+	values?: { created?: string; items?: { field?: string }[] }[];
+	isLast?: boolean;
+};
+
+/** Changelog pages one read will take before giving up (100 history items each). */
+const MAX_CHANGELOG_PAGES = 10;
+
+/**
+ * When the issue last changed `status`: the `created` time of the latest
+ * history item with a `status` change, else the issue's own `created`. Null
+ * when neither can be read. Throws on a Jira failure, so the caller leaves the
+ * row for the next run.
+ */
+export async function fetchStatusSince(config: JiraConfig, issueKey: string): Promise<Date | null> {
+	const key = encodeURIComponent(issueKey);
+	let latest: Date | null = null;
+	let startAt = 0;
+
+	for (let page = 0; page < MAX_CHANGELOG_PAGES; page += 1) {
+		const response = await jiraRequest<ChangelogResponse>(
+			config,
+			`/issue/${key}/changelog?startAt=${startAt}&maxResults=${PAGE_SIZE}`,
+			{ method: 'GET' }
+		);
+		const values = response.values ?? [];
+
+		for (const history of values) {
+			if (!history.items?.some((item) => item.field === 'status')) continue;
+			const at = parseJiraTimestamp(history.created);
+			if (at && (!latest || at > latest)) latest = at;
+		}
+
+		startAt += values.length;
+		if (response.isLast !== false || values.length === 0) break;
+	}
+
+	if (latest) return latest;
+
+	const issue = await jiraRequest<{ fields?: { created?: string | null } }>(
+		config,
+		`/issue/${key}?fields=created`,
+		{ method: 'GET' }
+	);
+	return parseJiraTimestamp(issue.fields?.created);
 }
 
 /** One issue's status and teacher, or null when the issue no longer exists. */
