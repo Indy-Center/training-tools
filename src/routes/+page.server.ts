@@ -8,6 +8,7 @@ import {
 import { newEnrollmentNotice } from '$lib/server/enrollments/notices';
 import { recordEarlierVatusaPass } from '$lib/server/enrollments/waitlist';
 import { notifyInBackground } from '$lib/server/notify';
+import { issueUrl } from '$lib/server/jira/client';
 import { toFacilityDate } from '$lib/server/jira/progress';
 import { requireSession } from '$lib/server/guards';
 import { findAssignee, getActiveTeacher } from '$lib/server/teachers';
@@ -248,7 +249,6 @@ export const actions: Actions = {
 				console.error('[training-tools] earlier VATUSA pass check failed', saved.cid, err)
 			)
 		);
-		const jiraBaseUrl = platform?.env.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 		notifyInBackground(
 			platform,
 			newEnrollmentNotice({
@@ -258,8 +258,7 @@ export const actions: Actions = {
 				teacher: null,
 				examiner: null,
 				issueKey: saved.jiraIssueKey,
-				issueUrl:
-					jiraBaseUrl && saved.jiraIssueKey ? `${jiraBaseUrl}/browse/${saved.jiraIssueKey}` : null,
+				issueUrl: issueUrl(platform?.env.JIRA_BASE_URL, saved.jiraIssueKey),
 				rating: saved.submittedRating,
 				availability: saved.availability,
 				notificationPreference: saved.notificationPreference

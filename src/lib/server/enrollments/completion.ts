@@ -13,7 +13,7 @@ import {
 } from '$lib/course-completion';
 import { findCourse } from '$lib/courses';
 import { getHeldCredentials, grantCredential, setCertification } from '$lib/server/certifications';
-import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
+import { issueUrl, JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { fetchEnrollmentIssue } from '$lib/server/jira/issues';
@@ -293,7 +293,6 @@ async function holdCertification(
 	const hold = formatHold(missing);
 	if (hold === enrollment.certificationHold) return;
 
-	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 	const outcome = await notify(
 		env,
 		certificationHeldNotice(
@@ -304,8 +303,7 @@ async function holdCertification(
 				teacher: enrollment.teacher,
 				examiner: enrollment.reInstructor,
 				issueKey: enrollment.jiraIssueKey,
-				issueUrl:
-					base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null
+				issueUrl: issueUrl(env?.JIRA_BASE_URL, enrollment.jiraIssueKey)
 			},
 			holdLabels(hold)
 		)

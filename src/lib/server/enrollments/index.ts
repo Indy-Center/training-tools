@@ -7,7 +7,7 @@ import {
 } from '$lib/db/schema/enrollments';
 import type { CourseCode } from '$lib/courses';
 import type { NotificationPreference } from '$lib/db/schema/enrollments';
-import { resolveJiraConfig, JiraError } from '$lib/server/jira/client';
+import { issueUrl, resolveJiraConfig, JiraError } from '$lib/server/jira/client';
 import {
 	commentOnIssue,
 	createEnrollmentIssue,
@@ -451,7 +451,6 @@ export async function withdrawEnrollment(
 		}
 	}
 
-	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 	await notify(
 		env,
 		withdrawnNotice({
@@ -461,7 +460,7 @@ export async function withdrawEnrollment(
 			teacher: withdrawn.teacher,
 			examiner: withdrawn.reInstructor,
 			issueKey: withdrawn.jiraIssueKey,
-			issueUrl: base && withdrawn.jiraIssueKey ? `${base}/browse/${withdrawn.jiraIssueKey}` : null,
+			issueUrl: issueUrl(env?.JIRA_BASE_URL, withdrawn.jiraIssueKey),
 			was: before?.status ?? 'waitlist'
 		})
 	);

@@ -11,7 +11,7 @@ import { syncStateTable } from '$lib/db/schema/sync-state';
 import type { Teacher } from '$lib/db/schema/teachers';
 import { isDueForRemoval, restoreByFor } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
-import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
+import { issueUrl, JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { REMOVED_STATUS, toFacilityDate } from '$lib/server/jira/progress';
 import { notify, notifyDirect, type DirectNotice } from '$lib/server/notify';
@@ -218,7 +218,6 @@ async function removeDepartedStudents(
 
 	const config = resolveJiraConfig(env);
 	const teachers = await listTeachers(db);
-	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 	const summary: (NoticeRequest & { was: string; leftHomeOn: string })[] = [];
 	let removed = 0;
 	let refused = 0;
@@ -274,7 +273,7 @@ async function removeDepartedStudents(
 			teacher: request.teacher,
 			examiner: request.reInstructor,
 			issueKey: request.jiraIssueKey,
-			issueUrl: base && request.jiraIssueKey ? `${base}/browse/${request.jiraIssueKey}` : null
+			issueUrl: issueUrl(env?.JIRA_BASE_URL, request.jiraIssueKey)
 		};
 
 		if (closeNow) {

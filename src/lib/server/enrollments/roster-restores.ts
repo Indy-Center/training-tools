@@ -9,7 +9,7 @@ import { rosterMembersTable } from '$lib/db/schema/roster';
 import type { Teacher } from '$lib/db/schema/teachers';
 import { boardMoveOutcome, isBackOnHomeRoster } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
-import { resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
+import { issueUrl, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import {
@@ -124,7 +124,7 @@ async function loadContext(db: Database, env: Partial<Env> | undefined): Promise
 	return {
 		people: new Map(members.map((member) => [member.cid, member])),
 		teachers,
-		baseUrl: env?.JIRA_BASE_URL?.trim().replace(/\/$/, '')
+		baseUrl: env?.JIRA_BASE_URL
 	};
 }
 
@@ -450,7 +450,7 @@ function describeRequest(
 		teacher: request.teacher,
 		examiner: request.reInstructor,
 		issueKey: request.jiraIssueKey,
-		issueUrl: baseUrl && request.jiraIssueKey ? `${baseUrl}/browse/${request.jiraIssueKey}` : null
+		issueUrl: issueUrl(baseUrl, request.jiraIssueKey)
 	};
 }
 

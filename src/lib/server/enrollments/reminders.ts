@@ -2,6 +2,7 @@ import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { CLOSED_ENROLLMENT_STATUSES, enrollmentsTable } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
+import { issueUrl } from '$lib/server/jira/client';
 import { toFacilityDate } from '$lib/server/jira/progress';
 import { notify, notifyDirect } from '$lib/server/notify';
 import { reminderToSend, type AcademyReminder } from '$lib/vatusa-reminders';
@@ -70,7 +71,6 @@ export async function sendVatusaReminders(
 	);
 
 	const today = toFacilityDate(now);
-	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 	let sent = 0;
 
 	for (const enrollment of open) {
@@ -100,8 +100,7 @@ export async function sendVatusaReminders(
 			teacher: enrollment.teacher,
 			examiner: enrollment.reInstructor,
 			issueKey: enrollment.jiraIssueKey,
-			issueUrl:
-				base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null,
+			issueUrl: issueUrl(env?.JIRA_BASE_URL, enrollment.jiraIssueKey),
 			assignedOn
 		};
 

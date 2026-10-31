@@ -55,6 +55,15 @@ export function resolveJiraConfig(env: Partial<Env> | undefined): JiraConfig | n
 	};
 }
 
+/**
+ * The browser link to an issue, for notices and the staff pages. Null without a
+ * base URL or a key. Takes `JIRA_BASE_URL` as set; it is trimmed here.
+ */
+export function issueUrl(jiraBaseUrl: string | undefined, issueKey: string | null): string | null {
+	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
+	return base && issueKey ? `${base}/browse/${issueKey}` : null;
+}
+
 function authorization({ email, apiToken }: JiraConfig): string {
 	// btoa is available in workerd; the token is ASCII so no encoding dance.
 	return `Basic ${btoa(`${email}:${apiToken}`)}`;

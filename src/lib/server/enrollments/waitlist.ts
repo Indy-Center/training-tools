@@ -5,7 +5,7 @@ import { rosterMembersTable } from '$lib/db/schema/roster';
 import { FACILITY_ID } from '$lib/config';
 import { COURSES, findCourse } from '$lib/courses';
 import { CLOSED_ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
-import { resolveJiraConfig } from '$lib/server/jira/client';
+import { issueUrl, resolveJiraConfig } from '$lib/server/jira/client';
 import { transitionIssueToStatus, WITHDRAWN_STATUS } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import {
@@ -85,7 +85,6 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 			.then((rows) => new Set(rows.map((row) => row.cid)))
 	]);
 
-	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
 	const active = teachers.filter(
 		(teacher) => teacher.removedAt === null && teacher.status === 'active'
 	);
@@ -160,8 +159,7 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 				vatusaCompletedOn: enrollment.vatusaCompletedOn,
 				gate: teacherGate(enrollment),
 				issueKey: enrollment.jiraIssueKey,
-				issueUrl:
-					base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null,
+				issueUrl: issueUrl(jiraBaseUrl, enrollment.jiraIssueKey),
 				teachers: choicesFor(enrollment.course, enrollment.cid),
 				mayKeepInLine:
 					away.has(enrollment.cid) &&
@@ -209,7 +207,6 @@ export async function getLeftTheRoster(
 	]);
 	if (requests.length === 0) return [];
 
-	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
 	const teacherName = (value: string | null): string | null => {
 		if (!value) return null;
 		const match = teachers.find((teacher) => isAssignedTo(value, teacher));
@@ -227,7 +224,7 @@ export async function getLeftTheRoster(
 		leftHomeOn: toFacilityDate(request.leftHomeAt!),
 		restoreBy: toFacilityDate(request.restoreBy!),
 		issueKey: request.jiraIssueKey,
-		issueUrl: base && request.jiraIssueKey ? `${base}/browse/${request.jiraIssueKey}` : null
+		issueUrl: issueUrl(jiraBaseUrl, request.jiraIssueKey)
 	}));
 }
 
