@@ -190,6 +190,13 @@
       "when": 1793480423694,
       "tag": "0027_mean_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1793481310856,
+      "tag": "0028_curious_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

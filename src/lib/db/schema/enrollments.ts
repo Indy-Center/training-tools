@@ -243,6 +243,12 @@ export const enrollmentsTable = sqliteTable(
 		 * `applyIssueMove()` in the write that changes `status`, and nowhere else.
 		 */
 		ctrsNotice: text('ctrs_notice'),
+		/**
+		 * When the `ctrs records` job last read this card's student's CTRS records
+		 * for a Recommend (In Training), whatever came of it, a VATUSA error
+		 * included. The job takes the oldest first, nulls first. Not served.
+		 */
+		ctrsCheckedAt: integer('ctrs_checked_at', { mode: 'timestamp' }),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()
