@@ -4,6 +4,7 @@ import { rosterMembersTable, type RosterMemberRow } from '$lib/db/schema/roster'
 
 export { syncRoster, type RosterSyncResult } from './sync';
 export { readRoster } from './read';
+export { loadMirror, memberName, type MirrorMember } from './mirror';
 
 /**
  * The current roster entry for a CID, or null if they are not on the roster.

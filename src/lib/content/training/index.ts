@@ -22,12 +22,14 @@
 import { COMMUNITY_URL } from '$lib/config';
 import type { TrainingFlow } from '$lib/training-flow';
 import { ENROLLMENT_COPY } from '$lib/content/enrollment';
+import backOnHomeRoster from './back-on-home-roster.md';
 import becomeController from './become-controller.md';
 import certificationUpdate from './certification-update.md';
 import consolidating from './consolidating.md';
 import consolidationUnknown from './consolidation-unknown.md';
 import extraCourses from './extra-courses.md';
 import inTraining from './in-training.md';
+import leftHomeRoster from './left-home-roster.md';
 import needsCatp from './needs-catp.md';
 import ratingExam from './rating-exam.md';
 import signedOut from './signed-out.md';
@@ -55,6 +57,27 @@ export type CopyBlock = {
 };
 
 const BECOME_CONTROLLER_URL = `${COMMUNITY_URL}/visit/become-a-controller`;
+
+const ESCAPES: Record<string, string> = {
+	'&': '&amp;',
+	'<': '&lt;',
+	'>': '&gt;',
+	'"': '&quot;',
+	"'": '&#39;'
+};
+
+/**
+ * A block whose body names data, such as `{course}`, with those filled in.
+ * The values are escaped, so the body stays HTML only this repo wrote.
+ */
+export function fillCopy(copy: CopyBlock, values: Record<string, string>): CopyBlock {
+	return {
+		...copy,
+		body: copy.body.replace(/\{(\w+)\}/g, (token, key: string) =>
+			key in values ? values[key].replace(/[&<>"']/g, (c) => ESCAPES[c]) : token
+		)
+	};
+}
 
 export const TRAINING_COPY = {
 	// --- No open request -----------------------------------------------------
@@ -123,6 +146,18 @@ export const TRAINING_COPY = {
 	'certification-update': {
 		title: 'Your course is being audited',
 		body: certificationUpdate
+	},
+	// Removed by the roster removals job, and still restorable. Filled in with
+	// `fillCopy`: `{course}` and `{restoreBy}`.
+	'left-home-roster': {
+		title: 'Your request is paused',
+		body: leftHomeRoster
+	},
+	// The same request, its student home again: the next pass restores it.
+	// Filled in with `fillCopy`: `{course}`.
+	'back-on-home-roster': {
+		title: 'Your request is coming back',
+		body: backOnHomeRoster
 	}
 } as const satisfies Record<TrainingFlow, CopyBlock>;
 

@@ -11,8 +11,9 @@
 	import { displayName } from '$lib/user';
 	import { page } from '$app/state';
 	import { findCourse, formatWeeksRange } from '$lib/courses';
-	import { SHARED_COPY, TRAINING_COPY, TRAINING_TEXT } from '$lib/content/training';
+	import { fillCopy, SHARED_COPY, TRAINING_COPY, TRAINING_TEXT } from '$lib/content/training';
 	import { NOTIFICATION_LABELS } from '$lib/enrollment-status';
+	import { formatCardDate } from '$lib/format';
 	import IconAccount from '~icons/mdi/account-circle';
 	import IconAccountClock from '~icons/mdi/account-clock';
 	import IconAccountSwitch from '~icons/mdi/account-switch';
@@ -21,6 +22,8 @@
 	import IconCertificate from '~icons/mdi/certificate';
 	import IconClockOutline from '~icons/mdi/clock-outline';
 	import IconOpenInNew from '~icons/mdi/open-in-new';
+	import IconPause from '~icons/mdi/pause-circle-outline';
+	import IconRestore from '~icons/mdi/restore';
 	import IconSchool from '~icons/mdi/school';
 	import IconStar from '~icons/mdi/star-outline';
 
@@ -81,7 +84,27 @@
 
 	<div class="w-full bg-gray-900">
 		<div class="mx-auto max-w-3xl space-y-6 px-4 py-10">
-			{#if data.request}
+			{#if data.flow === 'left-home-roster' && data.request}
+				<!-- Removed because they left the home roster, and still restorable.
+				     Ahead of the status, which reads `removed` here. -->
+				<CopyPanel
+					copy={fillCopy(TRAINING_COPY['left-home-roster'], {
+						course: findCourse(data.request.course)?.label ?? data.request.course,
+						restoreBy: data.request.restoreBy
+							? formatCardDate(data.request.restoreBy, 'long')
+							: 'the end of your 30 days'
+					})}
+					icon={IconPause}
+				/>
+			{:else if data.flow === 'back-on-home-roster' && data.request}
+				<!-- The same request, its student home again: the next pass restores it. -->
+				<CopyPanel
+					copy={fillCopy(TRAINING_COPY['back-on-home-roster'], {
+						course: findCourse(data.request.course)?.label ?? data.request.course
+					})}
+					icon={IconRestore}
+				/>
+			{:else if data.request}
 				<!-- A request is open: where it stands, whatever else has changed. -->
 				{@const request = data.request}
 				{@const course = findCourse(request.course)}

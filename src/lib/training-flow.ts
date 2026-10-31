@@ -21,6 +21,9 @@ import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
 export type TrainingFlow =
 	// An open request, by where it sits on the TRK board.
 	| OpenEnrollmentStatus
+	// A request in its restore window (decisions/0037).
+	| 'left-home-roster' // the student is off the home roster: the request is paused
+	| 'back-on-home-roster' // home again: the next pass restores it
 	// No open request.
 	| 'enroll' // home controller who may enroll in their next course
 	| 'consolidating' // home controller short of the hours their next course asks for
@@ -67,6 +70,11 @@ export type FlowInput = {
 	consolidation?: Consolidation | null;
 	/** Status of their open request, or null when they have none. */
 	openStatus?: string | null;
+	/**
+	 * Their open request was taken off by a roster removal and can still be
+	 * restored (`isInRestoreWindow()` in `$lib/roster-removal.ts`).
+	 */
+	inRestoreWindow?: boolean;
 	/** Credential codes held unrevoked. */
 	held?: readonly string[];
 };
@@ -141,8 +149,14 @@ export function resolveTrainingFlow({
 	inVatusa = false,
 	consolidation,
 	openStatus = null,
+	inRestoreWindow = false,
 	held = []
 }: FlowInput): TrainingFlow {
+	// A request in its restore window, ahead of its status: the status is
+	// `removed`, or whatever the card was read back at before the pass caught up.
+	// Off the home roster it is paused; home again, the next pass restores it.
+	if (inRestoreWindow) return membership === 'home' ? 'back-on-home-roster' : 'left-home-roster';
+
 	if (isOpenEnrollmentStatus(openStatus)) return openStatus;
 
 	if (membership === 'home') {

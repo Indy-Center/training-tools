@@ -6,6 +6,7 @@ import { highestCertification } from '$lib/certifications';
 import { evaluatesCourse } from '$lib/course-completion';
 import { isAssignedTo } from '$lib/teachers';
 import { getLiveCredentialsByCid } from '$lib/server/certifications';
+import { issueUrl } from '$lib/server/jira/client';
 import { notify, notifyDelete, notifyEdit, notifyTracked, type Notice } from '$lib/server/notify';
 import { getPeople } from '$lib/server/roster';
 import { getAllCurrentQualifications, listTeachers } from '$lib/server/teachers';
@@ -106,7 +107,6 @@ function describe(
 	people: People,
 	jiraBaseUrl: string | undefined
 ): NoticeRequest {
-	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
 	return {
 		name: people.names.get(enrollment.cid) ?? enrollment.submittedName,
 		cid: enrollment.cid,
@@ -114,7 +114,7 @@ function describe(
 		teacher: enrollment.teacher,
 		examiner: enrollment.reInstructor,
 		issueKey: enrollment.jiraIssueKey,
-		issueUrl: base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null
+		issueUrl: issueUrl(jiraBaseUrl, enrollment.jiraIssueKey)
 	};
 }
 

@@ -8,8 +8,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getWaitlistSheet = vi.fn(async () => [{ id: 'row', name: 'Somebody Waiting' }]);
 
+const getLeftTheRoster = vi.fn(async () => []);
+
 vi.mock('$lib/server/enrollments/waitlist', () => ({
 	getWaitlistSheet,
+	getLeftTheRoster,
 	assignTeacher: vi.fn(),
 	assignVatusaCourse: vi.fn(),
 	changeTeacher: vi.fn(),
@@ -34,13 +37,17 @@ const event = (roles: string[]) =>
 	}) as unknown as Parameters<typeof load>[0];
 
 describe('/waitlist load', () => {
-	beforeEach(() => getWaitlistSheet.mockClear());
+	beforeEach(() => {
+		getWaitlistSheet.mockClear();
+		getLeftTheRoster.mockClear();
+	});
 
 	it('gives a member the counts and no sheet, without ever reading it', async () => {
 		const data = (await load(event([]))) as { sheet: unknown; courses: unknown };
 		expect(data.sheet).toBeNull();
 		expect(data.courses).toEqual([]);
 		expect(getWaitlistSheet).not.toHaveBeenCalled();
+		expect(getLeftTheRoster).not.toHaveBeenCalled();
 	});
 
 	it('does not count another training role as this one', async () => {

@@ -171,22 +171,23 @@ never reopened by Jira.
 
 Every 10 minutes (`*/10 * * * *`), in this order:
 
-| Job                       | Does                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                          |
-| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                  |
-| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                    |
-| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)             |
-| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)               |
-| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                         |
-| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)               |
-| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)               |
-| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                  |
-| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)        |
-| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                  |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                  |
-| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`) |
-| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                 |
+| Job                       | Does                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                                      |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                              |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                                |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)                         |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)                           |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                                     |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)                           |
+| roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`) |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                           |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                              |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                    |
+| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                              |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                              |
+| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`)             |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                             |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -197,11 +198,13 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters ten times, and each is commented in `scheduled.ts`: certification
+Order matters eleven times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
 sweep runs after it so an issue filed moments ago is read back in the same run;
+the roster removals run after the sweep, so each card is judged where it is now,
+and before the announcements, so a restored request is not announced as an arrival;
 and the examiner cleanup and certification pass run after it, so a card the sweep
 has just seen go back into training, or arrive at Audit, is dealt
 with in the same run; and the announcements run last, so a card certified a
@@ -382,6 +385,12 @@ VATUSA roster, refreshed by cron and **soft-removed** — departed members keep
 their row with `removedAt` stamped, so we can tell "never on the roster" from
 "left last week". Active queries filter `removedAt IS NULL`.
 
+`leftHomeAt` dates the end of a home membership: the sync stamps it when a home
+member is absent or turns up as a visitor, clears it when they are home again,
+and otherwise leaves it, so it is the first day of the current time away. It is
+written with `removedAt`, so a held removal stamps neither. It is not served by
+`getRoster()`.
+
 VATUSA can answer with a short roster that looks like a valid one, so the sync
 **refuses to remove more than 5 members, or 5% of the active roster, in one
 run**. Everyone present is still updated and added; the removals are held (in
@@ -542,11 +551,11 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                |
-| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                              |
-| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                   |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP; a request removed because its student left the home roster |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                                                                                          |
+| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                                                                               |
 
 The rating exam post is the one notice this app goes on looking after. It
 carries a **Status** line ("Waiting for an examiner", then "Claimed by …") and
@@ -563,10 +572,12 @@ A card at Needs CATP is described as a failed exam only when it arrived from
 Rating Exam; staff can also move one there from In Training.
 
 Only the people a notice names are pinged; nothing typed into a field can mention
-anyone. **Students and teachers are messaged by the app in two cases**: a
+anyone. **Students and teachers are messaged by the app in three cases**: a
 pairing, posted in the teacher's own channel (see [The waitlist, for
-staff](#the-waitlist-for-staff)), and reminders about an assigned VATUSA course,
-sent privately. Those do not use an audience from the table above.
+staff](#the-waitlist-for-staff)), reminders about an assigned VATUSA course,
+sent privately, and a roster removal or restore, sent privately to the student,
+their teacher and their examiner (see [Enrollments](#enrollments)). Those do not use
+an audience from the table above.
 
 **Arrivals are announced once.** `enrollments.announced_status` records the last
 status a request was announced at; `announceArrivals()` handles any request
@@ -622,6 +633,63 @@ student's own teacher.
 One open enrollment per CID — you train one course at a time. Students can
 withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 — kept distinct from `Removed`, which is what staff do.
+
+**A student who leaves the home roster comes off their request by themselves**
+(decisions/0037, the `roster removals` job). Once their `left_home_at` is more
+than 24 hours ago, an open request at Waitlist, In Training, Rating Exam or
+Needs CATP (never Audit) that is not **kept in line** is removed: the card is
+commented on ("Left the ZID home roster on … restored to … if back on the home
+roster by …"), moved to Removed and read back, then the row is stamped with
+`roster_removed_at`, the stage it left, the student's `left_home_at` and
+`restore_by` (30 days after leaving). Jira refusing leaves the row for the next
+pass. A request not yet filed is stamped and set to `removed` here; neither the
+reconcile nor `/admin`'s Retry ever files it, and `/admin` does not list it as
+unfiled. The rule is `$lib/roster-removal.ts`. While
+`roster_removed_at` is set and `restore_closed_at` is not, the request is **in
+its restore window**: it still counts as the student's open request (so they
+cannot file another, and `/` says it is paused), but not as waiting, so the
+people behind it on `/waitlist` move up. The training admins are told, and the
+student, the teacher (if at In Training) and the examiner (if one had claimed it)
+are messaged privately; anyone with no Discord ID, or a student who chose email,
+is named in the admins' notice instead. **A request whose student left more
+than 30 days ago** when it comes due (on the first run, after Stop keeping in
+line, or after Jira refused its removal for a month) has no window left: it is
+removed and closed at once, as `expired`, with one summary per pass for the
+admins and no DMs.
+
+**A student back on the home roster gets the request back** (`roster-restores.ts`,
+the same job, before the removals). A request in its window whose student is on
+the mirror as `home` again is moved off Removed to the stage it left (by the
+transition named `Restore to <stage>`, or `Needs CATP`, which TRK offers from
+Removed only), its `Removed` date cleared and a comment added ("Back on the ZID home roster. Restored to …"), then
+read back and finished: the restore columns cleared, `announced_status` set so
+it is not announced as an arrival, `createdAt` untouched so it is back at its old
+place. In Training whose teacher is off the teacher roster or on LOA goes to
+Waitlist instead, with `Teacher` cleared on the card once it has moved. An
+unclaimed Rating Exam gets a fresh exam post; a claimed one keeps its examiner.
+Jira refusing leaves the row and the card as they were for the next pass, and
+the training admins are told once per request (`restore_refusal_told_at`). A
+refusal for a card that has already left Removed (another restore got there
+first) is not counted as one. **A card moved off Removed any other way**
+counts the same: at Waitlist, In Training or Rating Exam (or Needs CATP, if it
+was removed from there) it is finished as restored, and kept in line by the
+board (`kept_in_line_by` null) if the student is still away; at Withdrawn, or
+Needs CATP from another stage, the window closes as `moved-on-board`. The
+training admins, the student, the teacher it was restored to and an examiner
+still on the card are told. Until the pass runs, `/` tells a returning student
+the request is being restored, and they cannot enroll again.
+
+**A window that runs out is closed** (`roster-expiry.ts`, the same job, after the
+restores and before the removals). A request in its window whose `restore_by` has
+passed gets `restore_closed_at` and `restore_closed_reason = 'expired'`; the
+training admins get one line, Jira is not touched and the student is not told.
+A student who is back on the mirror as `home` is never expired: if Jira is still
+refusing their restore at `restore_by`, the window stays open and the restore
+keeps retrying until it goes through or they leave again.
+Once closed it counts as open no more, so the student may enroll again, at the
+back of the line, and it is never removed or restored again. In the same place the
+job clears `kept_in_line_at` and `kept_in_line_by` on an open request whose student
+is on the mirror as `home` again, so a later departure counts from scratch.
 
 **The form offers the next course in the student's progression, and sometimes
 one beside it.** It comes from the certifications this app holds, walking the
@@ -707,7 +775,27 @@ Most cards were filed by hand and never came through the form, so the card is
 the only place their availability is; an empty card never erases what a student
 typed here.
 
-The page is built from small pieces: `ManagePanel`, `SheetFilters`,
+**Left the roster** (decisions/0037; `roster-admin.ts`) sits below the sheet,
+and only when a request is in its restore window: student, course, the stage it
+left, teacher, left-home date and `restore_by` (facility days), soonest
+`restore_by` first. **Restore now** runs the job's restore for that request at
+once; if the student is still away it is also kept in line by the admin who
+pressed it, and the card's comment says so. Jira refusing shows `TRK refused
+"Restore to …": … Has the transition been added to the board?` and changes
+nothing. **Close for good** ends the window as `closed-by-admin`, without
+touching Jira, and the training admins get the expiry's line saying who closed
+it; it is refused once the card has left Removed, which the next pass finishes
+as a restore. On the sheet, a request whose student is off the home roster and not yet
+removed has **Keep in line** in its menu (the job then skips it), and a kept
+one is labelled "Kept in line by <admin | the board>" with **Stop keeping in
+line**, after which the next pass removes it if the 24 hours have passed (and
+closes it at once if 30 days have). Each
+action checks the role itself and writes only while the row still holds what
+the button was for, so a second press, or a second admin, gets a refusal ("This
+request is no longer waiting to be restored.", "Already removed. Use Restore now
+instead.") rather than acting twice.
+
+The page is built from small pieces: `ManagePanel`, `LeftTheRoster`, `SheetFilters`,
 `StudentRow` and the two cells beside it in `src/routes/waitlist/`, on shared
 components in `$lib/components/`. The grouping, filtering and counting are plain
 functions in `$lib/waitlist.ts`.

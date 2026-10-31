@@ -5,10 +5,15 @@ import { rosterMembersTable } from '$lib/db/schema/roster';
 import { FACILITY_ID } from '$lib/config';
 import { COURSES, findCourse } from '$lib/courses';
 import { CLOSED_ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
-import { resolveJiraConfig } from '$lib/server/jira/client';
+import { issueUrl, resolveJiraConfig } from '$lib/server/jira/client';
 import { transitionIssueToStatus, WITHDRAWN_STATUS } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
-import { findSelectOption, toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
+import {
+	findSelectOption,
+	REMOVED_STATUS,
+	toFacilityDate,
+	updateIssueFields
+} from '$lib/server/jira/progress';
 import { TEACHER_FIELD } from '$lib/server/jira/status';
 import { getPeople, getRosterEmails } from '$lib/server/roster';
 import {
@@ -29,11 +34,13 @@ import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { academyExamFor, firstPass, pickAcademyAssigner, teacherGate } from '$lib/vatusa-academy';
 import {
 	SHEET_STATUSES,
+	type LeftRosterRow,
 	type SheetStatus,
 	type TeacherChoice,
 	type WaitlistRow
 } from '$lib/waitlist';
 import { note, onCard, type FlowResult } from './completion';
+import { inRestoreWindow } from './restore-window';
 import { syncEnrollmentIssue } from './status-sync';
 
 /**
@@ -55,7 +62,7 @@ const IN_TRAINING_STATUS = 'In Training';
  * is, then by how long they have waited.
  */
 export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Promise<WaitlistRow[]> {
-	const [waiting, people, teachers, levels, assigned, emails] = await Promise.all([
+	const [waiting, people, teachers, levels, assigned, emails, away] = await Promise.all([
 		db
 			.select()
 			.from(enrollmentsTable)
@@ -70,10 +77,15 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 		listTeachers(db),
 		getAllCurrentQualifications(db),
 		getAssignedEnrollments(db),
-		getRosterEmails(db)
+		getRosterEmails(db),
+		// Off the home roster, and so on the clock for a roster removal.
+		db
+			.select({ cid: rosterMembersTable.cid })
+			.from(rosterMembersTable)
+			.where(isNotNull(rosterMembersTable.leftHomeAt))
+			.then((rows) => new Set(rows.map((row) => row.cid)))
 	]);
 
-	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
 	const active = teachers.filter(
 		(teacher) => teacher.removedAt === null && teacher.status === 'active'
 	);
@@ -148,9 +160,13 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 				vatusaCompletedOn: enrollment.vatusaCompletedOn,
 				gate: teacherGate(enrollment),
 				issueKey: enrollment.jiraIssueKey,
-				issueUrl:
-					base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null,
-				teachers: choicesFor(enrollment.course, enrollment.cid)
+				issueUrl: issueUrl(jiraBaseUrl, enrollment.jiraIssueKey),
+				teachers: choicesFor(enrollment.course, enrollment.cid),
+				mayKeepInLine:
+					away.has(enrollment.cid) &&
+					enrollment.keptInLineAt === null &&
+					enrollment.rosterRemovedAt === null,
+				keptInLineBy: keptInLineLabel(enrollment, people)
 			};
 		})
 		.sort(
@@ -159,6 +175,56 @@ export async function getWaitlistSheet(db: Database, jiraBaseUrl?: string): Prom
 				order(a.status) - order(b.status) ||
 				a.waitlistedAt.getTime() - b.waitlistedAt.getTime()
 		);
+}
+
+/** "Kept in line by <admin | the board>", as the sheet labels it: the name, or null when not kept. */
+function keptInLineLabel(
+	enrollment: Pick<Enrollment, 'keptInLineAt' | 'keptInLineBy'>,
+	people: Map<string, { name: string }>
+): string | null {
+	if (!enrollment.keptInLineAt) return null;
+	if (!enrollment.keptInLineBy) return 'the board';
+	return people.get(enrollment.keptInLineBy)?.name ?? enrollment.keptInLineBy;
+}
+
+/**
+ * The sheet's **Left the roster** group: every request in its restore window,
+ * soonest `restore_by` first. A request closed for good is not in it.
+ */
+export async function getLeftTheRoster(
+	db: Database,
+	jiraBaseUrl?: string
+): Promise<LeftRosterRow[]> {
+	const [requests, people, teachers] = await Promise.all([
+		db
+			.select()
+			.from(enrollmentsTable)
+			.where(inRestoreWindow())
+			.orderBy(asc(enrollmentsTable.restoreBy), asc(enrollmentsTable.createdAt)),
+		getPeople(db),
+		listTeachers(db)
+	]);
+	if (requests.length === 0) return [];
+
+	const teacherName = (value: string | null): string | null => {
+		if (!value) return null;
+		const match = teachers.find((teacher) => isAssignedTo(value, teacher));
+		return match ? teacherLabel(match, people.get(match.cid)) : value;
+	};
+
+	return requests.map((request) => ({
+		id: request.id,
+		cid: request.cid,
+		name: people.get(request.cid)?.name ?? request.submittedName,
+		course: request.course,
+		courseName: findCourse(request.course)?.name ?? request.course,
+		from: request.rosterRemovedFrom!,
+		teacher: teacherName(request.teacher),
+		leftHomeOn: toFacilityDate(request.leftHomeAt!),
+		restoreBy: toFacilityDate(request.restoreBy!),
+		issueKey: request.jiraIssueKey,
+		issueUrl: issueUrl(jiraBaseUrl, request.jiraIssueKey)
+	}));
 }
 
 /**
@@ -482,9 +548,6 @@ export async function changeTeacher(
 		await note(config, issueKey, `Teacher changed from ${was} to ${label} by ${by}.`);
 	});
 }
-
-/** TRK's status for someone staff took off the list. Matched by name. */
-const REMOVED_STATUS = 'Removed';
 
 /**
  * Staff take someone off the list: the card moves to Removed. For a request

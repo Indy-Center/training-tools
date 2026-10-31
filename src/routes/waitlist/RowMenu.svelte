@@ -5,7 +5,8 @@
 
 	/**
 	 * What else can be done with a student, behind an arrow: withdraw them, or
-	 * remove them. Kept out of the way because each closes the request.
+	 * remove them. Kept out of the way because each closes the request. For a
+	 * student off the home roster, Keep in line (or Stop keeping in line) too.
 	 */
 	let {
 		row,
@@ -30,6 +31,27 @@
 	{attached}
 	{variant}
 >
+	<!-- Roster removal's exemption: only while it applies (decisions/0037). -->
+	{#if row.keptInLineBy}
+		<ActionForm
+			action="stopKeepingInLine"
+			label="Stop keeping in line"
+			variant="menu"
+			class="border-b border-slate-700"
+			fields={{ id: row.id }}
+			question={`Stop keeping ${row.name} in line? If they have been off the home roster for 24 hours, the next pass removes their request, and closes it for good if it has been 30 days.`}
+			bind:busy
+		/>
+	{:else if row.mayKeepInLine}
+		<ActionForm
+			action="keepInLine"
+			label="Keep in line"
+			variant="menu"
+			class="border-b border-slate-700"
+			fields={{ id: row.id }}
+			bind:busy
+		/>
+	{/if}
 	<ActionForm
 		action="withdrawStudent"
 		label="Withdraw"

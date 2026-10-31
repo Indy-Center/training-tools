@@ -13,7 +13,7 @@ import {
 } from '$lib/course-completion';
 import { findCourse } from '$lib/courses';
 import { getHeldCredentials, grantCredential, setCertification } from '$lib/server/certifications';
-import { JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
+import { issueUrl, JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { fetchEnrollmentIssue } from '$lib/server/jira/issues';
@@ -62,7 +62,7 @@ export type FlowResult = { ok: true } | { ok: false; message: string };
  */
 const BATCH_SIZE = 25;
 
-const NOT_CONFIGURED =
+export const NOT_CONFIGURED =
 	'Jira is not set up for this app right now, so the card cannot be updated. Tell a training admin.';
 const NOT_FILED =
 	'This request has not reached the TRK board yet, so there is no card to update. Tell a training admin.';
@@ -293,7 +293,6 @@ async function holdCertification(
 	const hold = formatHold(missing);
 	if (hold === enrollment.certificationHold) return;
 
-	const base = env?.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 	const outcome = await notify(
 		env,
 		certificationHeldNotice(
@@ -304,8 +303,7 @@ async function holdCertification(
 				teacher: enrollment.teacher,
 				examiner: enrollment.reInstructor,
 				issueKey: enrollment.jiraIssueKey,
-				issueUrl:
-					base && enrollment.jiraIssueKey ? `${base}/browse/${enrollment.jiraIssueKey}` : null
+				issueUrl: issueUrl(env?.JIRA_BASE_URL, enrollment.jiraIssueKey)
 			},
 			holdLabels(hold)
 		)

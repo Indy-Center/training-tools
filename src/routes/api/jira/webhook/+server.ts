@@ -6,6 +6,7 @@ import {
 	dateCardMove,
 	applyPendingCertificationUpdates,
 	clearReturnedExaminers,
+	processRosterRemovals,
 	syncEnrollmentIssue
 } from '$lib/server/enrollments';
 import { readDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
@@ -122,9 +123,13 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 					applyPendingCertificationUpdates(locals.db, env),
 					clearReturnedExaminers(locals.db, env)
 				])
-					// After both: announce what the card's new place calls for, and a
-					// student and teacher who have just been paired.
+					// After both: the roster removals, which judge the card where it now
+					// is (a card taken off Removed by hand is a restore); then announce
+					// what the card's new place calls for, and a student and teacher
+					// who have just been paired. Removals first, as in the cron, so a
+					// restore is not announced as an arrival.
 					.then(async () => {
+						const removals = await processRosterRemovals(locals.db, env);
 						const arrivals = await announceArrivals(locals.db, env);
 						const pairings = await announcePairings(locals.db, env);
 						// What the cron logs for each job, for a delivery: without it a
@@ -133,6 +138,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 							'[training-tools] jira webhook follow-up',
 							JSON.stringify({
 								issue: delivery.key,
+								removals,
 								arrivals,
 								pairings,
 								ms: Date.now() - started

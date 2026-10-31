@@ -56,6 +56,34 @@ export type WaitlistRow = {
 	issueUrl: string | null;
 	/** Active teachers who may teach this course: to assign one, or to change to. */
 	teachers: TeacherChoice[];
+	/**
+	 * Their student is off the home roster and the request is not yet removed
+	 * nor kept in line: staff may keep it in line, so a roster removal skips it.
+	 */
+	mayKeepInLine: boolean;
+	/** Who keeps it in line, by name, or "the board"; null when it is not kept. */
+	keptInLineBy: string | null;
+};
+
+/**
+ * A request in its restore window, for the sheet's **Left the roster** group.
+ * Dates are facility days (`2026-11-19`), as the card's comment gives them.
+ * See decisions/0037-roster-removal-and-restore.md
+ */
+export type LeftRosterRow = {
+	id: string;
+	cid: string;
+	name: string;
+	course: string;
+	courseName: string;
+	/** The stage the removal took it from, and a restore puts it back to. */
+	from: SheetStatus;
+	/** The card's teacher, by name. */
+	teacher: string | null;
+	leftHomeOn: string;
+	restoreBy: string;
+	issueKey: string | null;
+	issueUrl: string | null;
 };
 
 /**

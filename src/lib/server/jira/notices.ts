@@ -1,4 +1,5 @@
 import type { Notice } from '$lib/server/notify';
+import { issueUrl } from './client';
 
 /**
  * What the tech team is told when the TRK board holds something the app cannot
@@ -35,8 +36,10 @@ export function boardProblemsNotice(
 ): Notice | null {
 	if (problems.length === 0) return null;
 
-	const base = jiraBaseUrl?.trim().replace(/\/$/, '');
-	const link = (key: string) => (base ? `[${key}](${base}/browse/${key})` : key);
+	const link = (key: string) => {
+		const url = issueUrl(jiraBaseUrl, key);
+		return url ? `[${key}](${url})` : key;
+	};
 
 	const groups = new Map<string, string[]>();
 	for (const problem of problems) {

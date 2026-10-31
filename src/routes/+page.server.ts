@@ -8,6 +8,8 @@ import {
 import { newEnrollmentNotice } from '$lib/server/enrollments/notices';
 import { recordEarlierVatusaPass } from '$lib/server/enrollments/waitlist';
 import { notifyInBackground } from '$lib/server/notify';
+import { issueUrl } from '$lib/server/jira/client';
+import { toFacilityDate } from '$lib/server/jira/progress';
 import { requireSession } from '$lib/server/guards';
 import { findAssignee, getActiveTeacher } from '$lib/server/teachers';
 import { loadTrainingContext } from '$lib/server/training-flow';
@@ -99,6 +101,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					vatusaAssignedOn: openEnrollment.vatusaAssignedOn,
 					vatusaCompletedOn: openEnrollment.vatusaCompletedOn,
 					certificationAppliedAt: openEnrollment.certificationAppliedAt,
+					// Set while a roster removal can still be undone: what the paused
+					// copy tells them to be back by, as a facility day (`YYYY-MM-DD`) so
+					// the server and the browser show the same date.
+					restoreBy: openEnrollment.restoreBy ? toFacilityDate(openEnrollment.restoreBy) : null,
 					// Jira holds initials; the student is shown who that is.
 					teacher: await findAssignee(locals.db, openEnrollment.teacher),
 					instructor:
@@ -243,7 +249,6 @@ export const actions: Actions = {
 				console.error('[training-tools] earlier VATUSA pass check failed', saved.cid, err)
 			)
 		);
-		const jiraBaseUrl = platform?.env.JIRA_BASE_URL?.trim().replace(/\/$/, '');
 		notifyInBackground(
 			platform,
 			newEnrollmentNotice({
@@ -253,8 +258,7 @@ export const actions: Actions = {
 				teacher: null,
 				examiner: null,
 				issueKey: saved.jiraIssueKey,
-				issueUrl:
-					jiraBaseUrl && saved.jiraIssueKey ? `${jiraBaseUrl}/browse/${saved.jiraIssueKey}` : null,
+				issueUrl: issueUrl(platform?.env.JIRA_BASE_URL, saved.jiraIssueKey),
 				rating: saved.submittedRating,
 				availability: saved.availability,
 				notificationPreference: saved.notificationPreference

@@ -339,3 +339,232 @@ export function vatusaUndeliveredNotice(
 		]
 	};
 }
+
+/*
+ * Roster removal: a request taken off because its student left the home
+ * roster. Dates arrive as facility days (`YYYY-MM-DD`, from `toFacilityDate()`).
+ * See `$lib/server/enrollments/roster-removals.ts`.
+ */
+
+/**
+ * A request was removed because its student left the home roster. `was` is the
+ * status it left; `untold` names everyone the removal should have reached
+ * privately and could not.
+ */
+export function rosterRemovalNotice(
+	request: NoticeRequest & {
+		was: string;
+		leftHomeOn: string;
+		restoreBy: string;
+		untold: string[];
+	}
+): Notice {
+	return {
+		audience: 'training-admins',
+		title: `Left the home roster: ${request.name}`,
+		summary: `${request.name} has been off the ZID home roster for more than 24 hours, so their ${course(request.course)} request was removed automatically. It is restored if they are back on the home roster by ${formatCardDate(request.restoreBy, 'long')}.`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Was', value: STATUS_LABELS[request.was] ?? request.was },
+			...(request.teacher ? [{ label: 'Teacher', value: request.teacher }] : []),
+			...(request.examiner ? [{ label: 'Examiner', value: request.examiner }] : []),
+			{ label: 'Left the home roster', value: formatCardDate(request.leftHomeOn, 'long') },
+			...(request.untold.length > 0
+				? [{ label: 'Not told', value: request.untold.join(', ') }]
+				: []),
+			...card(request)
+		]
+	};
+}
+
+/** What the student is told, privately, when their request is removed. */
+export function rosterRemovalStudentMessage(request: {
+	course: string;
+	restoreBy: string;
+}): DirectNotice {
+	return {
+		title: 'Your training request is paused',
+		summary: `You've left the ZID home roster, so your ${course(request.course)} request has been taken off the training queue. If you are back on the home roster by ${formatCardDate(request.restoreBy, 'long')}, it is restored to where it was.`,
+		link: SITE_URL
+	};
+}
+
+/** What the teacher of a student in training is told, privately. */
+export function rosterRemovalTeacherMessage(request: {
+	name: string;
+	course: string;
+	restoreBy: string;
+}): DirectNotice {
+	return {
+		title: `${request.name} has left the home roster`,
+		summary: `${request.name} has left the ZID home roster, so their ${course(request.course)} training is paused and no longer takes one of your slots. If they are back by ${formatCardDate(request.restoreBy, 'long')}, their request is restored to where it was.`
+	};
+}
+
+/** What the examiner who had claimed the rating exam is told, privately. */
+export function rosterRemovalExaminerMessage(request: {
+	name: string;
+	course: string;
+	restoreBy: string;
+}): DirectNotice {
+	return {
+		title: `${request.name}'s rating exam is paused`,
+		summary: `${request.name} has left the ZID home roster, so the ${course(request.course)} rating exam you claimed is paused. If they are back by ${formatCardDate(request.restoreBy, 'long')}, their request is restored to where it was.`
+	};
+}
+
+/**
+ * A pass's removals of students who left more than 30 days ago (on the first
+ * run, or after Stop keeping in line): removed and closed in the same pass,
+ * with nobody messaged. One notice for all of
+ * them, a line each, in the description rather than as fields so that more
+ * than Discord's 25 fields still fit.
+ */
+export function rosterRemovalSummaryNotice(
+	requests: (NoticeRequest & { was: string; leftHomeOn: string })[]
+): Notice {
+	const lines = requests.map((request) => {
+		const where = card(request)[0]?.value;
+		return `${student(request)}: ${course(request.course)}, ${STATUS_LABELS[request.was] ?? request.was}, left ${formatCardDate(request.leftHomeOn, 'long')}${where ? ` (${where})` : ''}`;
+	});
+
+	return {
+		audience: 'training-admins',
+		title: `Closed ${requests.length} ${requests.length === 1 ? 'request' : 'requests'} from students who left the home roster`,
+		summary: [
+			'These students left the ZID home roster more than 30 days ago, so their requests were removed and closed for good. Nobody was messaged. Each can enroll again, at the back of the line.',
+			'',
+			...lines
+		].join('\n')
+	};
+}
+
+/**
+ * A request's restore window ran out without the student returning, so it is
+ * closed for good. One line for the training admins; the student is not told.
+ * `restoreBy` is a facility day (`2026-11-19`).
+ *
+ * With `closedBy`, an admin pressed Close for good on `/waitlist` before the
+ * window ran out: the same line, saying who.
+ */
+export function rosterExpiryNotice(request: {
+	name: string;
+	cid: string;
+	course: string;
+	restoreBy: string;
+	closedBy?: string;
+}): Notice {
+	const closedBy = request.closedBy ? `, closed by ${request.closedBy}` : '';
+	return {
+		audience: 'training-admins',
+		title: `Request closed: ${request.name}`,
+		summary: `${student(request)} did not return to the ZID home roster by ${formatCardDate(request.restoreBy, 'long')}; their ${course(request.course)} request is closed for good${closedBy}.`
+	};
+}
+
+/*
+ * Restore: a request a roster removal took off, put back where it was. `stage`
+ * is TRK's name for where it went back to (`Waitlist`, `In Training`, …), as
+ * the card's comment says it.
+ */
+
+/**
+ * A request was restored, by this app or on the board. `keptInLine` when its
+ * student is still away (restored on the board); `teacherCleared` holds the
+ * initials taken off an In Training card whose teacher is no longer active.
+ */
+export function rosterRestoreNotice(
+	request: NoticeRequest & {
+		stage: string;
+		keptInLine: boolean;
+		teacherCleared: string | null;
+		untold: string[];
+	}
+): Notice {
+	const keptInLine = request.keptInLine
+		? ' They are still off the ZID home roster, so it is kept in line and is not removed again while they are away.'
+		: '';
+	const teacher = request.teacherCleared
+		? `${request.teacherCleared} cleared: no longer an active teacher`
+		: request.teacher;
+
+	return {
+		audience: 'training-admins',
+		title: `Restored: ${request.name}`,
+		summary: `${request.name}'s ${course(request.course)} request was restored to ${request.stage}, at its old place in line.${keptInLine}`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Restored to', value: request.stage },
+			...(teacher ? [{ label: 'Teacher', value: teacher }] : []),
+			...(request.examiner ? [{ label: 'Examiner', value: request.examiner }] : []),
+			...(request.untold.length > 0
+				? [{ label: 'Not told', value: request.untold.join(', ') }]
+				: []),
+			...card(request)
+		]
+	};
+}
+
+/** What the student is told, privately, when their request is restored. */
+export function rosterRestoreStudentMessage(request: {
+	course: string;
+	stage: string;
+	teacherCleared: boolean;
+}): DirectNotice {
+	const teacher = request.teacherCleared
+		? ' Your teacher is not taking students right now, so you wait on the waitlist for a new one.'
+		: '';
+	return {
+		title: 'Your training request is back',
+		summary: `Your ${course(request.course)} request has been restored to ${request.stage}, at its old place in line.${teacher}`,
+		link: SITE_URL
+	};
+}
+
+/** What the teacher a request was restored to is told, privately. */
+export function rosterRestoreTeacherMessage(request: {
+	name: string;
+	course: string;
+}): DirectNotice {
+	return {
+		title: `${request.name} is back in training with you`,
+		summary: `${request.name}'s ${course(request.course)} training has been restored, so they are your student again and take one of your slots.`
+	};
+}
+
+/** What the examiner still named on a restored card is told, privately. */
+export function rosterRestoreExaminerMessage(request: {
+	name: string;
+	course: string;
+	stage: string;
+}): DirectNotice {
+	return {
+		title: `${request.name}'s request is back`,
+		summary: `${request.name}'s ${course(request.course)} request has been restored to ${request.stage}, and you are still named on it as examiner.`
+	};
+}
+
+/**
+ * Jira refused to take a returning student's card off Removed. Sent once per
+ * request, however many passes retry it. `transition` is the one the board
+ * needs; `error` is what Jira said.
+ */
+export function rosterRestoreRefusedNotice(
+	request: NoticeRequest & { stage: string; transition: string; error: string }
+): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `Restore waiting on the board: ${request.name}`,
+		summary: `${request.name} is back on the ZID home roster, but TRK refused to move their ${course(request.course)} request from Removed to ${request.stage}, so it has not been restored. It is tried again on every pass, and this is the only notice. Has the "${request.transition}" transition been added to the board?`,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Restore to', value: request.stage },
+			{ label: 'Jira said', value: request.error },
+			...card(request)
+		]
+	};
+}

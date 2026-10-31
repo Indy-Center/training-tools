@@ -41,6 +41,9 @@ export async function reconcileEnrollments(
 			and(
 				isNull(enrollmentsTable.jiraIssueKey),
 				isNull(enrollmentsTable.withdrawnAt),
+				// Removed because the student left the home roster: never filed while
+				// removed, or after its window closed.
+				isNull(enrollmentsTable.rosterRemovedAt),
 				lt(enrollmentsTable.jiraSyncAttempts, MAX_JIRA_SYNC_ATTEMPTS)
 			)
 		)
