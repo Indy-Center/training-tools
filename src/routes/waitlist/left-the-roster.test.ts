@@ -494,6 +494,30 @@ describe('/waitlist ?/restoreNow', () => {
 		expect(result.data).toEqual({ sheetError: GONE_FROM_WINDOW });
 		expect(channel).toEqual([]);
 	});
+
+	it('tells the second admin it is no longer waiting while the first one is still mid-restore', async () => {
+		await addMember({ cid: '1000001' });
+		await addRemoved({ id: 'r1', cid: '1000001', from: 'waitlist' });
+		// The first admin's move has landed on the card, but not yet been read
+		// back: the row still says removed.
+		const card = { status: 'Removed' };
+		const jira = fakeJira(
+			{ 'TRK-r1': card },
+			{
+				beforeTransitions: async () => {
+					card.status = 'Waitlist';
+				}
+			}
+		);
+		const { env, channel } = fakeLarry();
+
+		const result = await post('restoreNow', 'r1', env);
+
+		expect(result.status).toBe(409);
+		expect(result.data).toEqual({ sheetError: GONE_FROM_WINDOW });
+		expect(jira.comments()).toEqual([]);
+		expect(channel).toEqual([]);
+	});
 });
 
 describe('/waitlist ?/closeForGood', () => {

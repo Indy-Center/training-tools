@@ -71,13 +71,14 @@ export async function restoreRequestNow(
 
 	const outcome = await restoreNow(db, env, request, admin, now);
 	if (!outcome.ok) {
-		// The row may have changed under us: another admin's Restore now, or the
-		// job, restored or closed it meanwhile. Then it is not Jira's refusal.
+		// Another admin's Restore now, or the job, restored or closed it meanwhile:
+		// the card has left Removed, or the row has. Then it is not Jira's refusal.
+		if (outcome.reason === 'gone') return { ok: false, status: 409, message: NOT_IN_WINDOW };
 		const after = await read(db, id);
 		if (!after || !isInRestoreWindow(after) || after.status !== 'removed') {
 			return { ok: false, status: 409, message: NOT_IN_WINDOW };
 		}
-		if (outcome.error === null) return { ok: false, status: 502, message: NOT_CONFIGURED };
+		if (outcome.reason === 'no-jira') return { ok: false, status: 502, message: NOT_CONFIGURED };
 		return {
 			ok: false,
 			status: 502,

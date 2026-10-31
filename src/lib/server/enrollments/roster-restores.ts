@@ -11,9 +11,11 @@ import { isAssignedTo } from '$lib/teachers';
 import { issueUrl, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueByName } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
+import { fetchEnrollmentIssue } from '$lib/server/jira/issues';
 import {
 	NEEDS_CATP_STATUS,
 	RATING_EXAM_STATUS,
+	REMOVED_STATUS,
 	updateIssueFields
 } from '$lib/server/jira/progress';
 import { TEACHER_FIELD } from '$lib/server/jira/status';
@@ -202,8 +204,12 @@ export async function restoreReturnedStudents(
 			restored += 1;
 			continue;
 		}
+		// Taken off Removed meanwhile: the next pass's step 1 or 2 deals with it.
+		if (outcome.reason === 'gone') continue;
 		restoreRefused += 1;
-		if (outcome.error) await tellRefusedOnce(db, env, context, request, outcome, now);
+		if (outcome.reason === 'refused') {
+			await tellRefusedOnce(db, env, context, request, outcome, now);
+		}
 	}
 
 	return { restored, restoreRefused };
@@ -220,8 +226,12 @@ function hasActiveTeacher(initials: string | null, teachers: Teacher[]): boolean
 export type RestoreOutcome =
 	/** `keptInLine` when an admin restored a student still away, so it is kept in line by them. */
 	| { ok: true; stage: RosterRemovableStatus; keptInLine: boolean }
-	/** `error` is Jira's message, or null when Jira is not configured (nobody to tell). */
-	| { ok: false; stage: RosterRemovableStatus; error: string | null };
+	/** Jira refused the move; `error` is its message. */
+	| { ok: false; stage: RosterRemovableStatus; reason: 'refused'; error: string }
+	/** Jira is not configured, so there is nobody to tell. */
+	| { ok: false; stage: RosterRemovableStatus; reason: 'no-jira' }
+	/** Another restore, or a move on the board, took it off Removed first. */
+	| { ok: false; stage: RosterRemovableStatus; reason: 'gone' };
 
 /** The admin pressing Restore now on `/waitlist`. */
 export type RestoringAdmin = { cid: string; name: string };
@@ -295,20 +305,24 @@ async function restoreRequest(
 				)
 			)
 			.returning();
-		if (!reverted) return { ok: false, stage, error: null };
+		if (!reverted) return { ok: false, stage, reason: 'gone' };
 		await finishRestore(db, env, context, reverted, now, teacherCleared);
 		return { ok: true, stage, keptInLine: keptBy !== null };
 	}
 
-	if (!config) return { ok: false, stage, error: null };
+	if (!config) return { ok: false, stage, reason: 'no-jira' };
 	const issueKey = request.jiraIssueKey;
 
 	try {
 		await transitionIssueByName(config, issueKey, restoreTransitionName(stage));
 	} catch (err) {
+		// `Restore to <stage>` is offered from Removed only (ticket 02), so a
+		// second restore of the same card, by two admins at once or an admin and
+		// the job, is refused. That one is not Jira's refusal.
+		if (await hasLeftRemoved(config, issueKey)) return { ok: false, stage, reason: 'gone' };
 		const error = err instanceof Error ? err.message : String(err);
 		console.error('[training-tools] roster restore refused', issueKey, error);
-		return { ok: false, stage, error };
+		return { ok: false, stage, reason: 'refused', error };
 	}
 
 	// The card has moved, so the restore will be finished: by this admin's hand.
@@ -355,6 +369,17 @@ async function restoreRequest(
 	}
 	await finishRestore(db, env, context, read, now, teacherCleared);
 	return done;
+}
+
+/** Whether the card is now somewhere other than Removed. False when it cannot be read. */
+async function hasLeftRemoved(config: JiraConfig, issueKey: string): Promise<boolean> {
+	try {
+		const issue = await fetchEnrollmentIssue(config, issueKey);
+		const status = issue?.fields?.status?.name;
+		return !!status && status.toLowerCase() !== REMOVED_STATUS.toLowerCase();
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -512,7 +537,7 @@ async function tellRefusedOnce(
 	env: Partial<Env> | undefined,
 	context: Context,
 	request: Enrollment,
-	refusal: { stage: RosterRemovableStatus; error: string | null },
+	refusal: { stage: RosterRemovableStatus; error: string },
 	now: Date
 ): Promise<void> {
 	if (request.restoreRefusalToldAt) return;
@@ -523,7 +548,7 @@ async function tellRefusedOnce(
 			...describeRequest(request, context.people.get(request.cid) ?? null, context.baseUrl),
 			stage: TRK_STAGE_NAMES[refusal.stage],
 			transition: restoreTransitionName(refusal.stage),
-			error: refusal.error ?? 'unknown error'
+			error: refusal.error
 		})
 	);
 	if (outcome === 'failed') return;
