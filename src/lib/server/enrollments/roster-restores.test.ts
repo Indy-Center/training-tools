@@ -30,8 +30,6 @@ beforeEach(async () => {
 	vi.spyOn(console, 'log').mockImplementation(() => {});
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	vi.spyOn(console, 'error').mockImplementation(() => {});
-	// Not the first run: old windows are not this ticket's concern.
-	await processRosterRemovals(db, undefined, NOW);
 	// Initials no seeded teacher holds.
 	await db.insert(teachersTable).values([
 		{ cid: '2000001', roles: ['MTR'], initials: 'QX' },

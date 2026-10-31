@@ -6,7 +6,6 @@ import {
 	type Enrollment,
 	type RosterRemovableStatus
 } from '$lib/db/schema/enrollments';
-import { syncStateTable } from '$lib/db/schema/sync-state';
 import type { Teacher } from '$lib/db/schema/teachers';
 import { isDueForRemoval, restoreByFor } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
@@ -48,14 +47,6 @@ import { syncEnrollmentIssue } from './status-sync';
  * decisions/0037-roster-removal-and-restore.md
  */
 
-/**
- * `sync_state` key, written when the job first finishes. Until then a pass is
- * the **first run**: a request whose student left more than 30 days ago is
- * removed and closed at once, with one summary for the training admins and no
- * DMs, rather than opening a window that has already ended.
- */
-export const FIRST_RUN_DONE_KEY = 'roster-removals-first-run';
-
 /** How many removals one pass attempts. A busy month has a handful. */
 const BATCH_SIZE = 25;
 
@@ -65,8 +56,6 @@ export type RosterRemovalResult = RosterRestoreResult &
 		expired: number;
 		/** Step 4: kept-in-line exemptions cleared for students back home. */
 		keptInLineCleared: number;
-		/** True until a pass has finished with nothing left due. */
-		firstRun: boolean;
 	};
 
 /** Step 5, the removal. */
@@ -75,7 +64,7 @@ type RemovalCounts = {
 	due: number;
 	/** Of those, removed: card moved and read back, or an unfiled row stamped. */
 	removed: number;
-	/** Of those removed, closed in the same pass (first run only). */
+	/** Of those removed, closed in the same pass: their 30 days had already run out. */
 	closed: number;
 	/** Left for the next pass: Jira refused, or could not be reached. */
 	refused: number;
@@ -105,8 +94,6 @@ export async function processRosterRemovals(
 	env: Partial<Env> | undefined,
 	now = new Date()
 ): Promise<RosterRemovalResult> {
-	const firstRun = !(await hasFinishedOnce(db));
-
 	const finished = await finishBoardRestores(db, env, now);
 	const closedOnBoard = await closeBoardEndedWindows(db, now);
 	const { restored, restoreRefused } = await restoreReturnedStudents(db, env, now);
@@ -114,14 +101,9 @@ export async function processRosterRemovals(
 	const expired = await expireLapsedWindows(db, env, now);
 	const keptInLineCleared = await clearKeptInLineForReturned(db, now);
 
-	const removal = await removeDepartedStudents(db, env, now, firstRun);
-
-	// Finished means nothing due was left behind, so a card Jira refused, or one
-	// past the first pass's batch, is still closed at once when it goes through.
-	if (firstRun && removal.refused === 0 && removal.deferred === 0) await markFinished(db, now);
+	const removal = await removeDepartedStudents(db, env, now);
 
 	return {
-		firstRun,
 		finished,
 		closedOnBoard,
 		restored,
@@ -130,20 +112,6 @@ export async function processRosterRemovals(
 		keptInLineCleared,
 		...removal
 	};
-}
-
-async function hasFinishedOnce(db: Database): Promise<boolean> {
-	const row = await db.query.syncStateTable.findFirst({
-		where: eq(syncStateTable.key, FIRST_RUN_DONE_KEY)
-	});
-	return row !== undefined;
-}
-
-async function markFinished(db: Database, now: Date): Promise<void> {
-	await db
-		.insert(syncStateTable)
-		.values({ key: FIRST_RUN_DONE_KEY, cursorAt: now })
-		.onConflictDoNothing();
 }
 
 /** One roster removal: the stage it takes the request from, and its window. */
@@ -168,12 +136,17 @@ function removalComment({ stage, leftHomeAt, restoreBy }: Removal): string {
  * read back as `removed`: the row is left as it was and the next pass tries
  * again; the comment may then be posted twice. An unfiled one is stamped and
  * set to `removed` here, and the reconcile never files it.
+ *
+ * A request whose student left more than 30 days ago has a window that ended
+ * before it came due: on the first run, after Stop keeping in line, or after
+ * Jira refused its removal for a month. It is removed and closed at once
+ * (`expired`), with no DMs, and the training admins get one summary for all
+ * of these in the pass rather than a notice each.
  */
 async function removeDepartedStudents(
 	db: Database,
 	env: Partial<Env> | undefined,
-	now: Date,
-	firstRun: boolean
+	now: Date
 ): Promise<RemovalCounts> {
 	const candidates = await db
 		.select()
@@ -215,8 +188,8 @@ async function removeDepartedStudents(
 			leftHomeAt,
 			restoreBy: restoreByFor(leftHomeAt)
 		};
-		// The first run's old departures: their window ended before this existed.
-		const closeNow = firstRun && removal.restoreBy.getTime() < now.getTime();
+		// Its window ended before it came due: nothing left to restore it in.
+		const closeNow = removal.restoreBy.getTime() < now.getTime();
 
 		if (request.jiraIssueKey) {
 			const moved = config && (await moveToRemoved(db, env, config, request, removal));

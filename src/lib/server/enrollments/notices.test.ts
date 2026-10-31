@@ -389,7 +389,7 @@ describe('roster removal notices', () => {
 		);
 	});
 
-	it('sums up a first run in one notice, a line per request', () => {
+	it('sums up old departures closed at once in one notice, a line per request', () => {
 		const notice = rosterRemovalSummaryNotice([
 			{ ...request, was: 'waitlist', leftHomeOn: '2026-08-01' },
 			{

@@ -39,7 +39,7 @@
 			variant="menu"
 			class="border-b border-slate-700"
 			fields={{ id: row.id }}
-			question={`Stop keeping ${row.name} in line? If they have been off the home roster for 24 hours, the next pass removes their request.`}
+			question={`Stop keeping ${row.name} in line? If they have been off the home roster for 24 hours, the next pass removes their request, and closes it for good if it has been 30 days.`}
 			bind:busy
 		/>
 	{:else if row.mayKeepInLine}

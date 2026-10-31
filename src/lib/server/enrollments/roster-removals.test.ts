@@ -373,7 +373,7 @@ describe('processRosterRemovals: notices', () => {
 	});
 });
 
-describe('processRosterRemovals: the first run', () => {
+describe('processRosterRemovals: a departure already past its 30 days', () => {
 	const LONG_AGO = new Date(NOW.getTime() - 40 * DAY);
 
 	it('removes and closes requests whose student left more than 30 days ago, with one summary and no DMs', async () => {
@@ -388,7 +388,7 @@ describe('processRosterRemovals: the first run', () => {
 
 		const result = await processRosterRemovals(db, env, NOW);
 
-		expect(result).toMatchObject({ firstRun: true, removed: 3, closed: 2 });
+		expect(result).toMatchObject({ removed: 3, closed: 2 });
 		expect(jira.comments()).toHaveLength(1);
 
 		for (const id of ['a', 'b']) {
@@ -408,34 +408,37 @@ describe('processRosterRemovals: the first run', () => {
 		]);
 	});
 
-	it('happens once: a later pass treats an old departure like any other', async () => {
+	it('closes one at once on a later pass too, rather than asking the student back by a date gone by', async () => {
 		const { env, channel, direct } = fakeLarry();
 		await processRosterRemovals(db, env, NOW);
 
+		// Kept in line until now, say, or a removal Jira refused for a month.
 		await addMember({ cid: '1000001', leftHomeAt: LONG_AGO, removedAt: LONG_AGO });
 		await addRequest({ id: 'a', cid: '1000001' });
-		await processRosterRemovals(db, env, NOW);
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ removed: 1, closed: 1 });
 
-		expect((await row('a')).restoreClosedAt).toBeNull();
-		expect(channel.map((m) => m.title)).toEqual(['Left the home roster: Jo Rivera']);
-		expect(direct).toHaveLength(1);
+		expect((await row('a')).restoreClosedReason).toBe('expired');
+		expect(channel.map((m) => m.title)).toEqual([
+			'Closed 1 request from students who left the home roster'
+		]);
+		expect(direct).toEqual([]);
 	});
 
-	it('is not over until a pass has removed everything due', async () => {
+	it('closes one Jira refused to remove once it goes through', async () => {
 		await addMember({ cid: '1000001', leftHomeAt: LONG_AGO, removedAt: LONG_AGO });
 		await addRequest({ id: 'a', cid: '1000001', jiraIssueKey: 'TRK-1' });
 		fakeJira({ 'TRK-1': { status: 'Waitlist', updated: updatedAt } }, { refuse: true });
 		const { env } = fakeLarry();
 
-		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: true });
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ refused: 1, closed: 0 });
 
 		fakeJira({ 'TRK-1': { status: 'Waitlist', updated: updatedAt } });
-		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: true, closed: 1 });
-		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: false });
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ closed: 1 });
+		expect((await row('a')).restoreClosedReason).toBe('expired');
 	});
 
-	// A pass takes 25. The rest are still the first run's, not a later pass's.
-	it('is not over while old departures wait beyond one pass', async () => {
+	// A pass takes 25; the rest wait for the next.
+	it('closes old departures beyond one pass on the next', async () => {
 		for (let i = 1; i <= 26; i += 1) {
 			const cid = String(1000000 + i);
 			await addMember({ cid, leftHomeAt: LONG_AGO, removedAt: LONG_AGO });
@@ -444,17 +447,14 @@ describe('processRosterRemovals: the first run', () => {
 		const { env, channel, direct } = fakeLarry();
 
 		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({
-			firstRun: true,
 			due: 26,
 			closed: 25,
 			deferred: 1
 		});
 		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({
-			firstRun: true,
 			closed: 1,
 			deferred: 0
 		});
-		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ firstRun: false });
 
 		const last = await row('r26');
 		expect(last.restoreClosedReason).toBe('expired');

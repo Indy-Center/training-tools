@@ -38,8 +38,6 @@ beforeEach(async () => {
 	vi.spyOn(console, 'log').mockImplementation(() => {});
 	vi.spyOn(console, 'warn').mockImplementation(() => {});
 	vi.spyOn(console, 'error').mockImplementation(() => {});
-	// Not the first run: old windows are not what is tested here.
-	await processRosterRemovals(db, undefined, NOW);
 	vi.useFakeTimers({ toFake: ['Date'] });
 	vi.setSystemTime(NOW);
 	// Initials no seeded teacher holds.

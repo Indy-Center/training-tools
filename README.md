@@ -651,10 +651,11 @@ cannot file another, and `/` says it is paused), but not as waiting, so the
 people behind it on `/waitlist` move up. The training admins are told, and the
 student, the teacher (if at In Training) and the examiner (if one had claimed it)
 are messaged privately; anyone with no Discord ID, or a student who chose email,
-is named in the admins' notice instead. **The first run** (until a pass finishes
-with nothing left due; `sync_state` key `roster-removals-first-run`) removes and
-closes at once, as `expired`, any request whose student left more than 30 days
-ago, with one summary for the admins and no DMs.
+is named in the admins' notice instead. **A request whose student left more
+than 30 days ago** when it comes due (on the first run, after Stop keeping in
+line, or after Jira refused its removal for a month) has no window left: it is
+removed and closed at once, as `expired`, with one summary per pass for the
+admins and no DMs.
 
 **A student back on the home roster gets the request back** (`roster-restores.ts`,
 the same job, before the removals). A request in its window whose student is on

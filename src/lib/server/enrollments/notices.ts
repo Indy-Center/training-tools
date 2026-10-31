@@ -415,8 +415,9 @@ export function rosterRemovalExaminerMessage(request: {
 }
 
 /**
- * The first run's removals of students who left more than 30 days ago: removed
- * and closed in the same pass, with nobody messaged. One notice for all of
+ * A pass's removals of students who left more than 30 days ago (on the first
+ * run, or after Stop keeping in line): removed and closed in the same pass,
+ * with nobody messaged. One notice for all of
  * them, a line each, in the description rather than as fields so that more
  * than Discord's 25 fields still fit.
  */
