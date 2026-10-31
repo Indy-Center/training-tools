@@ -50,6 +50,7 @@ export {
 	type SyncIssueResult
 } from './status-sync';
 export { backfillStatusSince, type BackfillResult } from './status-since';
+export { checkCtrsRecords, type CtrsRecordsResult } from './ctrs-read-back';
 
 /**
  * Stop retrying a push after this many failures.

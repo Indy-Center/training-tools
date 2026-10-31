@@ -9,6 +9,7 @@ import {
 	announcePairings,
 	backfillStatusSince,
 	applyPendingCertificationUpdates,
+	checkCtrsRecords,
 	clearReturnedExaminers,
 	importBoardIssues,
 	processRosterRemovals,
@@ -45,7 +46,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in eleven places, each noted below.
+ * Order matters in twelve places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -166,6 +167,18 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			run: async () => {
 				const result = await clearReturnedExaminers(db, env);
 				return result.pending > 0 ? result : null;
+			}
+		},
+		{
+			// After the sweep and the examiner cleanup, so each card is judged where
+			// it is now, and before the certification pass, so a card a CTRS pass
+			// has just moved to Audit is certified in the same run.
+			name: 'ctrs records',
+			description: 'Moves a Rating Exam card on a pass or fail filed on VATUSA.',
+			run: async () => {
+				const result = await checkCtrsRecords(db, env);
+				const { passed, failed, told, errors } = result.ratingExam;
+				return passed + failed + told + errors > 0 ? result : null;
 			}
 		},
 		{
