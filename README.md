@@ -866,6 +866,7 @@ How a course finishes, and who moves it. The rules are pure functions in
 | Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
 | Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
 | Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
+| Passed / Not passed         | that examiner (`/teach`)                                             | the same, with no training report filed                                                     |
 | _(automatic)_               | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
 | Audit complete              | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
@@ -889,7 +890,12 @@ audit. Claim this exam asks in the same dialog (`ConfirmDialog.svelte`).
 passed, it moves the card as the table says, after VATUSA has accepted the
 record. The examiner then fills in VATUSA's evaluation form and, for a pass,
 submits the promotion there; `/teach` links to the form on a claimed exam and
-again after the report. `/teach` has no buttons for the result.
+again after the report. For a result filed on VATUSA's own site, the examiner
+on the card has **Passed** and **Not passed** beside the exam on `/teach`
+(decisions/0038), each behind a dialog that says no training report is filed
+(Not passed in the red danger style, with focus on Cancel). They make the same
+moves as the report, and the card comment says no training report was filed
+through the app.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira

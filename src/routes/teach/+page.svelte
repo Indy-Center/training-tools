@@ -6,6 +6,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
 	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import { examResultCopy } from '$lib/exam-result';
 	import { advancedTo, chosenStep, courseTraining } from '$lib/mark-training-complete';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
@@ -266,17 +267,41 @@
 										{@render report(exam.enrollmentId)}
 									{/if}
 									{#if exam.canComplete}
-										<Button
-											href={vatusaEvaluationUrl(exam.cid)}
-											target="_blank"
-											rel="noopener noreferrer"
-											size="sm"
-											variant="secondary"
-											class="mt-3"
-										>
-											VATUSA evaluation form
-											<IconOpen class="h-4 w-4" />
-										</Button>
+										{@const id = exam.enrollmentId}
+										<div class="mt-3 flex flex-wrap items-center gap-2">
+											<Button
+												href={vatusaEvaluationUrl(exam.cid)}
+												target="_blank"
+												rel="noopener noreferrer"
+												size="sm"
+												variant="secondary"
+											>
+												VATUSA evaluation form
+												<IconOpen class="h-4 w-4" />
+											</Button>
+											{#each [{ action: 'completeExam', result: 'passed', label: 'Passed' }, { action: 'failExam', result: 'not-passed', label: 'Not passed' }] as const as outcome (outcome.action)}
+												{@const copy = examResultCopy(outcome.result, exam.name, exam.course)}
+												<form method="POST" action="?/{outcome.action}" use:enhance={step(id)}>
+													<input type="hidden" name="id" value={id} />
+													{@render opens(outcome.action, id, outcome.label)}
+													<ConfirmDialog
+														bind:open={
+															() => openFor === `${outcome.action}:${id}`,
+															(value) => (openFor = value ? `${outcome.action}:${id}` : null)
+														}
+														title={copy.title}
+														confirmLabel={copy.confirmLabel}
+														tone={copy.tone}
+													>
+														<p>
+															{copy.before}
+															<strong class="text-white">{copy.bold}</strong>
+															{copy.after}
+														</p>
+													</ConfirmDialog>
+												</form>
+											{/each}
+										</div>
 									{/if}
 									{#if exam.canClaim}
 										{@const id = exam.enrollmentId}
