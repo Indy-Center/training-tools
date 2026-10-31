@@ -6,7 +6,6 @@ import {
 	type Enrollment,
 	type RosterRemovableStatus
 } from '$lib/db/schema/enrollments';
-import { rosterMembersTable } from '$lib/db/schema/roster';
 import { syncStateTable } from '$lib/db/schema/sync-state';
 import type { Teacher } from '$lib/db/schema/teachers';
 import { isDueForRemoval, restoreByFor } from '$lib/roster-removal';
@@ -15,6 +14,7 @@ import { issueUrl, JiraError, resolveJiraConfig, type JiraConfig } from '$lib/se
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { REMOVED_STATUS, toFacilityDate } from '$lib/server/jira/progress';
 import { notify, notifyDirect, type DirectNotice } from '$lib/server/notify';
+import { loadMirror, memberName, type MirrorMember } from '$lib/server/roster';
 import { listTeachers } from '$lib/server/teachers';
 import {
 	rosterRemovalExaminerMessage,
@@ -155,14 +155,6 @@ export function removalComment(
 	return `Left the ZID home roster on ${toFacilityDate(leftHomeAt)}. Removed automatically; restored to ${TRK_STAGE_NAMES[stage]} if back on the home roster by ${toFacilityDate(restoreBy)}.`;
 }
 
-type Person = {
-	cid: string;
-	firstName: string;
-	lastName: string;
-	discordId: string | null;
-	leftHomeAt: Date | null;
-};
-
 /**
  * Remove every request that `isDueForRemoval()` says is due.
  *
@@ -195,21 +187,7 @@ async function removeDepartedStudents(
 	const nothing = { due: 0, removed: 0, closed: 0, refused: 0, deferred: 0 };
 	if (candidates.length === 0) return nothing;
 
-	// The whole mirror, removed members included: a student who left VATUSA
-	// keeps their row, and it is what dates their leaving.
-	const people = new Map<string, Person>(
-		(
-			await db
-				.select({
-					cid: rosterMembersTable.cid,
-					firstName: rosterMembersTable.firstName,
-					lastName: rosterMembersTable.lastName,
-					discordId: rosterMembersTable.discordId,
-					leftHomeAt: rosterMembersTable.leftHomeAt
-				})
-				.from(rosterMembersTable)
-		).map((person) => [person.cid, person])
-	);
+	const people = await loadMirror(db);
 
 	const due = candidates.filter((request) =>
 		isDueForRemoval(request, people.get(request.cid) ?? null, now)
@@ -267,7 +245,7 @@ async function removeDepartedStudents(
 		removed += 1;
 
 		const described: NoticeRequest = {
-			name: `${member.firstName} ${member.lastName}`.trim() || request.submittedName,
+			name: memberName(member, request.submittedName),
 			cid: request.cid,
 			course: request.course,
 			teacher: request.teacher,
@@ -353,8 +331,8 @@ async function announceRemoval(
 	env: Partial<Env> | undefined,
 	request: Enrollment,
 	described: NoticeRequest,
-	member: Person,
-	people: Map<string, Person>,
+	member: MirrorMember,
+	people: Map<string, MirrorMember>,
 	teachers: Teacher[],
 	dates: { leftHomeAt: Date; restoreBy: Date }
 ): Promise<void> {

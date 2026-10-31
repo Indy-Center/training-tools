@@ -5,7 +5,6 @@ import {
 	type Enrollment,
 	type RosterRemovableStatus
 } from '$lib/db/schema/enrollments';
-import { rosterMembersTable } from '$lib/db/schema/roster';
 import type { Teacher } from '$lib/db/schema/teachers';
 import { boardMoveOutcome, isBackOnHomeRoster } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
@@ -19,6 +18,7 @@ import {
 } from '$lib/server/jira/progress';
 import { TEACHER_FIELD } from '$lib/server/jira/status';
 import { notify, notifyDirect, type DirectNotice } from '$lib/server/notify';
+import { loadMirror, memberName, type MirrorMember } from '$lib/server/roster';
 import { listTeachers } from '$lib/server/teachers';
 import {
 	rosterRestoreExaminerMessage,
@@ -90,43 +90,16 @@ export type RosterRestoreResult = {
 	restoreRefused: number;
 };
 
-type Person = {
-	cid: string;
-	firstName: string;
-	lastName: string;
-	discordId: string | null;
-	membership: 'home' | 'visit';
-	removedAt: Date | null;
-	leftHomeAt: Date | null;
-};
-
 /** The whole mirror, removed members included, and the teacher roster. */
 type Context = {
-	people: Map<string, Person>;
+	people: Map<string, MirrorMember>;
 	teachers: Teacher[];
 	baseUrl: string | undefined;
 };
 
 async function loadContext(db: Database, env: Partial<Env> | undefined): Promise<Context> {
-	const [members, teachers] = await Promise.all([
-		db
-			.select({
-				cid: rosterMembersTable.cid,
-				firstName: rosterMembersTable.firstName,
-				lastName: rosterMembersTable.lastName,
-				discordId: rosterMembersTable.discordId,
-				membership: rosterMembersTable.membership,
-				removedAt: rosterMembersTable.removedAt,
-				leftHomeAt: rosterMembersTable.leftHomeAt
-			})
-			.from(rosterMembersTable),
-		listTeachers(db)
-	]);
-	return {
-		people: new Map(members.map((member) => [member.cid, member])),
-		teachers,
-		baseUrl: env?.JIRA_BASE_URL
-	};
+	const [people, teachers] = await Promise.all([loadMirror(db), listTeachers(db)]);
+	return { people, teachers, baseUrl: env?.JIRA_BASE_URL };
 }
 
 /** Requests in their window, by `createdAt`. `removed` picks those still at Removed, or the rest. */
@@ -439,11 +412,11 @@ async function finishRestore(
 
 function describeRequest(
 	request: Enrollment,
-	member: Person | null,
+	member: MirrorMember | null,
 	baseUrl: string | undefined
 ): NoticeRequest {
 	return {
-		name: (member && `${member.firstName} ${member.lastName}`.trim()) || request.submittedName,
+		name: memberName(member, request.submittedName),
 		cid: request.cid,
 		course: request.course,
 		teacher: request.teacher,
@@ -463,7 +436,7 @@ async function announceRestore(
 	env: Partial<Env> | undefined,
 	context: Context,
 	request: Enrollment,
-	member: Person | null,
+	member: MirrorMember | null,
 	how: { keptInLine: boolean; teacherCleared: string | null }
 ): Promise<void> {
 	const described = describeRequest(request, member, context.baseUrl);

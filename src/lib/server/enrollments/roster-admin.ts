@@ -5,6 +5,7 @@ import { rosterMembersTable } from '$lib/db/schema/roster';
 import { isInRestoreWindow } from '$lib/roster-removal';
 import { toFacilityDate } from '$lib/server/jira/progress';
 import { notify } from '$lib/server/notify';
+import { memberName } from '$lib/server/roster';
 import { SHEET_STATUSES } from '$lib/waitlist';
 import { NOT_CONFIGURED } from './completion';
 import { rosterExpiryNotice } from './notices';
@@ -48,7 +49,7 @@ async function studentName(db: Database, request: Enrollment): Promise<string> {
 		columns: { firstName: true, lastName: true },
 		where: eq(rosterMembersTable.cid, request.cid)
 	});
-	return (member && `${member.firstName} ${member.lastName}`.trim()) || request.submittedName;
+	return memberName(member, request.submittedName);
 }
 
 /**
