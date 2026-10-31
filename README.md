@@ -825,9 +825,10 @@ plain line breaks would be lost); the report is filed in VATUSA's training recor
   exam** where the course ends in one, **Mark the course complete** where it
   does not, and both for Custom Training. Ticked, the report is filed first —
   flagged on VATUSA as a recommendation (`ots_status` 3) in the first case —
-  and then the card is moved (`completeTraining`). This is the only way a
-  teacher ends training from the site. If the card cannot be moved the report
-  still stands, and `/teach` says to ask a training admin to move it.
+  and then the card is moved (`completeTraining`). If the card cannot be moved
+  the report still stands, and `/teach` says to ask a training admin to move
+  it. A teacher who filed the report on VATUSA's own site instead uses **Mark
+  training complete** on `/teach` (below).
 - **A rating exam result** (passed / not passed) is offered only to the
   examiner on the card, at the exam stage, and never to the student's own
   teacher. Filing one **moves the card**: passed to Audit (`completeExam`), not
@@ -853,6 +854,7 @@ How a course finishes, and who moves it. The rules are pure functions in
 | Step                        | Who                                                                  | What happens on the card                                                                    |
 | --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Training report, ticked     | the teacher on the card (`/teach/report`)                            | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Mark training complete      | the teacher on the card, at In Training (`/teach`)                   | the same, with no training report filed                                                     |
 | Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
 | Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
 | Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
@@ -865,6 +867,15 @@ Update until 2026-10-06). The app's own name for it is still
 
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
+
+**A teacher ends training** with the training report's tick box, or with
+**Mark training complete** beside the student on `/teach` (decisions/0038), for
+a report filed on VATUSA's own site or a course with nothing to report. The
+button asks first, in a dialog that says no training report is filed; for
+Custom Training it also asks whether a rating exam is required, and Mark
+complete stays disabled until one is chosen. The card comment says no training
+report was filed through the app, so the TA checks the CTRS record exists at
+audit. Claim this exam asks in the same dialog (`ConfirmDialog.svelte`).
 
 **The examiner's training report ends the exam.** Filed as passed or not
 passed, it moves the card as the table says, after VATUSA has accepted the

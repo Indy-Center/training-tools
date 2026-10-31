@@ -4,6 +4,10 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
+	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import { advancedTo, chosenStep, courseTraining } from '$lib/mark-training-complete';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
@@ -26,6 +30,34 @@
 
 	/** The request a step is running for, so only its button shows as busy. */
 	let busyId = $state<string | null>(null);
+
+	/** The one confirmation open, as `action:id`. */
+	let openFor = $state<string | null>(null);
+	/** Custom Training's radio in each open "Mark training complete?", by request. */
+	let chosen = $state<Record<string, string | null>>({});
+
+	/** Open one step's dialog. Its choice starts afresh each time. */
+	function ask(action: string, id: string) {
+		chosen[id] = null;
+		openFor = `${action}:${id}`;
+	}
+
+	/**
+	 * Each step moves a card on the staff board, and none can be undone from
+	 * here, so it is posted only from its dialog. Only its own button shows as busy.
+	 */
+	const step =
+		(id: string): SubmitFunction =>
+		() => {
+			busyId = id;
+			return async ({ update }) => {
+				await update();
+				// A refused step can still have changed what is on the card — someone
+				// else took the exam first — and `update()` only reloads on success.
+				await invalidateAll();
+				busyId = null;
+			};
+		};
 
 	/** Set by the report form when it sends someone back here: VATUSA's record number. */
 	const reported = $derived(page.url.searchParams.get('reported'));
@@ -106,47 +138,18 @@
 	</p>
 {/if}
 
-<!-- One step at the end of a course: a button that asks first, because each of
-     these moves a card on the staff board and none can be undone from here. -->
-{#snippet step(
-	action: string,
-	id: string,
-	label: string,
-	question: string,
-	variant: 'primary' | 'secondary' = 'primary',
-	next: string | null = null
-)}
-	<form
-		method="POST"
-		action="?/{action}"
-		class="mt-3"
-		use:enhance={({ cancel }) => {
-			if (!confirm(question)) return cancel();
-			busyId = id;
-			return async ({ update }) => {
-				await update();
-				// A refused step can still have changed what is on the card — someone
-				// else took the exam first — and `update()` only reloads on success.
-				await invalidateAll();
-				busyId = null;
-			};
-		}}
-	>
-		<input type="hidden" name="id" value={id} />
-		{#if next}
-			<input type="hidden" name="next" value={next} />
-		{/if}
-		<Button type="submit" size="sm" {variant} disabled={busyId !== null}>
-			{busyId === id ? 'Working…' : label}
-		</Button>
-	</form>
-{/snippet}
-
 <!-- Opens the CTRS form for one student, with who they are already filled in. -->
-{#snippet report(id: string)}
-	<Button href="/teach/report/{id}" size="sm" variant="secondary" class="mt-3">
+{#snippet report(id: string, className = 'mt-3')}
+	<Button href="/teach/report/{id}" size="sm" variant="secondary" class={className}>
 		<IconClipboard class="h-4 w-4" />
 		File training report
+	</Button>
+{/snippet}
+
+<!-- The button that opens a step's dialog; the dialog posts the form. -->
+{#snippet opens(action: string, id: string, label: string)}
+	<Button type="button" size="sm" disabled={busyId !== null} onclick={() => ask(action, id)}>
+		{busyId === id ? 'Working…' : label}
 	</Button>
 {/snippet}
 
@@ -181,7 +184,47 @@
 									{/if}
 								</p>
 							{/if}
-							{@render report(student.enrollmentId)}
+							<div class="mt-3 flex flex-wrap items-center gap-2">
+								{@render report(student.enrollmentId, '')}
+								{#if student.canComplete}
+									{@const id = student.enrollmentId}
+									{@const next = chosenStep(student.next, chosen[id] ?? null)}
+									<form method="POST" action="?/completeTraining" use:enhance={step(id)}>
+										<input type="hidden" name="id" value={id} />
+										{@render opens('completeTraining', id, 'Mark training complete')}
+										<ConfirmDialog
+											bind:open={
+												() => openFor === `completeTraining:${id}`,
+												(value) => (openFor = value ? `completeTraining:${id}` : null)
+											}
+											title="Mark training complete?"
+											confirmLabel="Mark complete"
+											ready={next !== null}
+										>
+											<p>
+												{student.name}'s {courseTraining(student.course)} will be marked complete, and
+												the enrollment advanced to {advancedTo(next)}.
+												<strong class="text-white">No training report is filed.</strong>
+												If you haven't filed one yet do that first.
+											</p>
+											{#if student.next.length > 1}
+												<fieldset
+													class="space-y-2"
+													onchange={(event) =>
+														(chosen[id] = (event.target as HTMLInputElement).value)}
+												>
+													<ChoiceCard type="radio" name="next" value="rating-exam" compact>
+														Rating exam required
+													</ChoiceCard>
+													<ChoiceCard type="radio" name="next" value="certification-update" compact>
+														No rating exam required
+													</ChoiceCard>
+												</fieldset>
+											{/if}
+										</ConfirmDialog>
+									</form>
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -236,12 +279,21 @@
 										</Button>
 									{/if}
 									{#if exam.canClaim}
-										{@render step(
-											'claimExam',
-											exam.enrollmentId,
-											'Claim this exam',
-											`Claim the rating exam for ${exam.name}?\n\nYou become their examiner, and arrange the exam with them directly.`
-										)}
+										{@const id = exam.enrollmentId}
+										<form method="POST" action="?/claimExam" class="mt-3" use:enhance={step(id)}>
+											<input type="hidden" name="id" value={id} />
+											{@render opens('claimExam', id, 'Claim this exam')}
+											<ConfirmDialog
+												bind:open={
+													() => openFor === `claimExam:${id}`,
+													(value) => (openFor = value ? `claimExam:${id}` : null)
+												}
+												title="Claim the rating exam for {exam.name}?"
+												confirmLabel="Claim this exam"
+											>
+												<p>You become their examiner, and arrange the exam with them directly.</p>
+											</ConfirmDialog>
+										</form>
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">
 											File the training report with the result. Then fill in the evaluation on
