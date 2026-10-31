@@ -226,6 +226,15 @@ export const enrollmentsTable = sqliteTable(
 		 * because staff routinely make two changes within the same second or two.
 		 */
 		jiraUpdatedAt: integer('jira_updated_at', { mode: 'timestamp_ms' }),
+		/**
+		 * When the card entered its current `status`: set by `applyIssueMove()` in the
+		 * write that changes `status` (and nowhere else), and to `createdAt` for a
+		 * row this app creates. A CTRS record counts only if its session is on or
+		 * after this day — see decisions/0038. Null for a row not yet back-filled
+		 * from Jira's changelog (`backfillStatusSince()`), and for closed rows for
+		 * good. Not served by any page, RPC or notice.
+		 */
+		statusSince: integer('status_since', { mode: 'timestamp' }),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()
