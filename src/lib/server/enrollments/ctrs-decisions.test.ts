@@ -163,6 +163,19 @@ describe('decideRatingExam', () => {
 				action: 'nothing'
 			});
 		});
+
+		it('never acts on a record it holds, even as the only open card', () => {
+			expect(decide({ card: { ...custom, ctrsNotice: '501' } })).toEqual({ action: 'nothing' });
+		});
+
+		it('judges a newer record afresh', () => {
+			expect(
+				decide({
+					card: { ...custom, ctrsNotice: '501' },
+					records: [record({ id: 502, sessionDate: '2026-10-26 19:00:00' })]
+				})
+			).toMatchObject({ action: 'act', result: 'pass' });
+		});
 	});
 });
 
@@ -278,6 +291,21 @@ describe('decideRecommend', () => {
 			expect(
 				decideR({ card: { course: 'CUSTOM', ctrsNotice: '501' }, otherOpenCards: true })
 			).toEqual({ action: 'nothing' });
+		});
+
+		it('never acts on a record it holds, even as the only open card', () => {
+			expect(decideR({ card: { course: 'CUSTOM', ctrsNotice: '501' } })).toEqual({
+				action: 'nothing'
+			});
+		});
+
+		it('judges a newer record afresh', () => {
+			expect(
+				decideR({
+					card: { course: 'CUSTOM', ctrsNotice: '501' },
+					records: [recommend({ id: 502, sessionDate: '2026-10-26 19:00:00' })]
+				})
+			).toMatchObject({ action: 'act' });
 		});
 	});
 });

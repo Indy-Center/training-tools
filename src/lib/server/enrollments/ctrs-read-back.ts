@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { afterTrainingOptions } from '$lib/course-completion';
 import { COURSES } from '$lib/courses';
 import type { Database } from '$lib/server/db';
@@ -102,8 +102,12 @@ export async function checkCtrsRecords(
 		.select({ cid: teachersTable.cid, initials: teachersTable.initials })
 		.from(teachersTable);
 
-	const ratingExam = await readBackRatingExams(db, env, config, teachers, now);
-	const inTraining = await readBackRecommends(db, env, config, teachers, now);
+	// Read once, before either half acts: a card moved earlier in this run still
+	// counts as open for the Custom Training rule.
+	const open = await openCards(db);
+
+	const ratingExam = await readBackRatingExams(db, env, config, teachers, open, now);
+	const inTraining = await readBackRecommends(db, env, config, teachers, open, now);
 	return { ratingExam, inTraining };
 }
 
@@ -118,6 +122,7 @@ async function readBackRecommends(
 	env: Partial<Env>,
 	config: JiraConfig,
 	teachers: readonly RosterTeacher[],
+	open: OpenCards,
 	now: Date
 ): Promise<CtrsInTrainingResult> {
 	const result = emptyInTraining();
@@ -140,7 +145,7 @@ async function readBackRecommends(
 	for (const card of cards) {
 		result.checked += 1;
 		try {
-			await readBackRecommend(db, env, config, teachers, card, result, now);
+			await readBackRecommend(db, env, config, teachers, open, card, result, now);
 		} catch (err) {
 			console.error('[training-tools] ctrs records: failed on', card.jiraIssueKey, err);
 			result.errors += 1;
@@ -162,6 +167,7 @@ async function readBackRecommend(
 	env: Partial<Env>,
 	config: JiraConfig,
 	teachers: readonly RosterTeacher[],
+	open: OpenCards,
 	card: Enrollment,
 	result: CtrsInTrainingResult,
 	now: Date
@@ -179,7 +185,7 @@ async function readBackRecommend(
 		card,
 		records,
 		teachers,
-		otherOpenCards: card.course === 'CUSTOM' && (await hasOtherOpenCard(db, card))
+		otherOpenCards: card.course === 'CUSTOM' && hasOtherOpenCard(open, card)
 	});
 
 	if (decision.action === 'nothing') return;
@@ -257,6 +263,7 @@ async function readBackRatingExams(
 	env: Partial<Env>,
 	config: JiraConfig,
 	teachers: readonly RosterTeacher[],
+	open: OpenCards,
 	now: Date
 ): Promise<CtrsHalfResult> {
 	const result = emptyHalf();
@@ -270,7 +277,9 @@ async function readBackRatingExams(
 				isNotNull(enrollmentsTable.statusSince),
 				isNull(enrollmentsTable.withdrawnAt)
 			)
-		);
+		)
+		// The oldest request first; the same moment, by id.
+		.orderBy(asc(enrollmentsTable.createdAt), asc(enrollmentsTable.id));
 
 	for (const card of cards) {
 		result.checked += 1;
@@ -289,7 +298,7 @@ async function readBackRatingExams(
 				card,
 				records,
 				teachers,
-				otherOpenCards: card.course === 'CUSTOM' && (await hasOtherOpenCard(db, card))
+				otherOpenCards: card.course === 'CUSTOM' && hasOtherOpenCard(open, card)
 			});
 			const outcome = await carryOut(db, env, config, card, decision, now);
 			if (outcome) result[outcome] += 1;
@@ -426,21 +435,24 @@ async function tell(
 	return outcome === 'sent';
 }
 
-/** Whether the student has another card open In Training or at Rating Exam. */
-async function hasOtherOpenCard(db: Database, card: Enrollment): Promise<boolean> {
-	const other = await db
-		.select({ id: enrollmentsTable.id })
+/** The cards open for the Custom Training rule, as they stood when the job started. */
+type OpenCards = readonly { id: string; cid: string }[];
+
+async function openCards(db: Database): Promise<OpenCards> {
+	return db
+		.select({ id: enrollmentsTable.id, cid: enrollmentsTable.cid })
 		.from(enrollmentsTable)
 		.where(
 			and(
-				eq(enrollmentsTable.cid, card.cid),
-				ne(enrollmentsTable.id, card.id),
 				inArray(enrollmentsTable.status, [...OPEN_FOR_CUSTOM]),
 				isNull(enrollmentsTable.withdrawnAt)
 			)
-		)
-		.limit(1);
-	return other.length > 0;
+		);
+}
+
+/** Whether the student had another card open In Training or at Rating Exam. */
+function hasOtherOpenCard(open: OpenCards, card: Enrollment): boolean {
+	return open.some((other) => other.cid === card.cid && other.id !== card.id);
 }
 
 /**
