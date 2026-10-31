@@ -1,6 +1,7 @@
 import { FACILITY_ID } from '$lib/config';
 import type { VatusaRosterMember, VatusaRosterResponse } from '$lib/types/vatusa';
 import type { TrainingRecord } from '$lib/ctrs';
+import { parseCtrsRecords, type CtrsRecord } from '$lib/ctrs-records';
 import type { AcademyExam, AcademyTranscript } from '$lib/vatusa-academy';
 
 const VATUSA_API_BASE_URL = 'https://api.vatusa.net';
@@ -126,6 +127,38 @@ export async function fetchAcademyTranscript(
 	}
 	const body = (await response.json()) as { data?: AcademyTranscript };
 	return body.data ?? {};
+}
+
+/**
+ * Every CTRS training record a controller has, across facilities. Throws
+ * VatusaError on a refusal, a body that is not JSON, or no API key.
+ *
+ * Run against a real key on 2026-10-31; the shape is in research/vatusa-roster.md.
+ */
+export async function fetchCtrsRecords(
+	env: Partial<Pick<Env, 'VATUSA_API_KEY'>> | undefined,
+	cid: string | number
+): Promise<CtrsRecord[]> {
+	const apiKey = env?.VATUSA_API_KEY?.trim();
+	if (!apiKey) throw new VatusaError(0, 'VATUSA training records: VATUSA_API_KEY is not set');
+
+	const response = await fetch(
+		`${VATUSA_API_BASE_URL}/v2/user/${encodeURIComponent(String(cid))}/training/records?apikey=${encodeURIComponent(apiKey)}`
+	);
+	if (!response.ok) {
+		throw new VatusaError(
+			response.status,
+			`VATUSA training records: ${await vatusaMessage(response)}`
+		);
+	}
+	try {
+		return parseCtrsRecords(await response.json());
+	} catch (error) {
+		throw new VatusaError(
+			response.status,
+			`VATUSA training records: unreadable body (${error instanceof Error ? error.message : error})`
+		);
+	}
 }
 
 /**
