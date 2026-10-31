@@ -4,3 +4,6 @@
 * text=auto eol=lf
 
 *.png binary
+
+# drizzle-kit's schema snapshots: generated, and only the newest is read (by db:generate)
+drizzle/migrations/meta/*_snapshot.json linguist-generated=true -diff
