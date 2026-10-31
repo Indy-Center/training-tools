@@ -439,7 +439,7 @@ describe('/waitlist ?/restoreNow', () => {
 		expect(result.status).toBe(502);
 		expect(result.data).toEqual({
 			sheetError:
-				'TRK refused "Restore to Waitlist": No transition to "Waitlist" from TRK-r1\'s current status. Available: (none). Has the transition been added to the board?'
+				'TRK refused "Restore to Waitlist": No transition "Restore to Waitlist" from TRK-r1\'s current status. Available: (none). Has the transition been added to the board?'
 		});
 		expect(await row('r1')).toEqual(before);
 		expect(channel).toEqual([]);

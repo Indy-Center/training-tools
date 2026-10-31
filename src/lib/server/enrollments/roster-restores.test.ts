@@ -90,9 +90,13 @@ const TARGETS = ['Waitlist', 'In Training', 'Rating Exam', 'Needs CATP', 'Withdr
 
 /**
  * TRK, as far as a restore touches it. A card at Removed offers the three
- * `Restore to …` transitions plus Needs CATP and Withdrawn, unless `refuse`.
+ * `Restore to …` transitions plus Needs CATP and Withdrawn, unless `refuse`, or
+ * `offered` names what it offers instead.
  */
-function fakeJira(cards: Record<string, Card>, options: { refuse?: boolean } = {}) {
+function fakeJira(
+	cards: Record<string, Card>,
+	options: { refuse?: boolean; offered?: { name: string; to: string }[] } = {}
+) {
 	const calls: { method: string; path: string; body: any }[] = [];
 	let clock = new Date('2026-10-22T00:00:00Z').getTime();
 
@@ -108,6 +112,15 @@ function fakeJira(cards: Record<string, Card>, options: { refuse?: boolean } = {
 			if (!card) return new Response('not found', { status: 404 });
 
 			if (rest === '/comment') return Response.json({}, { status: 201 });
+			if (rest === '/transitions' && init.method === 'GET' && options.offered) {
+				return Response.json({
+					transitions: options.offered.map(({ name, to }) => ({
+						id: String(100 + TARGETS.indexOf(to)),
+						name,
+						to: { id: String(TARGETS.indexOf(to)), name: to }
+					}))
+				});
+			}
 			if (rest === '/transitions' && init.method === 'GET') {
 				// From Removed, the way back (ticket 02); from anywhere else, Removed.
 				const offered =
@@ -362,7 +375,7 @@ describe('processRosterRemovals: Jira refusing a restore', () => {
 		expect(waiting.restoreRefusalToldAt).toEqual(NOW);
 		expect(channel.map((m) => m.title)).toEqual(['Restore waiting on the board: Jo Rivera']);
 		expect(channel[0].fields.find((f) => f.name === 'Jira said')?.value).toContain(
-			'No transition to "Waitlist"'
+			'No transition "Restore to Waitlist"'
 		);
 		expect(direct).toEqual([]);
 
@@ -378,6 +391,22 @@ describe('processRosterRemovals: Jira refusing a restore', () => {
 			'Restore waiting on the board: Jo Rivera',
 			'Restored: Jo Rivera'
 		]);
+	});
+
+	it('does not take another transition that reaches the stage, only "Restore to <stage>"', async () => {
+		await addMember({ cid: '1000001' });
+		await addRemoved({ id: 'a', cid: '1000001', from: 'waitlist' });
+		const jira = fakeJira(
+			{ 'TRK-a': { status: 'Removed' } },
+			{ offered: [{ name: 'Back to queue', to: 'Waitlist' }] }
+		);
+
+		expect(await processRosterRemovals(db, fakeLarry().env, NOW)).toMatchObject({
+			restored: 0,
+			restoreRefused: 1
+		});
+		expect(jira.moves()).toEqual([]);
+		expect((await row('a')).status).toBe('removed');
 	});
 });
 

@@ -9,7 +9,7 @@ import type { Teacher } from '$lib/db/schema/teachers';
 import { boardMoveOutcome, isBackOnHomeRoster } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
 import { issueUrl, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
-import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
+import { commentOnIssue, transitionIssueByName } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import {
 	NEEDS_CATP_STATUS,
@@ -251,8 +251,8 @@ export async function restoreNow(
  *
  * 1. The stage is `roster_removed_from`, except In Training whose card has no
  *    active teacher: Waitlist, with the card's `Teacher` cleared first.
- * 2. Transition to that stage (matched by target name, like every move). Refused:
- *    nothing here changes.
+ * 2. Fire `Restore to <stage>` (or `Needs CATP`), matched by the transition's
+ *    name, not where it leads. Refused: nothing here changes.
  * 3. Clear the card's `Removed` date and comment. A failure is logged; the card
  *    has already moved.
  * 4. Read back, and finish. Not read back at the stage: step 1 of the next pass
@@ -306,7 +306,7 @@ async function restoreRequest(
 		if (clearTeacher && request.teacher) {
 			await updateIssueFields(config, issueKey, { [TEACHER_FIELD]: null });
 		}
-		await transitionIssueToStatus(config, issueKey, TRK_STAGE_NAMES[stage]);
+		await transitionIssueByName(config, issueKey, restoreTransitionName(stage));
 	} catch (err) {
 		const error = err instanceof Error ? err.message : String(err);
 		console.error('[training-tools] roster restore refused', issueKey, error);

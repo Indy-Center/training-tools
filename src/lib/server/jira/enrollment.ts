@@ -165,6 +165,31 @@ export async function transitionIssueToStatus(
 	issueKey: string,
 	statusName: string
 ): Promise<void> {
+	await fireTransition(config, issueKey, (t) => t.to.name, statusName, `to "${statusName}"`);
+}
+
+/**
+ * Fire the transition called `transitionName`, wherever it leads. For a move
+ * that must take one particular path, such as a restore's `Restore to <stage>`
+ * off Removed, where another transition to the same status would be wrong.
+ * Throws, like `transitionIssueToStatus()`, when it is not offered.
+ */
+export async function transitionIssueByName(
+	config: JiraConfig,
+	issueKey: string,
+	transitionName: string
+): Promise<void> {
+	await fireTransition(config, issueKey, (t) => t.name, transitionName, `"${transitionName}"`);
+}
+
+/** Ask Jira what is offered, and fire the one whose `label` is `wanted`, ignoring case. */
+async function fireTransition(
+	config: JiraConfig,
+	issueKey: string,
+	label: (transition: JiraTransition) => string,
+	wanted: string,
+	described: string
+): Promise<void> {
 	const path = `/issue/${encodeURIComponent(issueKey)}/transitions`;
 
 	const { transitions } = await jiraRequest<{ transitions: JiraTransition[] }>(config, path, {
@@ -172,13 +197,13 @@ export async function transitionIssueToStatus(
 	});
 
 	const match = transitions.find(
-		(transition) => transition.to.name.toLowerCase() === statusName.toLowerCase()
+		(transition) => label(transition).toLowerCase() === wanted.toLowerCase()
 	);
 
 	if (!match) {
 		throw new JiraError(
-			`No transition to "${statusName}" from ${issueKey}'s current status. Available: ` +
-				(transitions.map((t) => t.to.name).join(', ') || '(none)')
+			`No transition ${described} from ${issueKey}'s current status. Available: ` +
+				(transitions.map(label).join(', ') || '(none)')
 		);
 	}
 
