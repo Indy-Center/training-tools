@@ -22,7 +22,8 @@ import {
 	closeRequestForGood,
 	keepRequestInLine,
 	restoreRequestNow,
-	stopKeepingRequestInLine
+	stopKeepingRequestInLine,
+	type AdminActionResult
 } from '$lib/server/enrollments/roster-admin';
 import { SHEET_STATUSES } from '$lib/waitlist';
 import { displayName } from '$lib/user';
@@ -75,21 +76,41 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	};
 };
 
-/** Who is acting, and on which request — one the sheet still lists. */
+/**
+ * Who is acting, by CID and name, and the request id the form sent. The
+ * Left the roster actions take the id as it is: a removed request is not on
+ * the sheet, so they look it up themselves.
+ */
 async function acting(event: Pick<RequestEvent, 'locals' | 'request'>) {
 	const session = requireRole(event.locals, canManageStudents);
 	const form = await event.request.formData();
 	const id = form.get('id');
-	const enrollment = typeof id === 'string' && id ? await getEnrollment(event.locals.db, id) : null;
-
 	return {
-		by: displayName(session.user),
+		admin: { cid: session.user.cid, name: displayName(session.user) },
+		form,
+		id: typeof id === 'string' ? id : ''
+	};
+}
+
+/** `acting()`, and the request it names, while the sheet still lists it. */
+async function actingOnSheet(event: Pick<RequestEvent, 'locals' | 'request'>) {
+	const { admin, form, id } = await acting(event);
+	const enrollment = id ? await getEnrollment(event.locals.db, id) : null;
+	return {
+		by: admin.name,
 		form,
 		enrollment:
 			enrollment && (SHEET_STATUSES as readonly string[]).includes(enrollment.status)
 				? enrollment
 				: null
 	};
+}
+
+/** A Left the roster action's answer, in the sheet's banners. */
+function answer(result: AdminActionResult) {
+	return result.ok
+		? { sheetDone: result.message }
+		: fail(result.status, { sheetError: result.message });
 }
 
 const GONE = 'That request is no longer open. Reload the page.';
@@ -102,7 +123,7 @@ export const actions: Actions = {
 
 	/** Assign the VATUSA written course, and date the card. */
 	assignVatusa: async (event) => {
-		const { by, enrollment } = await acting(event);
+		const { by, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
 		const result = await assignVatusaCourse(event.locals.db, event.platform?.env, enrollment, by);
@@ -123,7 +144,7 @@ export const actions: Actions = {
 
 	/** Date the card as having passed it, when the transcript check has not. */
 	completeVatusa: async (event) => {
-		const { by, enrollment } = await acting(event);
+		const { by, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
 		const result = await completeVatusaCourse(event.locals.db, event.platform?.env, enrollment, by);
@@ -134,7 +155,7 @@ export const actions: Actions = {
 
 	/** Give them a teacher: the card moves to In Training. */
 	assignTeacher: async (event) => {
-		const { by, form, enrollment } = await acting(event);
+		const { by, form, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
 		const teacher = form.get('teacher');
@@ -156,7 +177,7 @@ export const actions: Actions = {
 
 	/** Move someone who is already in training to a different teacher. */
 	changeTeacher: async (event) => {
-		const { by, form, enrollment } = await acting(event);
+		const { by, form, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
 		const teacher = form.get('teacher');
@@ -178,7 +199,7 @@ export const actions: Actions = {
 
 	/** Staff end the request: the card moves to Removed. */
 	removeStudent: async (event) => {
-		const { by, enrollment } = await acting(event);
+		const { by, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
 		const result = await removeStudent(event.locals.db, event.platform?.env, enrollment, by);
@@ -189,7 +210,7 @@ export const actions: Actions = {
 
 	/** The student is giving it up, recorded by staff: the card moves to Withdrawn. */
 	withdrawStudent: async (event) => {
-		const { by, enrollment } = await acting(event);
+		const { by, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
 		const result = await withdrawStudent(event.locals.db, event.platform?.env, enrollment, by);
@@ -200,66 +221,35 @@ export const actions: Actions = {
 
 	/*
 	 * Left the roster: a request a roster removal took off, or one whose student
-	 * is off the home roster and not yet removed. These look the request up
-	 * themselves, since a removed one is not on the sheet. See
+	 * is off the home roster and not yet removed. See
 	 * decisions/0037-roster-removal-and-restore.md
 	 */
 
 	/** Put it back where it was now, even if the student is still away. */
 	restoreNow: async (event) => {
-		const { admin, id } = await actingOnRoster(event);
-		const result = await restoreRequestNow(
-			event.locals.db,
-			event.platform?.env,
-			id,
-			admin,
-			new Date()
+		const { admin, id } = await acting(event);
+		return answer(
+			await restoreRequestNow(event.locals.db, event.platform?.env, id, admin, new Date())
 		);
-		return result.ok
-			? { sheetDone: result.message }
-			: fail(result.status, { sheetError: result.message });
 	},
 
 	/** End its restore window: the student enrolls again at the back. */
 	closeForGood: async (event) => {
-		const { admin, id } = await actingOnRoster(event);
-		const result = await closeRequestForGood(
-			event.locals.db,
-			event.platform?.env,
-			id,
-			admin,
-			new Date()
+		const { admin, id } = await acting(event);
+		return answer(
+			await closeRequestForGood(event.locals.db, event.platform?.env, id, admin, new Date())
 		);
-		return result.ok
-			? { sheetDone: result.message }
-			: fail(result.status, { sheetError: result.message });
 	},
 
 	/** Exempt it from roster removal while the student is away. */
 	keepInLine: async (event) => {
-		const { admin, id } = await actingOnRoster(event);
-		const result = await keepRequestInLine(event.locals.db, id, admin, new Date());
-		return result.ok
-			? { sheetDone: result.message }
-			: fail(result.status, { sheetError: result.message });
+		const { admin, id } = await acting(event);
+		return answer(await keepRequestInLine(event.locals.db, id, admin, new Date()));
 	},
 
 	/** Lift the exemption: the next pass removes it if the 24 hours have passed. */
 	stopKeepingInLine: async (event) => {
-		const { id } = await actingOnRoster(event);
-		const result = await stopKeepingRequestInLine(event.locals.db, id, new Date());
-		return result.ok
-			? { sheetDone: result.message }
-			: fail(result.status, { sheetError: result.message });
+		const { id } = await acting(event);
+		return answer(await stopKeepingRequestInLine(event.locals.db, id, new Date()));
 	}
 };
-
-/** Who is acting, by CID and name, and the request id the form sent. */
-async function actingOnRoster(event: Pick<RequestEvent, 'locals' | 'request'>) {
-	const session = requireRole(event.locals, canManageStudents);
-	const id = (await event.request.formData()).get('id');
-	return {
-		admin: { cid: session.user.cid, name: displayName(session.user) },
-		id: typeof id === 'string' ? id : ''
-	};
-}
