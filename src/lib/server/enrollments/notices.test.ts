@@ -4,6 +4,8 @@ import {
 	announcementFor,
 	awaitingAuditNotice,
 	certificationHeldNotice,
+	ctrsTeacherRecordNotice,
+	ctrsUnclearCourseNotice,
 	examReadyNotice,
 	examStatus,
 	needsCatpNotice,
@@ -223,6 +225,36 @@ describe('newEnrollmentNotice', () => {
 		const notice = newEnrollmentNotice({ ...enrolled, issueKey: null, issueUrl: null });
 		expect(field(notice, 'TRK card')).toMatch(/Not on the board yet/);
 		expect(notice.link).toBeUndefined();
+	});
+});
+
+describe('CTRS record notices', () => {
+	const record = {
+		id: 501,
+		day: '2026-10-25',
+		result: 'pass' as const,
+		position: 'XXX_APP',
+		filedBy: 'Sam Weller'
+	};
+
+	it("says a record filed by the student's teacher did not move the card", () => {
+		const notice = ctrsTeacherRecordNotice(request, record);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.summary).toBe(
+			"Jo Rivera (1234567)'s Terminal Radar Control (T-RC) has a CTRS record of October 25, 2026 giving a pass, filed by Sam Weller, who is their teacher on the card. The card was not moved: the examiner can't be the student's teacher. Check the record on VATUSA, and move the card by hand if it stands."
+		);
+		expect(field(notice, 'CTRS record')).toBe('501');
+		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+	});
+
+	it('says a Custom Training card was not moved on a record that could be for another course', () => {
+		const notice = ctrsUnclearCourseNotice(
+			{ ...request, course: 'CUSTOM' },
+			{ ...record, result: 'fail' }
+		);
+		expect(notice.summary).toBe(
+			"Jo Rivera (1234567) has a CTRS record of October 25, 2026 giving a fail at XXX_APP, but more than one of their courses could be the one it's for. The card was not moved."
+		);
 	});
 });
 
