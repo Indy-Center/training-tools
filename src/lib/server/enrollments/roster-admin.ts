@@ -96,9 +96,10 @@ export async function restoreRequestNow(
 }
 
 /**
- * Close for good: the window ends, `closed-by-admin`. The card is already at
- * Removed, so Jira is not touched. The training admins get the expiry's line,
- * saying who closed it.
+ * Close for good: the window ends, `closed-by-admin`. Only while the card is
+ * still at Removed, so Jira is not touched; one the board has moved off it is
+ * the next pass's to finish as a restore. The training admins get the expiry's
+ * line, saying who closed it.
  */
 export async function closeRequestForGood(
 	db: Database,
@@ -110,7 +111,9 @@ export async function closeRequestForGood(
 	const [closed] = await db
 		.update(enrollmentsTable)
 		.set({ restoreClosedAt: now, restoreClosedReason: 'closed-by-admin', updatedAt: now })
-		.where(and(eq(enrollmentsTable.id, id), inRestoreWindow()))
+		.where(
+			and(eq(enrollmentsTable.id, id), inRestoreWindow(), eq(enrollmentsTable.status, 'removed'))
+		)
 		.returning();
 	if (!closed) return { ok: false, status: 409, message: NOT_IN_WINDOW };
 

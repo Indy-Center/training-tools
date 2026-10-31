@@ -541,6 +541,20 @@ describe('/waitlist ?/closeForGood', () => {
 		expect(result.status).toBe(409);
 		expect(result.data).toEqual({ sheetError: GONE_FROM_WINDOW });
 	});
+
+	it('refuses a card the board has moved off Removed, so the next pass finishes the restore', async () => {
+		await addMember({ cid: '1000001', membership: 'visit', leftHomeAt: LEFT });
+		// Staff moved the card back to Waitlist; the next pass has not finished it yet.
+		await addRemoved({ id: 'r1', cid: '1000001', from: 'waitlist', status: 'waitlist' });
+		const { env, channel } = fakeLarry();
+
+		const result = await post('closeForGood', 'r1', env);
+
+		expect(result.status).toBe(409);
+		expect(result.data).toEqual({ sheetError: GONE_FROM_WINDOW });
+		expect((await row('r1')).restoreClosedAt).toBeNull();
+		expect(channel).toEqual([]);
+	});
 });
 
 describe('/waitlist ?/keepInLine and ?/stopKeepingInLine', () => {
