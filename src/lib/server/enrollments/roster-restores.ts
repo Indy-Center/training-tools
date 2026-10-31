@@ -250,11 +250,12 @@ export async function restoreNow(
  * Restore one request in its window: steps 1–4 of the spec's "Automatic".
  *
  * 1. The stage is `roster_removed_from`, except In Training whose card has no
- *    active teacher: Waitlist, with the card's `Teacher` cleared first.
+ *    active teacher: Waitlist.
  * 2. Fire `Restore to <stage>` (or `Needs CATP`), matched by the transition's
- *    name, not where it leads. Refused: nothing here changes.
- * 3. Clear the card's `Removed` date and comment. A failure is logged; the card
- *    has already moved.
+ *    name, not where it leads. Refused: nothing here changes, on the card
+ *    either, so the Teacher is not touched before this.
+ * 3. Clear the card's `Removed` date, and its `Teacher` for a restore to
+ *    Waitlist, then comment. A failure is logged; the card has already moved.
  * 4. Read back, and finish. Not read back at the stage: step 1 of the next pass
  *    finishes it.
  *
@@ -303,9 +304,6 @@ async function restoreRequest(
 	const issueKey = request.jiraIssueKey;
 
 	try {
-		if (clearTeacher && request.teacher) {
-			await updateIssueFields(config, issueKey, { [TEACHER_FIELD]: null });
-		}
 		await transitionIssueByName(config, issueKey, restoreTransitionName(stage));
 	} catch (err) {
 		const error = err instanceof Error ? err.message : String(err);
@@ -323,10 +321,13 @@ async function restoreRequest(
 	const done = { ok: true, stage, keptInLine: keptBy !== null } as const;
 
 	try {
-		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.removed]: null });
+		await updateIssueFields(config, issueKey, {
+			[JIRA_FIELDS.removed]: null,
+			...(clearTeacher && request.teacher ? { [TEACHER_FIELD]: null } : {})
+		});
 	} catch (err) {
 		console.error(
-			'[training-tools] roster restore: could not clear the Removed date',
+			'[training-tools] roster restore: could not clear the Removed date or Teacher',
 			issueKey,
 			err
 		);

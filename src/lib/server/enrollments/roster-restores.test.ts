@@ -288,7 +288,7 @@ describe('processRosterRemovals: restore a student back on the home roster', () 
 		['removed from the teacher roster', { removedAt: LEFT }],
 		['on LOA', { status: 'loa' as const }]
 	] as const) {
-		it(`restores In Training to Waitlist, Teacher cleared first, when the teacher is ${why}`, async () => {
+		it(`restores In Training to Waitlist, Teacher cleared after the move, when the teacher is ${why}`, async () => {
 			await db.update(teachersTable).set(change).where(eq(teachersTable.cid, '2000001'));
 			await addMember({ cid: '1000001' });
 			await addRemoved({ id: 'a', cid: '1000001', from: 'in-training', teacher: 'QX' });
@@ -297,13 +297,13 @@ describe('processRosterRemovals: restore a student back on the home roster', () 
 
 			await processRosterRemovals(db, env, NOW);
 
-			// The Teacher edit comes before the move.
+			// The move first, then one edit clearing the Removed date and the Teacher.
 			const order = jira.calls
 				.filter(
 					(c) => c.method === 'PUT' || (c.method === 'POST' && c.path.endsWith('/transitions'))
 				)
-				.map((c) => (c.method === 'PUT' ? Object.keys(c.body.fields)[0] : 'move'));
-			expect(order).toEqual([TEACHER_FIELD, 'move', JIRA_FIELDS.removed]);
+				.map((c) => (c.method === 'PUT' ? Object.keys(c.body.fields).sort() : 'move'));
+			expect(order).toEqual(['move', [JIRA_FIELDS.removed, TEACHER_FIELD].sort()]);
 			expect(jira.comments()[0].text).toBe('Back on the ZID home roster. Restored to Waitlist.');
 
 			const restored = await row('a');
@@ -391,6 +391,21 @@ describe('processRosterRemovals: Jira refusing a restore', () => {
 			'Restore waiting on the board: Jo Rivera',
 			'Restored: Jo Rivera'
 		]);
+	});
+
+	it("leaves the card's Teacher when Jira refuses a restore to Waitlist for an inactive teacher", async () => {
+		await db.update(teachersTable).set({ status: 'loa' }).where(eq(teachersTable.cid, '2000001'));
+		await addMember({ cid: '1000001' });
+		await addRemoved({ id: 'a', cid: '1000001', from: 'in-training', teacher: 'QX' });
+		const card = { status: 'Removed', teacher: 'QX' };
+		const jira = fakeJira({ 'TRK-a': card }, { refuse: true });
+
+		await processRosterRemovals(db, fakeLarry().env, NOW);
+		await processRosterRemovals(db, fakeLarry().env, new Date(NOW.getTime() + 10 * 60_000));
+
+		expect(jira.edits()).toEqual([]);
+		expect(card.teacher).toBe('QX');
+		expect((await row('a')).teacher).toBe('QX');
 	});
 
 	it('does not take another transition that reaches the stage, only "Restore to <stage>"', async () => {
