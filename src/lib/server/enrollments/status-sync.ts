@@ -128,8 +128,9 @@ export async function applyIssueMove(
 							jiraUpdatedAt,
 							jiraStatusSyncedAt: now,
 							updatedAt: now,
-							// Only a write that changes `status` says when it was entered.
-							...(row.status !== status ? { statusSince: observedAt ?? now } : {})
+							// Only a write that changes `status` says when it was entered, and
+							// forgets the CTRS record the TA were told about at the old one.
+							...(row.status !== status ? { statusSince: observedAt ?? now, ctrsNotice: null } : {})
 						}
 					: { jiraUpdatedAt, jiraStatusSyncedAt: now }
 			)

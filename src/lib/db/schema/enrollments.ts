@@ -235,6 +235,14 @@ export const enrollmentsTable = sqliteTable(
 		 * good. Not served by any page, RPC or notice.
 		 */
 		statusSince: integer('status_since', { mode: 'timestamp' }),
+		/**
+		 * The id of the CTRS record the training admins were last told about for this
+		 * card, because the read-back would not move it on that record (decisions/0038):
+		 * each record is told once, and a newer one again. Set only after Larry
+		 * accepts the notice, so a refused one is retried. Cleared by
+		 * `applyIssueMove()` in the write that changes `status`, and nowhere else.
+		 */
+		ctrsNotice: text('ctrs_notice'),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()

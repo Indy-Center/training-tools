@@ -60,6 +60,52 @@ describe('applyIssueMove and status_since', () => {
 	});
 });
 
+describe('applyIssueMove and ctrs_notice', () => {
+	const SEEN = new Date('2026-09-22T10:00:00Z');
+	let db: Database;
+
+	beforeEach(async () => {
+		db = testDb();
+		await db.insert(enrollmentsTable).values({
+			id: 'e1',
+			cid: '1000001',
+			course: 'S-GC',
+			status: 'rating-exam',
+			submittedName: 'Jo Rivera',
+			jiraIssueKey: 'TRK-1',
+			teacher: 'AB',
+			ctrsNotice: '501'
+		});
+	});
+
+	const issue = (status: string, teacher: string | null = 'AB'): JiraStatusIssue => ({
+		key: 'TRK-1',
+		fields: { status: { name: status }, [TEACHER_FIELD]: teacher ? { value: teacher } : null }
+	});
+	const notice = async () =>
+		(await db.query.enrollmentsTable.findFirst({ where: eq(enrollmentsTable.id, 'e1') }))!
+			.ctrsNotice;
+
+	it('clears it on a move', async () => {
+		await applyIssueMove(db, issue('Needs CATP'), SEEN, NOW);
+		expect(await notice()).toBeNull();
+	});
+
+	it('keeps it when only the teacher changes', async () => {
+		const { outcome } = await applyIssueMove(db, issue('Rating Exam', 'CD'), SEEN, NOW);
+		expect(outcome).toBe('updated');
+		expect(await notice()).toBe('501');
+	});
+
+	it('keeps it when the delivery is stale', async () => {
+		await applyIssueMove(db, issue('Rating Exam', 'CD'), SEEN, NOW);
+		const older = new Date('2026-09-21T00:00:00Z');
+		const { outcome } = await applyIssueMove(db, issue('Needs CATP'), older, NOW);
+		expect(outcome).toBe('stale');
+		expect(await notice()).toBe('501');
+	});
+});
+
 describe('sweepWindowMinutes', () => {
 	it('reads everything when there is no cursor yet', () => {
 		expect(sweepWindowMinutes(null, NOW)).toBeNull();
