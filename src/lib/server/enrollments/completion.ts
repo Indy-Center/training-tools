@@ -135,6 +135,8 @@ export async function note(config: JiraConfig, issueKey: string, text: string): 
  *
  * `comment` replaces the usual card note, for a step that has to say more than
  * who took it: `/teach`'s button says no training report was filed (0038).
+ * `completedOn` (`YYYY-MM-DD`) replaces today as `Training Completed`, for a
+ * step taken from a CTRS record filed on another day.
  */
 export async function completeTraining(
 	db: Database,
@@ -143,6 +145,7 @@ export async function completeTraining(
 	by: string,
 	to?: AfterTraining,
 	comment?: string,
+	completedOn?: string,
 	now = new Date()
 ): Promise<FlowResult> {
 	const options = afterTrainingOptions(enrollment.course);
@@ -155,7 +158,7 @@ export async function completeTraining(
 
 	return onCard(db, env, enrollment, 'complete training', async (config, issueKey) => {
 		await updateIssueFields(config, issueKey, {
-			[JIRA_FIELDS.trainingCompleted]: toFacilityDate(now)
+			[JIRA_FIELDS.trainingCompleted]: completedOn ?? toFacilityDate(now)
 		});
 		await transitionIssueToStatus(config, issueKey, next);
 		await note(config, issueKey, comment ?? `Training marked complete by ${by}.`);
