@@ -239,6 +239,44 @@ describe('/admin/cards/{key} ?/edit refusals', () => {
 		expect(jira.writes()).toEqual([]);
 	});
 
+	it('does not refuse a future date the card already holds, posted back unchanged', async () => {
+		await addRow();
+		const jira = fakeJira({ fields: { [JIRA_FIELDS.reCompleted]: '2999-01-01' } });
+
+		const result = await actions.edit(
+			post({ reCompleted: '2999-01-01', trainingCompleted: '2026-10-02' })
+		);
+		expect(result).toEqual({ edited: 'TRK-9001' });
+		expect(jira.puts()).toEqual([{ [JIRA_FIELDS.trainingCompleted]: '2026-10-02' }]);
+
+		const moved = await actions.edit(post({ reCompleted: '2999-01-01', stage: 'In Training' }));
+		expect(moved).toEqual({ edited: 'TRK-9001' });
+		expect(jira.moves().map((call) => call.body.transition.id)).toEqual(['11']);
+	});
+
+	it('does not refuse an examiner who is the teacher when the card already has them', async () => {
+		await addRow({ reInstructor: 'SW' });
+		const jira = fakeJira({ fields: { [RE_INSTRUCTOR_FIELD]: { value: 'SW' } } });
+
+		const result = await actions.edit(post({ examiner: 'SW', trainingCompleted: '2026-10-02' }));
+
+		expect(result).toEqual({ edited: 'TRK-9001' });
+		expect(jira.puts()).toEqual([{ [JIRA_FIELDS.trainingCompleted]: '2026-10-02' }]);
+	});
+
+	it('still refuses a changed value when the card holds another bad one', async () => {
+		await addRow();
+		const jira = fakeJira({ fields: { [JIRA_FIELDS.reCompleted]: '2999-01-01' } });
+
+		expect(await actions.edit(post({ reCompleted: '2999-02-02' }))).toMatchObject(
+			refused(400, 'RE Completed must be a date no later than today.')
+		);
+		expect(await actions.edit(post({ examiner: 'SW', reCompleted: '2999-01-01' }))).toMatchObject(
+			refused(400, "The examiner can't be the student's teacher.")
+		);
+		expect(jira.writes()).toEqual([]);
+	});
+
 	it('refuses a save that changes nothing', async () => {
 		await addRow();
 		const jira = fakeJira();

@@ -1041,7 +1041,10 @@ move to Completed (`A card is completed from the audit.`); an examiner who is th
 student's teacher; a date that is malformed or after today; a stage Jira no
 longer offers from the card's status (`TRK-14 can't move to … from … now. Reload
 and try again.`, 409); an examiner not on Jira's RE Instructor list (`TRK's RE
-Instructor list has no option for … . Reload and try again.`); or no change. If Jira refuses the move, the fields stay saved and the page says so.
+Instructor list has no option for … . Reload and try again.`); or no change. The
+examiner and date refusals check only values the save changes: one the card
+already holds and the form posts back is never refused. If Jira refuses the
+move, the fields stay saved and the page says so.
 Choosing Audit warns what the card would be held for; it doesn't stop the save.
 `Waitlisted`, `Certificate Updated`, Teacher, course, CID and name stay on the
 board (Teacher is changed from `/waitlist`).
