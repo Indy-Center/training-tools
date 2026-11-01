@@ -13,3 +13,13 @@ export function dialogOutcome(action: DialogAction, ready: boolean): DialogOutco
 	if (action !== 'confirm') return 'close';
 	return ready ? 'submit' : 'stay';
 }
+
+/** A dialog's words: its body is `before`, then `bold` in bold, then `after`. */
+export type DialogCopy = {
+	title: string;
+	confirmLabel: string;
+	tone?: 'default' | 'danger';
+	before: string;
+	bold?: string;
+	after?: string;
+};

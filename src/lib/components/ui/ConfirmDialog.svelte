@@ -78,7 +78,7 @@
 <dialog
 	bind:this={dialog}
 	aria-labelledby={titleId}
-	class="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-slate-700/60 bg-slate-800 p-0 text-gray-300 shadow-xl backdrop:bg-slate-950/70"
+	class="m-auto w-[calc(100%-2rem)] max-w-md rounded-lg border border-slate-700/60 bg-slate-800 p-0 text-gray-300 shadow-xl backdrop:bg-slate-900/60"
 	oncancel={(event) => {
 		event.preventDefault();
 		act('escape');

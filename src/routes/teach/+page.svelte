@@ -6,9 +6,11 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
 	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import type { DialogCopy } from '$lib/confirm-dialog';
 	import { examResultCopy } from '$lib/exam-result';
-	import { advancedTo, chosenStep, courseTraining } from '$lib/mark-training-complete';
+	import { chosenStep, trainingCompleteCopy } from '$lib/mark-training-complete';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import type { Snippet } from 'svelte';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
@@ -32,15 +34,19 @@
 	/** The request a step is running for, so only its button shows as busy. */
 	let busyId = $state<string | null>(null);
 
-	/** The one confirmation open, as `action:id`. */
-	let openFor = $state<string | null>(null);
+	/** The one confirmation open: which step, for which request. */
+	let openFor = $state<{ action: string; id: string } | null>(null);
 	/** Custom Training's radio in each open "Mark training complete?", by request. */
 	let chosen = $state<Record<string, string | null>>({});
 
-	/** Open one step's dialog. Its choice starts afresh each time. */
-	function ask(action: string, id: string) {
-		chosen[id] = null;
-		openFor = `${action}:${id}`;
+	function isOpen(action: string, id: string): boolean {
+		return openFor?.action === action && openFor.id === id;
+	}
+
+	/** Open or close one step's dialog. Its choice starts afresh each time it opens. */
+	function setOpen(action: string, id: string, open: boolean) {
+		if (open) chosen[id] = null;
+		openFor = open ? { action, id } : null;
 	}
 
 	/**
@@ -147,11 +153,42 @@
 	</Button>
 {/snippet}
 
-<!-- The button that opens a step's dialog; the dialog posts the form. -->
-{#snippet opens(action: string, id: string, label: string)}
-	<Button type="button" size="sm" disabled={busyId !== null} onclick={() => ask(action, id)}>
-		{busyId === id ? 'Working…' : label}
-	</Button>
+<!--
+	One step on a request: the button opens its dialog, and only the dialog posts
+	the form. `body` adds inputs the step posts with it (Custom Training's radios).
+-->
+{#snippet confirmed(
+	action: string,
+	id: string,
+	label: string,
+	copy: DialogCopy,
+	options: { class?: string; ready?: boolean; body?: Snippet } = {}
+)}
+	<form method="POST" action="?/{action}" class={options.class} use:enhance={step(id)}>
+		<input type="hidden" name="id" value={id} />
+		<Button
+			type="button"
+			size="sm"
+			disabled={busyId !== null}
+			onclick={() => setOpen(action, id, true)}
+		>
+			{busyId === id ? 'Working…' : label}
+		</Button>
+		<ConfirmDialog
+			bind:open={() => isOpen(action, id), (value) => setOpen(action, id, value)}
+			title={copy.title}
+			confirmLabel={copy.confirmLabel}
+			tone={copy.tone}
+			ready={options.ready}
+		>
+			<p>
+				{copy.before}
+				{#if copy.bold}<strong class="text-white">{copy.bold}</strong>{/if}
+				{copy.after ?? ''}
+			</p>
+			{@render options.body?.()}
+		</ConfirmDialog>
+	</form>
 {/snippet}
 
 <div class="grid gap-6 lg:grid-cols-3">
@@ -190,40 +227,26 @@
 								{#if student.canComplete}
 									{@const id = student.enrollmentId}
 									{@const next = chosenStep(student.next, chosen[id] ?? null)}
-									<form method="POST" action="?/completeTraining" use:enhance={step(id)}>
-										<input type="hidden" name="id" value={id} />
-										{@render opens('completeTraining', id, 'Mark training complete')}
-										<ConfirmDialog
-											bind:open={
-												() => openFor === `completeTraining:${id}`,
-												(value) => (openFor = value ? `completeTraining:${id}` : null)
-											}
-											title="Mark training complete?"
-											confirmLabel="Mark complete"
-											ready={next !== null}
+									{#snippet radios()}
+										<fieldset
+											class="space-y-2"
+											onchange={(event) => (chosen[id] = (event.target as HTMLInputElement).value)}
 										>
-											<p>
-												{student.name}'s {courseTraining(student.course)} will be marked complete, and
-												the enrollment advanced to {advancedTo(next)}.
-												<strong class="text-white">No training report is filed.</strong>
-												If you haven't filed one yet do that first.
-											</p>
-											{#if student.next.length > 1}
-												<fieldset
-													class="space-y-2"
-													onchange={(event) =>
-														(chosen[id] = (event.target as HTMLInputElement).value)}
-												>
-													<ChoiceCard type="radio" name="next" value="rating-exam" compact>
-														Rating exam required
-													</ChoiceCard>
-													<ChoiceCard type="radio" name="next" value="certification-update" compact>
-														No rating exam required
-													</ChoiceCard>
-												</fieldset>
-											{/if}
-										</ConfirmDialog>
-									</form>
+											<ChoiceCard type="radio" name="next" value="rating-exam" compact>
+												Rating exam required
+											</ChoiceCard>
+											<ChoiceCard type="radio" name="next" value="certification-update" compact>
+												No rating exam required
+											</ChoiceCard>
+										</fieldset>
+									{/snippet}
+									{@render confirmed(
+										'completeTraining',
+										id,
+										'Mark training complete',
+										trainingCompleteCopy(student.name, student.course, next),
+										{ ready: next !== null, body: student.next.length > 1 ? radios : undefined }
+									)}
 								{/if}
 							</div>
 						</li>
@@ -279,46 +302,33 @@
 												VATUSA evaluation form
 												<IconOpen class="h-4 w-4" />
 											</Button>
-											{#each [{ action: 'completeExam', result: 'passed', label: 'Passed' }, { action: 'failExam', result: 'not-passed', label: 'Not passed' }] as const as outcome (outcome.action)}
-												{@const copy = examResultCopy(outcome.result, exam.name, exam.course)}
-												<form method="POST" action="?/{outcome.action}" use:enhance={step(id)}>
-													<input type="hidden" name="id" value={id} />
-													{@render opens(outcome.action, id, outcome.label)}
-													<ConfirmDialog
-														bind:open={
-															() => openFor === `${outcome.action}:${id}`,
-															(value) => (openFor = value ? `${outcome.action}:${id}` : null)
-														}
-														title={copy.title}
-														confirmLabel={copy.confirmLabel}
-														tone={copy.tone}
-													>
-														<p>
-															{copy.before}
-															<strong class="text-white">{copy.bold}</strong>
-															{copy.after}
-														</p>
-													</ConfirmDialog>
-												</form>
-											{/each}
+											{@render confirmed(
+												'completeExam',
+												id,
+												'Passed',
+												examResultCopy('passed', exam.name, exam.course)
+											)}
+											{@render confirmed(
+												'failExam',
+												id,
+												'Not passed',
+												examResultCopy('not-passed', exam.name, exam.course)
+											)}
 										</div>
 									{/if}
 									{#if exam.canClaim}
-										{@const id = exam.enrollmentId}
-										<form method="POST" action="?/claimExam" class="mt-3" use:enhance={step(id)}>
-											<input type="hidden" name="id" value={id} />
-											{@render opens('claimExam', id, 'Claim this exam')}
-											<ConfirmDialog
-												bind:open={
-													() => openFor === `claimExam:${id}`,
-													(value) => (openFor = value ? `claimExam:${id}` : null)
-												}
-												title="Claim the rating exam for {exam.name}?"
-												confirmLabel="Claim this exam"
-											>
-												<p>You become their examiner, and arrange the exam with them directly.</p>
-											</ConfirmDialog>
-										</form>
+										{@render confirmed(
+											'claimExam',
+											exam.enrollmentId,
+											'Claim this exam',
+											{
+												title: `Claim the rating exam for ${exam.name}?`,
+												confirmLabel: 'Claim this exam',
+												before:
+													'You become their examiner, and arrange the exam with them directly.'
+											},
+											{ class: 'mt-3' }
+										)}
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">
 											File the training report with the result. Then fill in the evaluation on
