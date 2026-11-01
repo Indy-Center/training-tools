@@ -94,6 +94,7 @@ part works, written for whoever maintains it.
 | `POST /admin`                | admin      | `?/retry` files a stuck request again; `?/applyRosterHold` applies a held roster removal now                       |
 | `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
 | `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
+| `GET /admin/cards/{key}`     | admin      | One TRK card, read live: its fields and latest comments                                                            |
 
 `?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
 both gate on `loadTrainingContext()`, the same call `/` renders from.
@@ -1017,6 +1018,13 @@ Recording a job's outcome is bookkeeping: if the write fails it is logged, and
 neither fails the job nor stops the next one. Training admins are told in
 Discord when a request gets stuck, and when a job starts failing or recovers —
 see Notifications.
+
+**The card page**, `/admin/cards/{key}` (`TRK-14`), shows one request's TRK
+card read live from Jira: its stage, Teacher, RE Instructor and dates, its five
+latest comments, and what a held certification lacks. If Jira can't be read it
+shows the request and Jira's error. It isn't in the nav: for a training admin,
+the TRK key on each `/waitlist` and `/admin/audit` row links there, and so do
+the notices about a held certification or a CTRS record the app didn't act on.
 
 ### Site copy
 

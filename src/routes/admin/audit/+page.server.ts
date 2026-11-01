@@ -39,6 +39,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			return {
 				id: enrollment.id,
 				cid: enrollment.cid,
+				// Links the row to its card page.
+				issueKey: enrollment.jiraIssueKey,
 				name: people.get(enrollment.cid)?.name ?? enrollment.submittedName,
 				course: enrollment.course,
 				teacher: enrollment.teacher,

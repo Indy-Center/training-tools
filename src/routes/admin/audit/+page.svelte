@@ -5,6 +5,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
+	import { cardPagePath } from '$lib/card-page';
 	import { findCourse } from '$lib/courses';
 	import { formatDate } from '$lib/format';
 	import { CRON_INTERVAL_MINUTES } from '$lib/job-health';
@@ -60,6 +61,14 @@
 								{request.name}
 							</a>
 							<span class="font-mono text-xs text-gray-500">{request.cid}</span>
+							{#if request.issueKey}
+								<a
+									href={cardPagePath(request.issueKey)}
+									class="font-mono text-xs text-sky-400 hover:text-sky-300"
+								>
+									{request.issueKey}
+								</a>
+							{/if}
 							<Badge size="sm" color="sky" label={request.course} />
 						</div>
 
