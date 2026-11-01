@@ -336,6 +336,7 @@ src/
 │   ├── content/               site copy as markdown, compiled at build time (DEV-119)
 │   ├── course-placement.ts    pure "which course is next" logic (DEV-119)
 │   ├── course-completion.ts   pure end-of-course rules: who may act, what it earns
+│   ├── card-page.ts           the admin card page's path and its editable date fields (client-safe)
 │   ├── courses.ts             the six courses + their Jira option ids (client-safe)
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
@@ -1007,6 +1008,8 @@ behind the scenes is seen before a student has to report it.
   states: OK, Failing (its last run threw), Not running (no run for 30 minutes —
   three missed intervals), or No runs recorded. A failure shows its message and
   how many runs in a row; the last error stays visible after a recovery.
+- **Held roster change.** When the roster sync is holding removals back (see the
+  roster sync), who is held and when it applies by itself, with **Apply now**.
 - **Jira webhook.** The last verified delivery. It is never "Not running": it
   fires when staff change an issue, so a quiet board is not a fault.
 - **Configuration.** Whether the Jira credentials, the webhook secret and the
@@ -1033,9 +1036,12 @@ which stays with the audit), its dates, and RE Instructor. A save writes the
 changed fields in one call, then makes the move, comments on the card with what
 landed (`Edited by …`), and reads the card back as after a drag on the board, so
 the dates on the move, the certification and its hold follow as usual. It's
-refused, writing nothing, for a request the student withdrew here, an examiner
-who is the student's teacher, a date that is malformed or after today, or no
-change. If Jira refuses the move, the fields stay saved and the page says so.
+refused, writing nothing, for a request the student withdrew here; a hand-posted
+move to Completed (`A card is completed from the audit.`); an examiner who is the
+student's teacher; a date that is malformed or after today; a stage Jira no
+longer offers from the card's status (`TRK-14 can't move to … from … now. Reload
+and try again.`, 409); an examiner not on Jira's RE Instructor list (`TRK's RE
+Instructor list has no option for … . Reload and try again.`); or no change. If Jira refuses the move, the fields stay saved and the page says so.
 Choosing Audit warns what the card would be held for; it doesn't stop the save.
 `Waitlisted`, `Certificate Updated`, Teacher, course, CID and name stay on the
 board (Teacher is changed from `/waitlist`).
