@@ -10,8 +10,11 @@
 	import IconCardText from '~icons/mdi/card-text-outline';
 	import IconComment from '~icons/mdi/comment-text-multiple-outline';
 	import IconOpen from '~icons/mdi/open-in-new';
+	import IconCheck from '~icons/mdi/check-circle';
+	import IconPencil from '~icons/mdi/pencil-outline';
+	import EditCardForm from './EditCardForm.svelte';
 
-	let { data } = $props();
+	let { data, form } = $props();
 
 	const course = $derived(findCourse(data.enrollment.course));
 </script>
@@ -99,6 +102,29 @@
 					{/each}
 				</ul>
 			{/if}
+		</Panel>
+	</div>
+
+	<div class="mt-6">
+		{#if form?.editError}
+			<Alert class="mb-4">{form.editError}</Alert>
+		{:else if form?.edited}
+			<p class="mb-4 flex items-center gap-2 text-sm text-green-400">
+				<IconCheck class="h-4 w-4" />
+				Saved {form.edited}.
+			</p>
+		{/if}
+
+		<Panel title="Edit card" icon={IconPencil}>
+			<!-- Started again from the card each time it is read back. -->
+			{#key data.card}
+				<EditCardForm
+					course={data.enrollment.course}
+					card={data.card}
+					stages={data.stages}
+					examiners={data.examiners}
+				/>
+			{/key}
 		</Panel>
 	</div>
 {/if}

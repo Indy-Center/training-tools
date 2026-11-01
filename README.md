@@ -95,6 +95,7 @@ part works, written for whoever maintains it.
 | `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
 | `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
 | `GET /admin/cards/{key}`     | admin      | One TRK card, read live: its fields and latest comments                                                            |
+| `POST /admin/cards/{key}`    | admin      | `?/edit` sets the card's stage, dates and examiner, then reads it back                                             |
 
 `?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
 both gate on `loadTrainingContext()`, the same call `/` renders from.
@@ -1025,6 +1026,19 @@ latest comments, and what a held certification lacks. If Jira can't be read it
 shows the request and Jira's error. It isn't in the nav: for a training admin,
 the TRK key on each `/waitlist` and `/admin/audit` row links there, and so do
 the notices about a held certification or a CTRS record the app didn't act on.
+
+**Edit card**, on that page, lets a training admin change the card without
+opening the board: its stage (the moves Jira offers it now, never Completed,
+which stays with the audit), its dates, and RE Instructor. A save writes the
+changed fields in one call, then makes the move, comments on the card with what
+landed (`Edited by …`), and reads the card back as after a drag on the board, so
+the dates on the move, the certification and its hold follow as usual. It's
+refused, writing nothing, for a request the student withdrew here, an examiner
+who is the student's teacher, a date that is malformed or after today, or no
+change. If Jira refuses the move, the fields stay saved and the page says so.
+Choosing Audit warns what the card would be held for; it doesn't stop the save.
+`Waitlisted`, `Certificate Updated`, Teacher, course, CID and name stay on the
+board (Teacher is changed from `/waitlist`).
 
 ### Site copy
 

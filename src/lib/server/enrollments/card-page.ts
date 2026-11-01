@@ -11,6 +11,8 @@ import {
 	type CardComment,
 	type CardTransition
 } from '$lib/server/jira/card';
+import { fetchSelectOptions, type SelectOption } from '$lib/server/jira/progress';
+import { RE_INSTRUCTOR_FIELD } from '$lib/server/jira/status';
 import { getPeople } from '$lib/server/roster';
 
 /**
@@ -57,6 +59,8 @@ export type CardPage = {
 	transitions: CardTransition[];
 	/** Newest first, at most five. */
 	comments: CardComment[];
+	/** RE Instructor's options on this card, for Edit card. */
+	examiners: SelectOption[];
 	/** `Couldn't read TRK-n from Jira: …`, or null when it was read. */
 	jiraError: string | null;
 };
@@ -85,6 +89,7 @@ export async function loadCardPage(
 		card: null,
 		transitions: [],
 		comments: [],
+		examiners: [],
 		jiraError: null
 	};
 
@@ -97,12 +102,13 @@ export async function loadCardPage(
 	}
 
 	try {
-		const [card, transitions, comments] = await Promise.all([
+		const [card, transitions, comments, examiners] = await Promise.all([
 			fetchCard(config, issueKey),
 			fetchTransitions(config, issueKey),
-			fetchLatestComments(config, issueKey)
+			fetchLatestComments(config, issueKey),
+			fetchSelectOptions(config, issueKey, RE_INSTRUCTOR_FIELD)
 		]);
-		return { ...page, card, transitions, comments };
+		return { ...page, card, transitions, comments, examiners };
 	} catch (err) {
 		const detail = err instanceof JiraError ? err.message : String(err);
 		console.error('[training-tools] card page: could not read', issueKey, detail);
