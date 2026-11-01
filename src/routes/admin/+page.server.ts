@@ -8,6 +8,14 @@ import {
 	retryFiling
 } from '$lib/server/enrollments';
 import { getRoomsPanel } from '$lib/server/discord/rooms';
+import {
+	clearRosterRelease,
+	getPeople,
+	readRosterHold,
+	RosterHoldError,
+	syncRoster,
+	writeRosterRelease
+} from '$lib/server/roster';
 import { resolveJiraConfig } from '$lib/server/jira/client';
 import { getJobHealth, JIRA_WEBHOOK_JOB } from '$lib/server/job-health';
 import { scheduledJobs } from '$lib/server/scheduled';
@@ -38,12 +46,17 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	// generated platform type only knows what `wrangler types` saw in .dev.vars.
 	const env: Partial<Env> | undefined = platform?.env;
 
-	const [unfiled, health, auditQueue, discord] = await Promise.all([
+	const [unfiled, health, auditQueue, discord, hold] = await Promise.all([
 		getUnfiledEnrollments(locals.db),
 		getJobHealth(locals.db),
 		getAuditQueue(locals.db),
-		getRoomsPanel(locals.db)
+		getRoomsPanel(locals.db),
+		readRosterHold(locals.db)
 	]);
+
+	// Names for the held CIDs: the whole mirror, matched here, never
+	// `IN (...)` over the list (D1 binds at most 100 parameters).
+	const people = hold ? await getPeople(locals.db) : null;
 
 	const now = new Date();
 
@@ -79,6 +92,16 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 		// The page words every "ago" against this, so the server and the browser
 		// agree on them.
 		now,
+		// A roster change the sync is holding back for being too large (0039), or
+		// null. `members` are the CIDs the page shows, and the ones Apply now posts.
+		rosterHold:
+			hold && people
+				? {
+						startedAt: hold.startedAt,
+						appliesAt: hold.appliesAt,
+						members: hold.cids.map((cid) => ({ cid, name: people.get(cid)?.name ?? cid }))
+					}
+				: null,
 		// What the last Discord sync did to teacher roles and channels, or in a dry
 		// run would do. Null until it has run.
 		discord,
@@ -167,5 +190,43 @@ export const actions: Actions = {
 		}
 
 		return { retried: true };
+	},
+
+	/**
+	 * Lets a held roster removal (0039) apply now. Posts the CIDs the page
+	 * showed; the sync applies it only if they cover everyone missing now.
+	 */
+	applyRosterHold: async ({ locals, request }) => {
+		const session = requireRole(locals, isTrainingAdmin);
+
+		const data = await request.formData();
+		const shown = data.getAll('cid').filter((cid): cid is string => typeof cid === 'string');
+
+		if (!(await readRosterHold(locals.db))) {
+			return fail(409, { holdError: "There's no held roster change any more." });
+		}
+
+		await writeRosterRelease(locals.db, shown);
+
+		try {
+			const result = await syncRoster(locals.db);
+			console.log(
+				'[training-tools] admin applied a held roster change',
+				JSON.stringify({ by: session.user.cid, name: displayName(session.user), ...result })
+			);
+			return {
+				holdApplied: `Applied: ${result.removed} members removed from the roster.`
+			};
+		} catch (error) {
+			// The sync died before it read the release (VATUSA unreachable, say):
+			// a release is good for one run, so do not leave it for a later one.
+			if (!(error instanceof RosterHoldError)) await clearRosterRelease(locals.db);
+			if (error instanceof RosterHoldError && error.moreMissing) {
+				return fail(409, {
+					holdError: `The roster changed since you looked: ${error.moreMissing} more are missing. Check the list and apply again.`
+				});
+			}
+			throw error;
+		}
 	}
 };
