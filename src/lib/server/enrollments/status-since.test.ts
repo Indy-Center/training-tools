@@ -140,7 +140,10 @@ describe('fetchStatusSince', () => {
 				paths.push(u.pathname.replace('/rest/api/3', '') + u.search);
 				if (u.pathname.endsWith('/changelog')) {
 					const page = pages[paths.filter((p) => p.includes('/changelog')).length - 1];
-					return Response.json(page);
+					// Past the pages given: a page with no status change.
+					return Response.json(
+						page ?? { isLast: false, values: [other('2026-08-02T10:00:00.000+0000')] }
+					);
 				}
 				return Response.json({ fields: { created } });
 			})
@@ -165,14 +168,40 @@ describe('fetchStatusSince', () => {
 		expect(await fetchStatusSince(config, 'TRK-1')).toEqual(new Date('2026-09-10T10:00:00Z'));
 	});
 
-	it('reads every page of the changelog', async () => {
+	it('reads past the first page of the changelog', async () => {
 		const paths = stubJira([
-			{ isLast: false, values: [status('2026-08-01T10:00:00.000+0000')] },
-			{ isLast: true, values: [status('2026-09-10T10:00:00.000+0000')] }
+			{ isLast: false, total: 2, values: [status('2026-08-01T10:00:00.000+0000')] },
+			{ isLast: true, total: 2, values: [status('2026-09-10T10:00:00.000+0000')] }
 		]);
 		expect(await fetchStatusSince(config, 'TRK-1')).toEqual(new Date('2026-09-10T10:00:00Z'));
 		expect(paths[0]).toBe('/issue/TRK-1/changelog?startAt=0&maxResults=100');
 		expect(paths[1]).toBe('/issue/TRK-1/changelog?startAt=1&maxResults=100');
+	});
+
+	it('reads a long history from its end, where the latest change is', async () => {
+		const paths = stubJira([
+			{ isLast: false, total: 1500, values: [status('2026-08-01T10:00:00.000+0000')] },
+			{ isLast: true, total: 1500, values: [status('2026-10-01T10:00:00.000+0000')] }
+		]);
+		expect(await fetchStatusSince(config, 'TRK-1')).toEqual(new Date('2026-10-01T10:00:00Z'));
+		expect(paths.filter((p) => p.includes('/changelog'))).toEqual([
+			'/issue/TRK-1/changelog?startAt=0&maxResults=100',
+			'/issue/TRK-1/changelog?startAt=1499&maxResults=100'
+		]);
+	});
+
+	it('walks back past pages with no status change', async () => {
+		stubJira([
+			{ isLast: false, total: 3, values: [status('2026-08-01T10:00:00.000+0000')] },
+			{ isLast: true, total: 3, values: [other('2026-09-20T10:00:00.000+0000')] },
+			{ isLast: false, total: 3, values: [status('2026-09-10T10:00:00.000+0000')] }
+		]);
+		expect(await fetchStatusSince(config, 'TRK-1')).toEqual(new Date('2026-09-10T10:00:00Z'));
+	});
+
+	it('throws, rather than take an older change, on a history too long to read', async () => {
+		stubJira([{ isLast: false, total: 50, values: [status('2026-08-01T10:00:00.000+0000')] }]);
+		await expect(fetchStatusSince(config, 'TRK-1')).rejects.toThrow('too long');
 	});
 
 	it("falls back to the issue's created time when no history changes status", async () => {
