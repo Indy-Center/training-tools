@@ -4,10 +4,30 @@
  * `$lib/server/vatusa.ts`. See decisions/0038.
  */
 import { FACILITY_ID } from '$lib/config';
+import type { CourseCode } from '$lib/courses';
+import type { OtsStatus } from '$lib/ctrs';
 import { toFacilityDate } from '$lib/server/jira/progress';
 
-/** VATUSA's `ots_status`: 0 none, 1 pass, 2 fail, 3 recommended. */
-export type CtrsOtsStatus = 0 | 1 | 2 | 3;
+/**
+ * The position type VATUSA's CTRS files each rating course's training under
+ * (`GND`, `TWR`, `APP`, `CTR`, the end of a record's `position`).
+ */
+const CTRS_POSITION_TYPE = {
+	'S-GC': 'GND',
+	'A-LC': 'TWR',
+	'T-RC': 'APP',
+	'E-RC': 'CTR'
+} as const satisfies Partial<Record<CourseCode, string>>;
+
+/**
+ * What a course's records are matched on: its position type; null for Custom
+ * Training, which matches any position; undefined for a course that is not
+ * read back at all (A-GC and the rest).
+ */
+export function positionTypeFor(course: string): string | null | undefined {
+	if (course === 'CUSTOM') return null;
+	return (CTRS_POSITION_TYPE as Partial<Record<string, string>>)[course];
+}
 
 /** One training record, as much of it as the read-back needs. */
 export type CtrsRecord = {
@@ -21,10 +41,10 @@ export type CtrsRecord = {
 	facility: string;
 	/** `{airport}_{type}`, e.g. `XXX_TWR`. */
 	position: string;
-	otsStatus: CtrsOtsStatus;
+	otsStatus: OtsStatus;
 };
 
-function isOtsStatus(value: unknown): value is CtrsOtsStatus {
+function isOtsStatus(value: unknown): value is OtsStatus {
 	return value === 0 || value === 1 || value === 2 || value === 3;
 }
 
@@ -75,7 +95,7 @@ export type CtrsRecordQuery = {
 	positionType: string | null;
 	/** Only sessions on or after this moment's facility day count. */
 	since: Date;
-	statuses: readonly CtrsOtsStatus[];
+	statuses: readonly OtsStatus[];
 };
 
 /**

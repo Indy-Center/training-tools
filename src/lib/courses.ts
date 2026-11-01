@@ -135,6 +135,11 @@ export function findCourse(code: string): Course | undefined {
 	return COURSES.find((course) => course.code === code);
 }
 
+/** The course's full name ("Simple Ground Control"), or the code itself when it is not one of ours. */
+export function courseName(code: string): string {
+	return findCourse(code)?.name ?? code;
+}
+
 /** The course whose `Course of Training` option has this id, if any. */
 export function findCourseByJiraOptionId(id: string | null | undefined): Course | undefined {
 	return id ? COURSES.find((course) => course.jiraOptionId === id) : undefined;

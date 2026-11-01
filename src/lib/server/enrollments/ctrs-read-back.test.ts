@@ -262,6 +262,22 @@ describe('the ctrs records job, Rating Exam half', () => {
 		expect(sent).toHaveLength(1);
 	});
 
+	it("tells once, and doesn't move or count an error, when the record names no instructor", async () => {
+		await addCard({ id: '1', cid: '1000001' });
+		const jira = fakeServices({ '1000001': [pass({ instructor_id: null })] });
+		const { env, sent } = fakeEnv();
+
+		const first = await checkCtrsRecords(db, env, NOW);
+		const second = await checkCtrsRecords(db, env, NOW);
+
+		expect(first.ratingExam).toEqual({ checked: 1, passed: 0, failed: 0, told: 1, errors: 0 });
+		expect(second.ratingExam).toEqual({ checked: 1, passed: 0, failed: 0, told: 0, errors: 0 });
+		expect(sent).toHaveLength(1);
+		expect(sent[0].description).toContain('VATUSA names no instructor on it');
+		expect(jira.comments('TRK-1')).toEqual([]);
+		expect((await row('1')).status).toBe('rating-exam');
+	});
+
 	it("carries on to the next card after one student's records cannot be read", async () => {
 		await addCard({ id: '1', cid: '1000001' });
 		await addCard({ id: '2', cid: '1000002' });

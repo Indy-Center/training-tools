@@ -53,7 +53,7 @@ describe('decideRatingExam', () => {
 	it('moves a pass, dated from the session', () => {
 		expect(decide()).toEqual({
 			action: 'act',
-			result: 'pass',
+			result: 'passed',
 			record: record(),
 			instructorCid: '1000900',
 			examinedOn: '2026-10-25',
@@ -63,7 +63,7 @@ describe('decideRatingExam', () => {
 
 	it('moves a fail', () => {
 		const decision = decide({ records: [record({ otsStatus: 2 })] });
-		expect(decision).toMatchObject({ action: 'act', result: 'fail' });
+		expect(decision).toMatchObject({ action: 'act', result: 'not-passed' });
 	});
 
 	it('does nothing with no record', () => {
@@ -131,12 +131,16 @@ describe('decideRatingExam', () => {
 		});
 	});
 
-	it('acts on nothing from a record with no instructor', () => {
+	it("tells, and doesn't move, when the record names no instructor; once per record", () => {
 		expect(decide({ records: [record({ instructorId: null })] })).toEqual({
-			action: 'unsettled',
+			action: 'tell',
 			reason: 'no-instructor',
-			record: record({ instructorId: null })
+			record: record({ instructorId: null }),
+			instructorCid: null
 		});
+		expect(
+			decide({ card: { ctrsNotice: '501' }, records: [record({ instructorId: null })] })
+		).toEqual({ action: 'nothing' });
 	});
 
 	describe('Custom Training', () => {
@@ -145,7 +149,7 @@ describe('decideRatingExam', () => {
 		it('the only open card moves on a record of any position type', () => {
 			expect(decide({ card: custom, records: [record({ position: 'XXX_CTR' })] })).toMatchObject({
 				action: 'act',
-				result: 'pass'
+				result: 'passed'
 			});
 		});
 
@@ -174,7 +178,7 @@ describe('decideRatingExam', () => {
 					card: { ...custom, ctrsNotice: '501' },
 					records: [record({ id: 502, sessionDate: '2026-10-26 19:00:00' })]
 				})
-			).toMatchObject({ action: 'act', result: 'pass' });
+			).toMatchObject({ action: 'act', result: 'passed' });
 		});
 	});
 });
@@ -228,7 +232,7 @@ describe('decideRecommend', () => {
 	it('tells when the record names no instructor', () => {
 		expect(decideR({ records: [recommend({ instructorId: null })] })).toMatchObject({
 			action: 'tell',
-			reason: 'not-teacher',
+			reason: 'no-instructor',
 			instructorCid: null
 		});
 	});

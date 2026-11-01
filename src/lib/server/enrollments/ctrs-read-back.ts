@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { afterTrainingOptions } from '$lib/course-completion';
 import { COURSES } from '$lib/courses';
+import { examResultOf } from '$lib/ctrs';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
@@ -10,7 +11,7 @@ import { findSelectOption, updateIssueFields } from '$lib/server/jira/progress';
 import { RE_INSTRUCTOR_FIELD } from '$lib/server/jira/status';
 import { recordFacilityDay, type CtrsRecord } from '$lib/server/ctrs-records';
 import { fetchCtrsRecords } from '$lib/server/vatusa';
-import { notify } from '$lib/server/notify';
+import { notify, type Notice } from '$lib/server/notify';
 import { completeExam, completeTraining, failExam } from './completion';
 import {
 	decideRatingExam,
@@ -20,11 +21,11 @@ import {
 	type RosterTeacher
 } from './ctrs-decisions';
 import {
+	ctrsNoInstructorNotice,
 	ctrsRecommendNotice,
 	ctrsTeacherRecordNotice,
 	ctrsUnclearCourseNotice,
-	ctrsUnclearRecommendNotice,
-	type NoticeRequest
+	type CtrsRecordNotice
 } from './notices';
 
 /**
@@ -86,6 +87,24 @@ const BY = "VATUSA's CTRS records";
 /** Statuses at which a card is open for the Custom Training rule (0038). */
 const OPEN_FOR_CUSTOM = ['in-training', 'rating-exam'] as const;
 
+/** A record either half tells the training admins about instead of acting on. */
+type TellDecision = Extract<RatingExamDecision | RecommendDecision, { action: 'tell' }>;
+
+/** What every card read in one run shares. */
+type Run = {
+	db: Database;
+	env: Partial<Env>;
+	config: JiraConfig;
+	/** Former teachers too: a record they filed still names them. */
+	teachers: readonly RosterTeacher[];
+	/**
+	 * The cards open for the Custom Training rule, read once before either half
+	 * acts: a card moved earlier in this run still counts as open.
+	 */
+	open: readonly { id: string; cid: string }[];
+	now: Date;
+};
+
 /** Read every student's CTRS records back, and act on them. */
 export async function checkCtrsRecords(
 	db: Database,
@@ -97,18 +116,121 @@ export async function checkCtrsRecords(
 	const config = resolveJiraConfig(env);
 	if (!config) return { ...idle, skipped: 'jira-not-configured' };
 
-	// Former teachers too: a record they filed still names them.
-	const teachers: RosterTeacher[] = await db
-		.select({ cid: teachersTable.cid, initials: teachersTable.initials })
-		.from(teachersTable);
+	const run: Run = {
+		db,
+		env,
+		config,
+		teachers: await db
+			.select({ cid: teachersTable.cid, initials: teachersTable.initials })
+			.from(teachersTable),
+		open: await db
+			.select({ id: enrollmentsTable.id, cid: enrollmentsTable.cid })
+			.from(enrollmentsTable)
+			.where(
+				and(
+					inArray(enrollmentsTable.status, [...OPEN_FOR_CUSTOM]),
+					isNull(enrollmentsTable.withdrawnAt)
+				)
+			),
+		now
+	};
 
-	// Read once, before either half acts: a card moved earlier in this run still
-	// counts as open for the Custom Training rule.
-	const open = await openCards(db);
-
-	const ratingExam = await readBackRatingExams(db, env, config, teachers, open, now);
-	const inTraining = await readBackRecommends(db, env, config, teachers, open, now);
+	const ratingExam = await readBackRatingExams(run);
+	const inTraining = await readBackRecommends(run);
 	return { ratingExam, inTraining };
+}
+
+/**
+ * Every card at Rating Exam with a key and a `statusSince`: a pass or fail
+ * filed since it got there moves it. One card failing is logged and counted,
+ * and the next is still checked.
+ */
+async function readBackRatingExams(run: Run): Promise<CtrsHalfResult> {
+	const result = emptyHalf();
+	const cards = await run.db
+		.select()
+		.from(enrollmentsTable)
+		.where(
+			and(
+				eq(enrollmentsTable.status, 'rating-exam'),
+				isNotNull(enrollmentsTable.jiraIssueKey),
+				isNotNull(enrollmentsTable.statusSince),
+				isNull(enrollmentsTable.withdrawnAt)
+			)
+		)
+		// The oldest request first; the same moment, by id.
+		.orderBy(asc(enrollmentsTable.createdAt), asc(enrollmentsTable.id));
+
+	for (const card of cards) {
+		result.checked += 1;
+		try {
+			const records = await readRecords(run, card);
+			const decision = decideRatingExam({
+				card,
+				records,
+				teachers: run.teachers,
+				otherOpenCards: hasOtherOpenCard(run, card)
+			});
+			if (decision.action === 'tell') {
+				if (await tell(run, card, decision)) result.told += 1;
+			} else if (decision.action === 'act') {
+				result[await actOnExam(run, card, decision)] += 1;
+			}
+		} catch (err) {
+			console.error('[training-tools] ctrs records: failed on', card.jiraIssueKey, err);
+			result.errors += 1;
+		}
+	}
+
+	return result;
+}
+
+/** Move a Rating Exam card on a pass or fail; which count it adds to. */
+async function actOnExam(
+	run: Run,
+	card: Enrollment,
+	decision: Extract<RatingExamDecision, { action: 'act' }>
+): Promise<'passed' | 'failed' | 'errors'> {
+	const { db, env, config, now } = run;
+	const { record, examiner, instructorCid, examinedOn } = decision;
+	const issueKey = card.jiraIssueKey!;
+	let line: string | null = null;
+
+	if (examiner.kind === 'fill') {
+		const option = await findSelectOption(
+			config,
+			issueKey,
+			RE_INSTRUCTOR_FIELD,
+			examiner.candidates
+		);
+		if (!option) {
+			console.error(
+				'[training-tools] ctrs records: RE Instructor offers neither the instructor nor VATUSA',
+				JSON.stringify({ issue: issueKey, candidates: examiner.candidates })
+			);
+			return 'errors';
+		}
+		await updateIssueFields(config, issueKey, { [RE_INSTRUCTOR_FIELD]: { id: option.id } });
+		line = `RE Instructor set to ${option.value}.`;
+	} else if (examiner.kind === 'named') {
+		line = `The card's examiner is ${examiner.examiner}.`;
+	}
+
+	const found = await foundIn(db, record, examinedOn, instructorCid);
+	const comment = (text: string) => (line ? `${text} ${line}` : text);
+
+	if (decision.result === 'passed') {
+		const step = await completeExam(db, env, card, BY, {
+			comment: comment(`Rating exam passed: ${found}`),
+			completedOn: examinedOn,
+			now
+		});
+		return step.ok ? 'passed' : 'errors';
+	}
+	const step = await failExam(db, env, card, BY, {
+		comment: comment(`Rating exam not passed: ${found} Training Completed cleared.`)
+	});
+	return step.ok ? 'failed' : 'errors';
 }
 
 /**
@@ -117,16 +239,9 @@ export async function checkCtrsRecords(
  * one read is stamped `ctrs_checked_at`, whatever came of it, so a card whose
  * read keeps failing doesn't hold the queue.
  */
-async function readBackRecommends(
-	db: Database,
-	env: Partial<Env>,
-	config: JiraConfig,
-	teachers: readonly RosterTeacher[],
-	open: OpenCards,
-	now: Date
-): Promise<CtrsInTrainingResult> {
+async function readBackRecommends(run: Run): Promise<CtrsInTrainingResult> {
 	const result = emptyInTraining();
-	const cards = await db
+	const cards = await run.db
 		.select()
 		.from(enrollmentsTable)
 		.where(
@@ -145,15 +260,41 @@ async function readBackRecommends(
 	for (const card of cards) {
 		result.checked += 1;
 		try {
-			await readBackRecommend(db, env, config, teachers, open, card, result, now);
+			const records = await readRecords(run, card);
+			const decision = decideRecommend({
+				card,
+				records,
+				teachers: run.teachers,
+				otherOpenCards: hasOtherOpenCard(run, card)
+			});
+			if (decision.action === 'tell') {
+				if (await tell(run, card, decision)) result.told += 1;
+			} else if (decision.action === 'act') {
+				const { record, instructorCid, completedOn } = decision;
+				const found = await foundIn(run.db, record, completedOn, instructorCid);
+				const step = await completeTraining(run.db, run.env, card, BY, 'rating-exam', {
+					comment: `Recommended for a rating exam: ${found}`,
+					completedOn,
+					now: run.now
+				});
+				if (step.ok) result.moved += 1;
+				else {
+					console.error(
+						'[training-tools] ctrs records: could not move',
+						card.jiraIssueKey,
+						step.message
+					);
+					result.errors += 1;
+				}
+			}
 		} catch (err) {
 			console.error('[training-tools] ctrs records: failed on', card.jiraIssueKey, err);
 			result.errors += 1;
 		} finally {
 			// Only the stamp: not guarded by the card's status, which may have just changed.
-			await db
+			await run.db
 				.update(enrollmentsTable)
-				.set({ ctrsCheckedAt: now })
+				.set({ ctrsCheckedAt: run.now })
 				.where(eq(enrollmentsTable.id, card.id))
 				.catch((err) => console.error('[training-tools] ctrs records: could not stamp', err));
 		}
@@ -162,230 +303,33 @@ async function readBackRecommends(
 	return result;
 }
 
-async function readBackRecommend(
-	db: Database,
-	env: Partial<Env>,
-	config: JiraConfig,
-	teachers: readonly RosterTeacher[],
-	open: OpenCards,
-	card: Enrollment,
-	result: CtrsInTrainingResult,
-	now: Date
-): Promise<void> {
-	let records: CtrsRecord[];
+/** The student's records. Throws on a VATUSA error, which the caller counts for this card. */
+async function readRecords(run: Run, card: Enrollment): Promise<CtrsRecord[]> {
 	try {
-		records = await fetchCtrsRecords(env, card.cid);
+		return await fetchCtrsRecords(run.env, card.cid);
 	} catch (err) {
-		console.error('[training-tools] ctrs records: could not read', card.jiraIssueKey, err);
-		result.errors += 1;
-		return;
+		throw new Error(`could not read the CTRS records for ${card.jiraIssueKey}`, { cause: err });
 	}
+}
 
-	const decision = decideRecommend({
-		card,
-		records,
-		teachers,
-		otherOpenCards: card.course === 'CUSTOM' && hasOtherOpenCard(open, card)
-	});
+/** Whether a Custom Training card's student had another card open In Training or at Rating Exam. */
+function hasOtherOpenCard(run: Run, card: Enrollment): boolean {
+	return (
+		card.course === 'CUSTOM' &&
+		run.open.some((other) => other.cid === card.cid && other.id !== card.id)
+	);
+}
 
-	if (decision.action === 'nothing') return;
-
-	if (decision.action === 'tell') {
-		if (await tellRecommend(db, env, card, decision)) result.told += 1;
-		return;
-	}
-
-	const { record, instructorCid, completedOn } = decision;
+/** "CTRS record 501 of 2026-10-25, filed by Casey Dunn (1000900), found in VATUSA's records." */
+async function foundIn(
+	db: Database,
+	record: CtrsRecord,
+	day: string,
+	instructorCid: string
+): Promise<string> {
 	const name = await rosterName(db, instructorCid);
 	const filedBy = name ? `${name} (${instructorCid})` : instructorCid;
-	const step = await completeTraining(
-		db,
-		env,
-		card,
-		BY,
-		'rating-exam',
-		`Recommended for a rating exam: CTRS record ${record.id} of ${completedOn}, filed by ${filedBy}, found in VATUSA's records.`,
-		completedOn,
-		now
-	);
-	if (step.ok) result.moved += 1;
-	else {
-		console.error('[training-tools] ctrs records: could not move', card.jiraIssueKey, step.message);
-		result.errors += 1;
-	}
-}
-
-/** As `tell`, for a Recommend. True when the notice was sent. */
-async function tellRecommend(
-	db: Database,
-	env: Partial<Env>,
-	card: Enrollment,
-	decision: Extract<RecommendDecision, { action: 'tell' }>
-): Promise<boolean> {
-	const { record, instructorCid } = decision;
-	const request: NoticeRequest = {
-		name: card.submittedName,
-		cid: card.cid,
-		course: card.course,
-		teacher: card.teacher,
-		examiner: card.reInstructor,
-		issueKey: card.jiraIssueKey,
-		issueUrl: issueUrl(env.JIRA_BASE_URL, card.jiraIssueKey)
-	};
-	const about = { id: record.id, day: recordFacilityDay(record), position: record.position };
-
-	const notice =
-		decision.reason === 'unclear-course'
-			? ctrsUnclearRecommendNotice(request, about)
-			: ctrsRecommendNotice(request, {
-					...about,
-					filedBy: instructorCid ? ((await rosterName(db, instructorCid)) ?? instructorCid) : null
-				});
-
-	const outcome = await notify(env, notice);
-	if (outcome === 'failed') return false;
-
-	await db
-		.update(enrollmentsTable)
-		.set({ ctrsNotice: String(record.id) })
-		.where(and(eq(enrollmentsTable.id, card.id), eq(enrollmentsTable.status, card.status)));
-
-	return outcome === 'sent';
-}
-
-/**
- * Every card at Rating Exam with a key and a `statusSince`: a pass or fail
- * filed since it got there moves it. One card failing is logged and counted,
- * and the next is still checked.
- */
-async function readBackRatingExams(
-	db: Database,
-	env: Partial<Env>,
-	config: JiraConfig,
-	teachers: readonly RosterTeacher[],
-	open: OpenCards,
-	now: Date
-): Promise<CtrsHalfResult> {
-	const result = emptyHalf();
-	const cards = await db
-		.select()
-		.from(enrollmentsTable)
-		.where(
-			and(
-				eq(enrollmentsTable.status, 'rating-exam'),
-				isNotNull(enrollmentsTable.jiraIssueKey),
-				isNotNull(enrollmentsTable.statusSince),
-				isNull(enrollmentsTable.withdrawnAt)
-			)
-		)
-		// The oldest request first; the same moment, by id.
-		.orderBy(asc(enrollmentsTable.createdAt), asc(enrollmentsTable.id));
-
-	for (const card of cards) {
-		result.checked += 1;
-
-		let records: CtrsRecord[];
-		try {
-			records = await fetchCtrsRecords(env, card.cid);
-		} catch (err) {
-			console.error('[training-tools] ctrs records: could not read', card.jiraIssueKey, err);
-			result.errors += 1;
-			continue;
-		}
-
-		try {
-			const decision = decideRatingExam({
-				card,
-				records,
-				teachers,
-				otherOpenCards: card.course === 'CUSTOM' && hasOtherOpenCard(open, card)
-			});
-			const outcome = await carryOut(db, env, config, card, decision, now);
-			if (outcome) result[outcome] += 1;
-		} catch (err) {
-			console.error('[training-tools] ctrs records: failed on', card.jiraIssueKey, err);
-			result.errors += 1;
-		}
-	}
-
-	return result;
-}
-
-async function carryOut(
-	db: Database,
-	env: Partial<Env>,
-	config: JiraConfig,
-	card: Enrollment,
-	decision: RatingExamDecision,
-	now: Date
-): Promise<'passed' | 'failed' | 'told' | 'errors' | null> {
-	const issueKey = card.jiraIssueKey!;
-
-	switch (decision.action) {
-		case 'nothing':
-			return null;
-
-		case 'unsettled':
-			console.warn(
-				'[training-tools] ctrs records: a record with no instructor, not acted on',
-				JSON.stringify({ issue: issueKey, record: decision.record.id })
-			);
-			return 'errors';
-
-		case 'tell':
-			return (await tell(db, env, card, decision)) ? 'told' : null;
-
-		case 'act': {
-			const { record, examiner, instructorCid, examinedOn } = decision;
-			let line: string | null = null;
-
-			if (examiner.kind === 'fill') {
-				const option = await findSelectOption(
-					config,
-					issueKey,
-					RE_INSTRUCTOR_FIELD,
-					examiner.candidates
-				);
-				if (!option) {
-					console.error(
-						'[training-tools] ctrs records: RE Instructor offers neither the instructor nor VATUSA',
-						JSON.stringify({ issue: issueKey, candidates: examiner.candidates })
-					);
-					return 'errors';
-				}
-				await updateIssueFields(config, issueKey, { [RE_INSTRUCTOR_FIELD]: { id: option.id } });
-				line = `RE Instructor set to ${option.value}.`;
-			} else if (examiner.kind === 'named') {
-				line = `The card's examiner is ${examiner.examiner}.`;
-			}
-
-			const name = await rosterName(db, instructorCid);
-			const filedBy = name ? `${name} (${instructorCid})` : instructorCid;
-			const found = `CTRS record ${record.id} of ${examinedOn}, filed by ${filedBy}, found in VATUSA's records.`;
-			const comment = (text: string) => (line ? `${text} ${line}` : text);
-
-			if (decision.result === 'pass') {
-				const step = await completeExam(
-					db,
-					env,
-					card,
-					BY,
-					comment(`Rating exam passed: ${found}`),
-					examinedOn,
-					now
-				);
-				return step.ok ? 'passed' : 'errors';
-			}
-			const step = await failExam(
-				db,
-				env,
-				card,
-				BY,
-				comment(`Rating exam not passed: ${found} Training Completed cleared.`)
-			);
-			return step.ok ? 'failed' : 'errors';
-		}
-	}
+	return `CTRS record ${record.id} of ${day}, filed by ${filedBy}, found in VATUSA's records.`;
 }
 
 /**
@@ -393,66 +337,47 @@ async function carryOut(
  * remembered if Larry refuses, so the next run tries again (as 0024's hold).
  * True when the notice was sent.
  */
-async function tell(
-	db: Database,
-	env: Partial<Env>,
+async function tell(run: Run, card: Enrollment, decision: TellDecision): Promise<boolean> {
+	const outcome = await notify(run.env, await noticeFor(run, card, decision));
+	if (outcome === 'failed') return false;
+
+	await run.db
+		.update(enrollmentsTable)
+		.set({ ctrsNotice: String(decision.record.id) })
+		.where(and(eq(enrollmentsTable.id, card.id), eq(enrollmentsTable.status, card.status)));
+
+	return outcome === 'sent';
+}
+
+async function noticeFor(
+	run: Run,
 	card: Enrollment,
-	decision: Extract<RatingExamDecision, { action: 'tell' }>
-): Promise<boolean> {
-	const { record, instructorCid } = decision;
-	const request: NoticeRequest = {
+	{ reason, record, instructorCid }: TellDecision
+): Promise<Notice> {
+	const request = {
 		name: card.submittedName,
 		cid: card.cid,
 		course: card.course,
 		teacher: card.teacher,
 		examiner: card.reInstructor,
 		issueKey: card.jiraIssueKey,
-		issueUrl: issueUrl(env.JIRA_BASE_URL, card.jiraIssueKey)
+		issueUrl: issueUrl(run.env.JIRA_BASE_URL, card.jiraIssueKey)
 	};
-	const about = {
+	const about: CtrsRecordNotice = {
 		id: record.id,
 		day: recordFacilityDay(record),
-		result: record.otsStatus === 1 ? ('pass' as const) : ('fail' as const),
+		// Only passes, fails and Recommends are matched.
+		says: examResultOf(record.otsStatus) ?? 'recommend',
 		position: record.position
 	};
 
-	const notice =
-		decision.reason === 'teacher'
-			? ctrsTeacherRecordNotice(request, {
-					...about,
-					filedBy: (await rosterName(db, instructorCid!)) ?? instructorCid!
-				})
-			: ctrsUnclearCourseNotice(request, about);
+	if (reason === 'unclear-course') return ctrsUnclearCourseNotice(request, about);
+	if (instructorCid === null) return ctrsNoInstructorNotice(request, about);
 
-	const outcome = await notify(env, notice);
-	if (outcome === 'failed') return false;
-
-	await db
-		.update(enrollmentsTable)
-		.set({ ctrsNotice: String(record.id) })
-		.where(and(eq(enrollmentsTable.id, card.id), eq(enrollmentsTable.status, card.status)));
-
-	return outcome === 'sent';
-}
-
-/** The cards open for the Custom Training rule, as they stood when the job started. */
-type OpenCards = readonly { id: string; cid: string }[];
-
-async function openCards(db: Database): Promise<OpenCards> {
-	return db
-		.select({ id: enrollmentsTable.id, cid: enrollmentsTable.cid })
-		.from(enrollmentsTable)
-		.where(
-			and(
-				inArray(enrollmentsTable.status, [...OPEN_FOR_CUSTOM]),
-				isNull(enrollmentsTable.withdrawnAt)
-			)
-		);
-}
-
-/** Whether the student had another card open In Training or at Rating Exam. */
-function hasOtherOpenCard(open: OpenCards, card: Enrollment): boolean {
-	return open.some((other) => other.cid === card.cid && other.id !== card.id);
+	const filedBy = (await rosterName(run.db, instructorCid)) ?? instructorCid;
+	return reason === 'teacher'
+		? ctrsTeacherRecordNotice(request, { ...about, filedBy })
+		: ctrsRecommendNotice(request, { ...about, filedBy });
 }
 
 /**

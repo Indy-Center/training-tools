@@ -26,6 +26,7 @@ import {
 	evaluatesCourse
 } from '$lib/course-completion';
 import { examResultNote } from '$lib/exam-result';
+import { trainingCompleteNote } from '$lib/mark-training-complete';
 import { isAssignedTo, QUALIFICATION_CREDENTIALS, slotSummary } from '$lib/teachers';
 import { displayName } from '$lib/user';
 import type { Enrollment } from '$lib/db/schema/enrollments';
@@ -189,9 +190,11 @@ export const actions: Actions = {
 			enrollment,
 			by,
 			to,
-			// Not the report form's note: from here nothing was filed with VATUSA, so
-			// the TA checks a CTRS record exists at audit (0038).
-			`Training marked complete by ${by} on /teach; no training report filed through the app.`
+			{
+				// Not the report form's note: from here nothing was filed with VATUSA, so
+				// the TA checks a CTRS record exists at audit (0038).
+				comment: trainingCompleteNote(by)
+			}
 		);
 		return finish(result, 'Training marked complete', enrollment);
 	},
@@ -221,13 +224,10 @@ export const actions: Actions = {
 		if (!enrollment) return fail(404, { flowError: GONE });
 		if (!canCompleteExam(enrollment, teacher)) return fail(403, { flowError: NOT_YOURS });
 
-		const result = await completeExam(
-			event.locals.db,
-			event.platform?.env,
-			enrollment,
-			displayName(session.user),
-			examResultNote('passed', displayName(session.user))
-		);
+		const by = displayName(session.user);
+		const result = await completeExam(event.locals.db, event.platform?.env, enrollment, by, {
+			comment: examResultNote('passed', by)
+		});
 		return finish(result, 'Rating exam marked complete', enrollment);
 	},
 
@@ -237,13 +237,10 @@ export const actions: Actions = {
 		if (!enrollment) return fail(404, { flowError: GONE });
 		if (!canCompleteExam(enrollment, teacher)) return fail(403, { flowError: NOT_YOURS });
 
-		const result = await failExam(
-			event.locals.db,
-			event.platform?.env,
-			enrollment,
-			displayName(session.user),
-			examResultNote('not-passed', displayName(session.user))
-		);
+		const by = displayName(session.user);
+		const result = await failExam(event.locals.db, event.platform?.env, enrollment, by, {
+			comment: examResultNote('not-passed', by)
+		});
 		return finish(result, 'Rating exam marked not passed', enrollment);
 	}
 };

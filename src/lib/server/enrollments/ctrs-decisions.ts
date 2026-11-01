@@ -1,19 +1,25 @@
-import { CTRS_POSITION_TYPE } from '$lib/certifications';
+import {
+	examResultOf,
+	OTS_NOT_PASSED,
+	OTS_PASSED,
+	OTS_RECOMMENDED,
+	type ExamResult,
+	type OtsStatus
+} from '$lib/ctrs';
 import type { Enrollment } from '$lib/db/schema/enrollments';
 import type { Teacher } from '$lib/db/schema/teachers';
-import { latestMatchingRecord, recordFacilityDay, type CtrsRecord } from '$lib/server/ctrs-records';
+import {
+	latestMatchingRecord,
+	positionTypeFor,
+	recordFacilityDay,
+	type CtrsRecord
+} from '$lib/server/ctrs-records';
 import { isAssignedTo } from '$lib/teachers';
 
 /**
  * What the CTRS read-back does with a card, given ZID's records for its student.
  * Pure: the writes are in `./ctrs-read-back.ts`. See decisions/0038.
  */
-
-/** As much of a request as the rule reads. */
-export type ExamCard = Pick<
-	Enrollment,
-	'course' | 'teacher' | 'reInstructor' | 'statusSince' | 'ctrsNotice'
->;
 
 /** The teacher roster, current and former, as the rule reads it. */
 export type RosterTeacher = Pick<Teacher, 'cid' | 'initials'>;
@@ -30,27 +36,88 @@ export type ExamExaminer =
 	/** RE Instructor already names the record's instructor. */
 	| { kind: 'same' };
 
+/** Don't move the card; tell the training admins, once for this record. */
+type Tell<Reason> = {
+	action: 'tell';
+	reason: Reason;
+	record: CtrsRecord;
+	instructorCid: string | null;
+};
+
+/** As much of a request as the Rating Exam rule reads. */
+export type ExamCard = Pick<
+	Enrollment,
+	'course' | 'teacher' | 'reInstructor' | 'statusSince' | 'ctrsNotice'
+>;
+
+/**
+ * `teacher`: filed by the student's teacher. `no-instructor`: VATUSA names
+ * nobody, so who examined can't be checked. `unclear-course`: Custom Training
+ * with another open card.
+ */
+export type RatingExamTellReason = 'teacher' | 'no-instructor' | 'unclear-course';
+
 export type RatingExamDecision =
 	| { action: 'nothing' }
-	/** Don't move the card; tell the training admins, once for this record. */
-	| {
-			action: 'tell';
-			/** `teacher`: filed by the student's teacher. `unclear-course`: Custom Training with another open card. */
-			reason: 'teacher' | 'unclear-course';
-			record: CtrsRecord;
-			instructorCid: string | null;
-	  }
+	| Tell<RatingExamTellReason>
 	| {
 			action: 'act';
-			result: 'pass' | 'fail';
+			result: ExamResult;
 			record: CtrsRecord;
 			instructorCid: string;
 			/** The record's facility day, `YYYY-MM-DD`: what `RE Completed` is set to. */
 			examinedOn: string;
 			examiner: ExamExaminer;
-	  }
-	/** A record the ticket gives no rule for. Nothing moves; the job logs it. */
-	| { action: 'unsettled'; reason: 'no-instructor'; record: CtrsRecord };
+	  };
+
+const NOTHING = { action: 'nothing' } as const;
+
+/** The record that counts for a card, and what the rule needs to know about it. */
+type Match = {
+	record: CtrsRecord;
+	/** The training admins were already told about this record. */
+	told: boolean;
+	instructor: { cid: string; initials: string | null } | null;
+};
+
+/**
+ * The latest record with one of `statuses` filed since the card entered its
+ * status, on the course's position type (any, for Custom Training). Null when
+ * there is none, or when the rule never acts on it: a Custom Training card
+ * that was told about a record holds it as unclear for good.
+ */
+function match(
+	card: Pick<Enrollment, 'course' | 'statusSince' | 'ctrsNotice'>,
+	records: readonly CtrsRecord[],
+	teachers: readonly RosterTeacher[],
+	statuses: readonly OtsStatus[]
+): Match | null {
+	if (!card.statusSince) return null;
+	const positionType = positionTypeFor(card.course);
+	if (positionType === undefined) return null;
+
+	const record = latestMatchingRecord(records, { positionType, since: card.statusSince, statuses });
+	if (!record) return null;
+
+	const told = card.ctrsNotice === String(record.id);
+	if (card.course === 'CUSTOM' && told) return null;
+
+	const cid = record.instructorId === null ? null : String(record.instructorId);
+	const instructor = cid
+		? { cid, initials: teachers.find((teacher) => teacher.cid === cid)?.initials ?? null }
+		: null;
+	return { record, told, instructor };
+}
+
+/** Tell, unless the admins were already told about this record. */
+function tellOnce<Reason extends string>(
+	{ record, told, instructor }: Match,
+	reason: Reason
+): typeof NOTHING | Tell<Reason> {
+	return told
+		? NOTHING
+		: { action: 'tell', reason, record, instructorCid: instructor?.cid ?? null };
+}
 
 /**
  * A card at Rating Exam: does a pass or fail filed on VATUSA since it got there
@@ -59,6 +126,8 @@ export type RatingExamDecision =
  * - Matched on the course's position type; Custom Training has none, so it
  *   matches a record of any type, but only while it is the student's only open
  *   card (`otherOpenCards` false). Otherwise the course is unclear: told.
+ * - A record that names no instructor moves nothing: whether the examiner was
+ *   the teacher can't be checked. Told.
  * - A record whose instructor is the student's teacher on the card moves
  *   nothing (0021: the examiner is never the teacher): told.
  * - Each record is told once: not again while `ctrsNotice` holds its id. A
@@ -71,40 +140,13 @@ export function decideRatingExam(input: {
 	otherOpenCards: boolean;
 }): RatingExamDecision {
 	const { card, records, teachers, otherOpenCards } = input;
-	const nothing = { action: 'nothing' } as const;
-	if (!card.statusSince) return nothing;
+	const found = match(card, records, teachers, [OTS_PASSED, OTS_NOT_PASSED]);
+	if (!found) return NOTHING;
+	const { record, instructor } = found;
 
-	const custom = card.course === 'CUSTOM';
-	const positionType = custom
-		? null
-		: (CTRS_POSITION_TYPE as Partial<Record<string, string>>)[card.course];
-	if (positionType === undefined) return nothing;
-
-	const record = latestMatchingRecord(records, {
-		positionType,
-		since: card.statusSince,
-		statuses: [1, 2]
-	});
-	if (!record) return nothing;
-
-	const told = card.ctrsNotice === String(record.id);
-	// Once the admins were told the course was unclear, it stays unclear for this record.
-	if (custom && told) return nothing;
-	const instructorCid = record.instructorId === null ? null : String(record.instructorId);
-
-	if (custom && otherOpenCards) {
-		return told ? nothing : { action: 'tell', reason: 'unclear-course', record, instructorCid };
-	}
-	if (instructorCid === null) return { action: 'unsettled', reason: 'no-instructor', record };
-
-	const instructor = {
-		cid: instructorCid,
-		initials: teachers.find((teacher) => teacher.cid === instructorCid)?.initials ?? null
-	};
-
-	if (isAssignedTo(card.teacher, instructor)) {
-		return told ? nothing : { action: 'tell', reason: 'teacher', record, instructorCid };
-	}
+	if (card.course === 'CUSTOM' && otherOpenCards) return tellOnce(found, 'unclear-course');
+	if (!instructor) return tellOnce(found, 'no-instructor');
+	if (isAssignedTo(card.teacher, instructor)) return tellOnce(found, 'teacher');
 
 	const onCard = card.reInstructor?.trim();
 	const examiner: ExamExaminer = !onCard
@@ -112,7 +154,7 @@ export function decideRatingExam(input: {
 				kind: 'fill',
 				candidates: [
 					...(instructor.initials ? [instructor.initials] : []),
-					instructorCid,
+					instructor.cid,
 					VATUSA_EXAMINER
 				]
 			}
@@ -122,9 +164,10 @@ export function decideRatingExam(input: {
 
 	return {
 		action: 'act',
-		result: record.otsStatus === 1 ? 'pass' : 'fail',
+		// Matched on pass and fail only, so there is always a result.
+		result: examResultOf(record.otsStatus)!,
 		record,
-		instructorCid,
+		instructorCid: instructor.cid,
 		examinedOn: recordFacilityDay(record),
 		examiner
 	};
@@ -133,20 +176,16 @@ export function decideRatingExam(input: {
 /** As much of a request as the In Training rule reads. */
 export type RecommendCard = Pick<Enrollment, 'course' | 'teacher' | 'statusSince' | 'ctrsNotice'>;
 
+/**
+ * `not-teacher`: filed by someone else. `no-instructor`: VATUSA names nobody.
+ * `no-teacher`: the card has no teacher. `unclear-course`: Custom Training with
+ * another open card.
+ */
+export type RecommendTellReason = 'not-teacher' | 'no-instructor' | 'no-teacher' | 'unclear-course';
+
 export type RecommendDecision =
 	| { action: 'nothing' }
-	/** Don't move the card; tell the training admins, once for this record. */
-	| {
-			action: 'tell';
-			/**
-			 * `not-teacher`: filed by someone else, or by nobody VATUSA names.
-			 * `no-teacher`: the card has no teacher. `unclear-course`: Custom
-			 * Training with another open card.
-			 */
-			reason: 'not-teacher' | 'no-teacher' | 'unclear-course';
-			record: CtrsRecord;
-			instructorCid: string | null;
-	  }
+	| Tell<RecommendTellReason>
 	| {
 			action: 'act';
 			record: CtrsRecord;
@@ -172,38 +211,19 @@ export function decideRecommend(input: {
 	otherOpenCards: boolean;
 }): RecommendDecision {
 	const { card, records, teachers, otherOpenCards } = input;
-	const nothing = { action: 'nothing' } as const;
-	if (!card.statusSince) return nothing;
+	const found = match(card, records, teachers, [OTS_RECOMMENDED]);
+	if (!found) return NOTHING;
+	const { record, instructor } = found;
 
-	const custom = card.course === 'CUSTOM';
-	const positionType = custom
-		? null
-		: (CTRS_POSITION_TYPE as Partial<Record<string, string>>)[card.course];
-	if (positionType === undefined) return nothing;
+	if (card.course === 'CUSTOM' && otherOpenCards) return tellOnce(found, 'unclear-course');
+	if (!card.teacher?.trim()) return tellOnce(found, 'no-teacher');
+	if (!instructor) return tellOnce(found, 'no-instructor');
+	if (!isAssignedTo(card.teacher, instructor)) return tellOnce(found, 'not-teacher');
 
-	const record = latestMatchingRecord(records, {
-		positionType,
-		since: card.statusSince,
-		statuses: [3]
-	});
-	if (!record) return nothing;
-
-	const told = card.ctrsNotice === String(record.id);
-	// Once the admins were told the course was unclear, it stays unclear for this record.
-	if (custom && told) return nothing;
-	const instructorCid = record.instructorId === null ? null : String(record.instructorId);
-	const tell = (reason: 'not-teacher' | 'no-teacher' | 'unclear-course'): RecommendDecision =>
-		told ? nothing : { action: 'tell', reason, record, instructorCid };
-
-	if (custom && otherOpenCards) return tell('unclear-course');
-	if (!card.teacher?.trim()) return tell('no-teacher');
-	if (instructorCid === null) return tell('not-teacher');
-
-	const instructor = {
-		cid: instructorCid,
-		initials: teachers.find((teacher) => teacher.cid === instructorCid)?.initials ?? null
+	return {
+		action: 'act',
+		record,
+		instructorCid: instructor.cid,
+		completedOn: recordFacilityDay(record)
 	};
-	if (!isAssignedTo(card.teacher, instructor)) return tell('not-teacher');
-
-	return { action: 'act', record, instructorCid, completedOn: recordFacilityDay(record) };
 }

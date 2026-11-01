@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { advancedTo, chosenStep, courseTraining } from './mark-training-complete';
+import {
+	advancedTo,
+	chosenStep,
+	courseTraining,
+	trainingCompleteCopy,
+	trainingCompleteNote
+} from './mark-training-complete';
 
 const EITHER = ['rating-exam', 'certification-update'] as const;
 
@@ -39,5 +45,29 @@ describe('courseTraining', () => {
 
 	it('does not say "training" twice', () => {
 		expect(courseTraining('CUSTOM')).toBe('Custom Training');
+	});
+});
+
+describe('trainingCompleteCopy', () => {
+	it('words the dialog for the step chosen so far', () => {
+		const copy = trainingCompleteCopy('Jo Rivera', 'S-GC', 'rating-exam');
+		expect(copy.title).toBe('Mark training complete?');
+		expect(copy.confirmLabel).toBe('Mark complete');
+		expect(copy.before).toBe(
+			"Jo Rivera's Simple Ground Control training will be marked complete, and the enrollment advanced to Rating Exam."
+		);
+		expect(copy.bold).toBe('No training report is filed.');
+		expect(copy.after).toBe("If you haven't filed one yet do that first.");
+		expect(trainingCompleteCopy('Jo Rivera', 'CUSTOM', null).before).toBe(
+			"Jo Rivera's Custom Training will be marked complete, and the enrollment advanced to the next step."
+		);
+	});
+});
+
+describe('trainingCompleteNote', () => {
+	it('says no report was filed through the app', () => {
+		expect(trainingCompleteNote('Sam Teacher')).toBe(
+			'Training marked complete by Sam Teacher on /teach; no training report filed through the app.'
+		);
 	});
 });
