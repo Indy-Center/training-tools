@@ -171,23 +171,24 @@ never reopened by Jira.
 
 Every 10 minutes (`*/10 * * * *`), in this order:
 
-| Job                       | Does                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                                      |
-| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                              |
-| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                                |
-| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)                         |
-| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)                           |
-| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                                     |
-| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`)                           |
-| roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`) |
-| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                           |
-| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                              |
-| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                    |
-| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                              |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                              |
-| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`)             |
-| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                             |
+| Job                       | Does                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                                                                                      |
+| arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                                                                              |
+| teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                                                                                |
+| jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)                                                                         |
+| jira board import         | Creates rows for TRK issues filed by hand on the board (`importBoardIssues`)                                                                           |
+| enrollment reconcile      | Files enrollments that never reached Jira (`reconcileEnrollments`)                                                                                     |
+| enrollment status sweep   | Reads TRK status, Teacher and RE Instructor back (`sweepEnrollmentStatuses`), then dates up to 20 open rows from the changelog (`backfillStatusSince`) |
+| roster removals           | Removes requests whose student left the home roster, restores them on return (`processRosterRemovals`)                                                 |
+| examiner cleanup          | Removes RE Instructor from cards back in training (`clearReturnedExaminers`)                                                                           |
+| ctrs records              | Moves a Rating Exam card on a pass or fail, and an In Training card on a Recommend, filed on VATUSA's own form (`checkCtrsRecords`)                    |
+| certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                                                                              |
+| vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                                                                    |
+| vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                                                                              |
+| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                                                                              |
+| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`)                                                             |
+| announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                                                                             |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
 Each job records how its run went in `job_health` (one row per job, latest state
@@ -198,7 +199,7 @@ reaching the staff board, Jira being down must not stop the roster refreshing,
 and VATSIM being down must not stop either. A job logs a one-line summary only
 when it did something, and the first failure is rethrown after every job has run.
 
-Order matters eleven times, and each is commented in `scheduled.ts`: certification
+Order matters twelve times, and each is commented in `scheduled.ts`: certification
 and the teacher roster read the roster the sync just wrote; the dropdown check
 reads the teacher roster; the import runs before the reconcile so an
 issue whose key write-back failed is adopted rather than filed twice; and the
@@ -207,7 +208,9 @@ the roster removals run after the sweep, so each card is judged where it is now,
 and before the announcements, so a restored request is not announced as an arrival;
 and the examiner cleanup and certification pass run after it, so a card the sweep
 has just seen go back into training, or arrive at Audit, is dealt
-with in the same run; and the announcements run last, so a card certified a
+with in the same run; the CTRS records job runs before the certification pass,
+so a card a record filed on VATUSA has just moved to Audit is certified in the
+same run; and the announcements run last, so a card certified a
 moment ago is announced in the same run.
 
 There are deliberately **no `/login`, `/logout` or `/callback` routes**. Identity
@@ -551,11 +554,11 @@ tell (an audience) and what to say (a `Notice`); `NOTIFY_CHANNELS` in
 never fails the change it describes: no binding, an unknown channel or Larry
 being down is logged and nothing else.
 
-| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP; a request removed because its student left the home roster |
-| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                                                                                          |
-| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                                                                               |
+| Audience          | Channel                 | Told about                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `training-admins` | `training-admin-alerts` | a new enrollment through the form; teacher availability/slot changes; a teacher going on LOA, or leaving the teacher roster, with students assigned; qualifications the rules lowered or ended; a student withdrawing; an arrival's certification that needs review; finished courses to audit; a certification held because its card is incomplete; a card at Needs CATP; a request removed because its student left the home roster; a pass, fail or Recommend filed on VATUSA that the app did not act on (a pass or fail filed by the student's teacher; a Recommend filed by someone else, or on a card with no teacher; any of them naming no instructor; or a record for a Custom Training course that could be either of two) |
+| `instructors`     | `instructor-actions`    | a rating exam waiting to be claimed, pinging the evaluators on that course — never the student's own teacher                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `tech-team`       | `tech-team-alerts`      | things only the tech team can fix: a background job failing and recovering; a request stuck before TRK; TRK dropdown drift; cards on the board the app cannot read, including a status it does not know                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 The rating exam post is the one notice this app goes on looking after. It
 carries a **Status** line ("Waiting for an examiner", then "Claimed by …") and
@@ -613,6 +616,14 @@ students then see their request on `/`, are counted on `/waitlist`, and cannot f
 a duplicate. An issue with no usable CID, course or date is skipped and logged
 each run until someone fixes it on the board. The import is the only code that
 creates rows from Jira; the sweep and webhook only update existing ones.
+
+**`status_since` is the day a card entered its current status.** It is set only by
+the write in `applyIssueMove()` that changes `status` (to the move's observed
+time, else now), and to `createdAt` for a row the form creates. Rows that predate
+it are null; the status sweep job back-fills up to 20 open ones per run from the
+issue's changelog (the latest status change, else the issue's `created`), leaving
+a row whose Jira read failed null for the next run. Closed rows stay null. Nothing
+serves it.
 
 **`/waitlist` shows headcounts and estimates, not measured rates** (DEV-111). Each
 course's length is `estimatedWeeks` in `$lib/courses.ts` — one lesson a week,
@@ -825,9 +836,10 @@ plain line breaks would be lost); the report is filed in VATUSA's training recor
   exam** where the course ends in one, **Mark the course complete** where it
   does not, and both for Custom Training. Ticked, the report is filed first —
   flagged on VATUSA as a recommendation (`ots_status` 3) in the first case —
-  and then the card is moved (`completeTraining`). This is the only way a
-  teacher ends training from the site. If the card cannot be moved the report
-  still stands, and `/teach` says to ask a training admin to move it.
+  and then the card is moved (`completeTraining`). If the card cannot be moved
+  the report still stands, and `/teach` says to ask a training admin to move
+  it. A teacher who filed the report on VATUSA's own site instead uses **Mark
+  training complete** on `/teach` (below).
 - **A rating exam result** (passed / not passed) is offered only to the
   examiner on the card, at the exam stage, and never to the student's own
   teacher. Filing one **moves the card**: passed to Audit (`completeExam`), not
@@ -853,9 +865,11 @@ How a course finishes, and who moves it. The rules are pure functions in
 | Step                        | Who                                                                  | What happens on the card                                                                    |
 | --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Training report, ticked     | the teacher on the card (`/teach/report`)                            | `Training Completed` dated; moved to Rating Exam, or — for a course with no exam — to Audit |
+| Mark training complete      | the teacher on the card, at In Training (`/teach`)                   | the same, with no training report filed                                                     |
 | Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
 | Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
 | Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
+| Passed / Not passed         | that examiner (`/teach`)                                             | the same, with no training report filed                                                     |
 | _(automatic)_               | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
 | Audit complete              | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
 
@@ -866,11 +880,65 @@ Update until 2026-10-06). The app's own name for it is still
 Four courses end in a rating exam — S-GC, A-LC, T-RC, E-RC (`RATING_EXAMS`).
 A-GC and S-LC do not, and go straight to Audit.
 
+**A teacher ends training** with the training report's tick box, or with
+**Mark training complete** beside the student on `/teach` (decisions/0038), for
+a report filed on VATUSA's own site or a course with nothing to report. The
+button asks first, in a dialog that says no training report is filed; for
+Custom Training it also asks whether a rating exam is required, and Mark
+complete stays disabled until one is chosen. The card comment says no training
+report was filed through the app, so the TA checks the CTRS record exists at
+audit. Claim this exam asks in the same dialog (`ConfirmDialog.svelte`).
+
 **The examiner's training report ends the exam.** Filed as passed or not
 passed, it moves the card as the table says, after VATUSA has accepted the
 record. The examiner then fills in VATUSA's evaluation form and, for a pass,
 submits the promotion there; `/teach` links to the form on a claimed exam and
-again after the report. `/teach` has no buttons for the result.
+again after the report. For a result filed on VATUSA's own site, the examiner
+on the card has **Passed** and **Not passed** beside the exam on `/teach`
+(decisions/0038), each behind a dialog that says no training report is filed
+(Not passed in the red danger style, with focus on Cancel). They make the same
+moves as the report, and the card comment says no training report was filed
+through the app.
+
+**A pass or fail filed on VATUSA's own form ends the exam too** (decisions/0038).
+The `ctrs records` job reads the CTRS records of every student whose card is at
+Rating Exam, each run, and takes ZID's latest pass or fail on the course's
+position type (GND / TWR / APP / CTR) dated on or after the day the card reached
+Rating Exam (`enrollments.status_since`). A pass moves the card as the
+examiner's passed report would, with `RE Completed` set to the record's session
+day; a fail as the not-passed one. An empty `RE Instructor` is filled with the
+record's instructor (initials, then CID), or `VATUSA`; a different examiner
+already on the card is named in the comment, not replaced. The card comment
+gives the record's id and date and who filed it. Nothing moves when:
+
+- the record was filed by the student's own teacher on the card (the examiner
+  is never the teacher), or
+- the card is Custom Training — which matches a record of any position type —
+  and the student has another card In Training or at Rating Exam, so the record
+  could be for either. "Another card" is judged from the cards' statuses as they
+  stood when the job run started, not after earlier cards in the same run moved.
+
+Either way the training admins are told, once per record:
+`enrollments.ctrs_notice` holds the id last told about (set once Larry accepts
+the notice, cleared when the card changes status). A Custom Training card never
+acts on a record it holds, even if the other card has since left; a newer
+record is judged afresh. A record with no instructor is logged and left alone.
+
+**A Recommend filed on VATUSA moves a card In Training** (decisions/0038). After
+the Rating Exam half, the same job reads the records of up to 20 cards In Training
+on a course that can end in a rating exam, the least recently checked first
+(`enrollments.ctrs_checked_at`, set on every card read, a VATUSA error included).
+It takes ZID's latest Recommend (`ots_status` 3) on the course's position type
+dated on or after the day the card reached In Training. If the record's
+instructor is the card's teacher (initials or CID), the card is marked training
+complete and moves to Rating Exam, with `Training Completed` set to the record's
+session day and a comment giving the record's id, date and filer. Anyone else's
+Recommend, one that names no instructor, or a card with no teacher, moves
+nothing: the training admins are told, once per record (`ctrs_notice`, as above),
+to have the teacher mark the training complete on `/teach` or move the card by
+hand. Custom Training matches a Recommend of any position type, only while it is
+the student's one open card (judged, and held back once told, as above);
+otherwise the training admins are told it could be for either course.
 
 **Jira is still the authority on where a request is.** Each step writes the date
 and then makes the move, and only then reads the card back onto our row. If Jira

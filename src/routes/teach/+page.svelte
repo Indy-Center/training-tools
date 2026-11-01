@@ -4,6 +4,13 @@
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
+	import ChoiceCard from '$lib/components/ui/ChoiceCard.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import type { DialogCopy } from '$lib/confirm-dialog';
+	import { examResultCopy } from '$lib/exam-result';
+	import { chosenStep, trainingCompleteCopy } from '$lib/mark-training-complete';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import type { Snippet } from 'svelte';
 	import EnrollmentStatusBadge from '$lib/components/enrollment/EnrollmentStatusBadge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
 	import TeacherStatusBadge from '$lib/components/teachers/TeacherStatusBadge.svelte';
@@ -26,6 +33,38 @@
 
 	/** The request a step is running for, so only its button shows as busy. */
 	let busyId = $state<string | null>(null);
+
+	/** The one confirmation open: which step, for which request. */
+	let openFor = $state<{ action: string; id: string } | null>(null);
+	/** Custom Training's radio in each open "Mark training complete?", by request. */
+	let chosen = $state<Record<string, string | null>>({});
+
+	function isOpen(action: string, id: string): boolean {
+		return openFor?.action === action && openFor.id === id;
+	}
+
+	/** Open or close one step's dialog. Its choice starts afresh each time it opens. */
+	function setOpen(action: string, id: string, open: boolean) {
+		if (open) chosen[id] = null;
+		openFor = open ? { action, id } : null;
+	}
+
+	/**
+	 * Each step moves a card on the staff board, and none can be undone from
+	 * here, so it is posted only from its dialog. Only its own button shows as busy.
+	 */
+	const step =
+		(id: string): SubmitFunction =>
+		() => {
+			busyId = id;
+			return async ({ update }) => {
+				await update();
+				// A refused step can still have changed what is on the card — someone
+				// else took the exam first — and `update()` only reloads on success.
+				await invalidateAll();
+				busyId = null;
+			};
+		};
 
 	/** Set by the report form when it sends someone back here: VATUSA's record number. */
 	const reported = $derived(page.url.searchParams.get('reported'));
@@ -106,48 +145,50 @@
 	</p>
 {/if}
 
-<!-- One step at the end of a course: a button that asks first, because each of
-     these moves a card on the staff board and none can be undone from here. -->
-{#snippet step(
-	action: string,
-	id: string,
-	label: string,
-	question: string,
-	variant: 'primary' | 'secondary' = 'primary',
-	next: string | null = null
-)}
-	<form
-		method="POST"
-		action="?/{action}"
-		class="mt-3"
-		use:enhance={({ cancel }) => {
-			if (!confirm(question)) return cancel();
-			busyId = id;
-			return async ({ update }) => {
-				await update();
-				// A refused step can still have changed what is on the card — someone
-				// else took the exam first — and `update()` only reloads on success.
-				await invalidateAll();
-				busyId = null;
-			};
-		}}
-	>
-		<input type="hidden" name="id" value={id} />
-		{#if next}
-			<input type="hidden" name="next" value={next} />
-		{/if}
-		<Button type="submit" size="sm" {variant} disabled={busyId !== null}>
-			{busyId === id ? 'Working…' : label}
-		</Button>
-	</form>
-{/snippet}
-
 <!-- Opens the CTRS form for one student, with who they are already filled in. -->
-{#snippet report(id: string)}
-	<Button href="/teach/report/{id}" size="sm" variant="secondary" class="mt-3">
+{#snippet report(id: string, className = 'mt-3')}
+	<Button href="/teach/report/{id}" size="sm" variant="secondary" class={className}>
 		<IconClipboard class="h-4 w-4" />
 		File training report
 	</Button>
+{/snippet}
+
+<!--
+	One step on a request: the button opens its dialog, and only the dialog posts
+	the form. `body` adds inputs the step posts with it (Custom Training's radios).
+-->
+{#snippet confirmed(
+	action: string,
+	id: string,
+	label: string,
+	copy: DialogCopy,
+	options: { class?: string; ready?: boolean; body?: Snippet } = {}
+)}
+	<form method="POST" action="?/{action}" class={options.class} use:enhance={step(id)}>
+		<input type="hidden" name="id" value={id} />
+		<Button
+			type="button"
+			size="sm"
+			disabled={busyId !== null}
+			onclick={() => setOpen(action, id, true)}
+		>
+			{busyId === id ? 'Working…' : label}
+		</Button>
+		<ConfirmDialog
+			bind:open={() => isOpen(action, id), (value) => setOpen(action, id, value)}
+			title={copy.title}
+			confirmLabel={copy.confirmLabel}
+			tone={copy.tone}
+			ready={options.ready}
+		>
+			<p>
+				{copy.before}
+				{#if copy.bold}<strong class="text-white">{copy.bold}</strong>{/if}
+				{copy.after ?? ''}
+			</p>
+			{@render options.body?.()}
+		</ConfirmDialog>
+	</form>
 {/snippet}
 
 <div class="grid gap-6 lg:grid-cols-3">
@@ -181,7 +222,33 @@
 									{/if}
 								</p>
 							{/if}
-							{@render report(student.enrollmentId)}
+							<div class="mt-3 flex flex-wrap items-center gap-2">
+								{@render report(student.enrollmentId, '')}
+								{#if student.canComplete}
+									{@const id = student.enrollmentId}
+									{@const next = chosenStep(student.next, chosen[id] ?? null)}
+									{#snippet radios()}
+										<fieldset
+											class="space-y-2"
+											onchange={(event) => (chosen[id] = (event.target as HTMLInputElement).value)}
+										>
+											<ChoiceCard type="radio" name="next" value="rating-exam" compact>
+												Rating exam required
+											</ChoiceCard>
+											<ChoiceCard type="radio" name="next" value="certification-update" compact>
+												No rating exam required
+											</ChoiceCard>
+										</fieldset>
+									{/snippet}
+									{@render confirmed(
+										'completeTraining',
+										id,
+										'Mark training complete',
+										trainingCompleteCopy(student.name, student.course, next),
+										{ ready: next !== null, body: student.next.length > 1 ? radios : undefined }
+									)}
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -223,24 +290,44 @@
 										{@render report(exam.enrollmentId)}
 									{/if}
 									{#if exam.canComplete}
-										<Button
-											href={vatusaEvaluationUrl(exam.cid)}
-											target="_blank"
-											rel="noopener noreferrer"
-											size="sm"
-											variant="secondary"
-											class="mt-3"
-										>
-											VATUSA evaluation form
-											<IconOpen class="h-4 w-4" />
-										</Button>
+										{@const id = exam.enrollmentId}
+										<div class="mt-3 flex flex-wrap items-center gap-2">
+											<Button
+												href={vatusaEvaluationUrl(exam.cid)}
+												target="_blank"
+												rel="noopener noreferrer"
+												size="sm"
+												variant="secondary"
+											>
+												VATUSA evaluation form
+												<IconOpen class="h-4 w-4" />
+											</Button>
+											{@render confirmed(
+												'completeExam',
+												id,
+												'Passed',
+												examResultCopy('passed', exam.name, exam.course)
+											)}
+											{@render confirmed(
+												'failExam',
+												id,
+												'Not passed',
+												examResultCopy('not-passed', exam.name, exam.course)
+											)}
+										</div>
 									{/if}
 									{#if exam.canClaim}
-										{@render step(
+										{@render confirmed(
 											'claimExam',
 											exam.enrollmentId,
 											'Claim this exam',
-											`Claim the rating exam for ${exam.name}?\n\nYou become their examiner, and arrange the exam with them directly.`
+											{
+												title: `Claim the rating exam for ${exam.name}?`,
+												confirmLabel: 'Claim this exam',
+												before:
+													'You become their examiner, and arrange the exam with them directly.'
+											},
+											{ class: 'mt-3' }
 										)}
 									{:else if exam.canComplete}
 										<p class="mt-3 text-xs text-gray-400">

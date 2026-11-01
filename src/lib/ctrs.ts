@@ -45,11 +45,24 @@ export const OTS_STATUSES = [
 	{ value: 1, label: 'Rating exam: passed' },
 	{ value: 2, label: 'Rating exam: not passed' }
 ] as const;
-const OTS_RECOMMENDED = 3;
+
+/** VATUSA's `ots_status`: 0 not a rating exam, 1 passed, 2 not passed, 3 recommended. */
+export type OtsStatus = 0 | 1 | 2 | 3;
+export const OTS_PASSED = 1;
+export const OTS_NOT_PASSED = 2;
+export const OTS_RECOMMENDED = 3;
 
 /** What an examiner's report says of the exam, and so where the card goes. */
 export type ExamResult = 'passed' | 'not-passed';
-const EXAM_RESULTS: Readonly<Record<number, ExamResult>> = { 1: 'passed', 2: 'not-passed' };
+const EXAM_RESULTS: Readonly<Partial<Record<OtsStatus, ExamResult>>> = {
+	[OTS_PASSED]: 'passed',
+	[OTS_NOT_PASSED]: 'not-passed'
+};
+
+/** The exam result an `ots_status` records, or null when it records none. */
+export function examResultOf(status: OtsStatus): ExamResult | null {
+	return EXAM_RESULTS[status] ?? null;
+}
 
 /** What a result does to the card, said beside the choice and again before sending. */
 export const EXAM_RESULT_DETAILS: Record<ExamResult, string> = {
@@ -100,7 +113,7 @@ export type TrainingRecord = {
 	/** `HH:MM`. */
 	duration: string;
 	location: 0 | 1 | 2;
-	otsStatus: 0 | 1 | 2 | 3;
+	otsStatus: OtsStatus;
 	/** The student's progress, 1 to 5, or null. VATUSA's API calls it `score`. */
 	score: number | null;
 	/** HTML: see `notesHtml()`. */
@@ -325,7 +338,7 @@ export function checkReport(
 			notes: notesHtml(notes)
 		},
 		finish,
-		examResult: EXAM_RESULTS[ots.value] ?? null
+		examResult: examResultOf(ots.value)
 	};
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE `enrollments` ADD `status_since` integer;

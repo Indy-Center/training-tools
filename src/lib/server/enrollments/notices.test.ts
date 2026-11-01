@@ -4,6 +4,10 @@ import {
 	announcementFor,
 	awaitingAuditNotice,
 	certificationHeldNotice,
+	ctrsNoInstructorNotice,
+	ctrsRecommendNotice,
+	ctrsTeacherRecordNotice,
+	ctrsUnclearCourseNotice,
 	examReadyNotice,
 	examStatus,
 	needsCatpNotice,
@@ -223,6 +227,63 @@ describe('newEnrollmentNotice', () => {
 		const notice = newEnrollmentNotice({ ...enrolled, issueKey: null, issueUrl: null });
 		expect(field(notice, 'TRK card')).toMatch(/Not on the board yet/);
 		expect(notice.link).toBeUndefined();
+	});
+});
+
+describe('CTRS record notices', () => {
+	const record = {
+		id: 501,
+		day: '2026-10-25',
+		says: 'passed' as const,
+		position: 'XXX_APP',
+		filedBy: 'Sam Weller'
+	};
+
+	it("says a record filed by the student's teacher did not move the card", () => {
+		const notice = ctrsTeacherRecordNotice(request, record);
+		expect(notice.audience).toBe('training-admins');
+		expect(notice.summary).toBe(
+			"Jo Rivera (1234567)'s Terminal Radar Control (T-RC) has a CTRS record of October 25, 2026 giving a pass, filed by Sam Weller, who is their teacher on the card. The card was not moved: the examiner can't be the student's teacher. Check the record on VATUSA, and move the card by hand if it stands."
+		);
+		expect(field(notice, 'CTRS record')).toBe('501');
+		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+	});
+
+	it('says a Custom Training card was not moved on a record that could be for another course', () => {
+		const notice = ctrsUnclearCourseNotice(
+			{ ...request, course: 'CUSTOM' },
+			{ ...record, says: 'not-passed' }
+		);
+		expect(notice.summary).toBe(
+			"Jo Rivera (1234567) has a CTRS record of October 25, 2026 giving a fail at XXX_APP, but more than one of their courses could be the one it's for. The card was not moved."
+		);
+		expect(
+			ctrsUnclearCourseNotice({ ...request, course: 'CUSTOM' }, { ...record, says: 'recommend' })
+				.summary
+		).toBe(
+			"Jo Rivera (1234567) has a CTRS record of October 25, 2026 recommending a rating exam at XXX_APP, but more than one of their courses could be the one it's for. The card was not moved."
+		);
+	});
+
+	it("says a Recommend by someone other than the card's teacher did not move it", () => {
+		const notice = ctrsRecommendNotice(request, {
+			...record,
+			says: 'recommend',
+			filedBy: 'Cy Dee'
+		});
+		expect(notice.summary).toBe(
+			"Jo Rivera (1234567)'s Terminal Radar Control (T-RC) has a CTRS record of October 25, 2026 recommending a rating exam, filed by Cy Dee, who isn't their teacher on the card (SW). The card was not moved. Ask the teacher to mark the training complete on /teach, or move the card by hand."
+		);
+	});
+
+	it('says a record naming no instructor could not be checked against the teacher', () => {
+		expect(ctrsNoInstructorNotice(request, record).summary).toBe(
+			"Jo Rivera (1234567)'s Terminal Radar Control (T-RC) has a CTRS record of October 25, 2026 giving a pass, but VATUSA names no instructor on it, so it can't be checked against their teacher on the card (SW). The card was not moved. Check the record on VATUSA, and move the card by hand if it stands."
+		);
+		expect(
+			ctrsNoInstructorNotice({ ...request, teacher: null }, { ...record, says: 'recommend' })
+				.summary
+		).toContain('recommending a rating exam, but VATUSA names no instructor');
 	});
 });
 

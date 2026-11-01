@@ -226,6 +226,29 @@ export const enrollmentsTable = sqliteTable(
 		 * because staff routinely make two changes within the same second or two.
 		 */
 		jiraUpdatedAt: integer('jira_updated_at', { mode: 'timestamp_ms' }),
+		/**
+		 * When the card entered its current `status`: set by `applyIssueMove()` in the
+		 * write that changes `status` (and nowhere else), and to `createdAt` for a
+		 * row this app creates. A CTRS record counts only if its session is on or
+		 * after this day — see decisions/0038. Null for a row not yet back-filled
+		 * from Jira's changelog (`backfillStatusSince()`), and for closed rows for
+		 * good. Not served by any page, RPC or notice.
+		 */
+		statusSince: integer('status_since', { mode: 'timestamp' }),
+		/**
+		 * The id of the CTRS record the training admins were last told about for this
+		 * card, because the read-back would not move it on that record (decisions/0038):
+		 * each record is told once, and a newer one again. Set only after Larry
+		 * accepts the notice, so a refused one is retried. Cleared by
+		 * `applyIssueMove()` in the write that changes `status`, and nowhere else.
+		 */
+		ctrsNotice: text('ctrs_notice'),
+		/**
+		 * When the `ctrs records` job last read this card's student's CTRS records
+		 * for a Recommend (In Training), whatever came of it, a VATUSA error
+		 * included. The job takes the oldest first, nulls first. Not served.
+		 */
+		ctrsCheckedAt: integer('ctrs_checked_at', { mode: 'timestamp' }),
 
 		createdAt: integer('created_at', { mode: 'timestamp' })
 			.notNull()

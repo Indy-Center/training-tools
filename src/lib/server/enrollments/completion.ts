@@ -126,12 +126,26 @@ export async function note(config: JiraConfig, issueKey: string, text: string): 
 	);
 }
 
+/** What a step taken other than from the report form says, and dates, differently. */
+export type StepOptions = {
+	/** Replaces the usual card note. */
+	comment?: string;
+	/** `YYYY-MM-DD`: replaces today as the date the step stamps on the card. */
+	completedOn?: string;
+	now?: Date;
+};
+
 /**
  * The teacher marks the training complete.
  *
  * Stamps `Training Completed`, then moves the card: to Rating Exam when the
  * course ends in one, otherwise straight to Audit. Where a course allows either
  * (`afterTrainingOptions()`), `to` is the teacher's choice and is required.
+ *
+ * `step.comment` replaces the usual card note, for a step that has to say more
+ * than who took it: `/teach`'s button says no training report was filed (0038).
+ * `step.completedOn` replaces today as `Training Completed`, for a step taken
+ * from a CTRS record filed on another day.
  */
 export async function completeTraining(
 	db: Database,
@@ -139,7 +153,7 @@ export async function completeTraining(
 	enrollment: Enrollment,
 	by: string,
 	to?: AfterTraining,
-	now = new Date()
+	{ comment, completedOn, now = new Date() }: StepOptions = {}
 ): Promise<FlowResult> {
 	const options = afterTrainingOptions(enrollment.course);
 	const chosen = to ?? (options.length === 1 ? options[0] : undefined);
@@ -151,10 +165,10 @@ export async function completeTraining(
 
 	return onCard(db, env, enrollment, 'complete training', async (config, issueKey) => {
 		await updateIssueFields(config, issueKey, {
-			[JIRA_FIELDS.trainingCompleted]: toFacilityDate(now)
+			[JIRA_FIELDS.trainingCompleted]: completedOn ?? toFacilityDate(now)
 		});
 		await transitionIssueToStatus(config, issueKey, next);
-		await note(config, issueKey, `Training marked complete by ${by}.`);
+		await note(config, issueKey, comment ?? `Training marked complete by ${by}.`);
 	});
 }
 
@@ -200,18 +214,24 @@ export async function claimExam(
  *
  * Stamps `RE Completed` and moves the card to Certification Update, where the
  * certification is applied. A failed exam is `failExam()`.
+ *
+ * `step.comment` replaces the usual card note, and `step.completedOn` replaces
+ * today's date in `RE Completed`: the CTRS read-back dates the card from the
+ * record's session, not the day it was found (0038).
  */
 export async function completeExam(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	by: string,
-	now = new Date()
+	{ comment, completedOn, now = new Date() }: StepOptions = {}
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'complete exam', async (config, issueKey) => {
-		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.reCompleted]: toFacilityDate(now) });
+		await updateIssueFields(config, issueKey, {
+			[JIRA_FIELDS.reCompleted]: completedOn ?? toFacilityDate(now)
+		});
 		await transitionIssueToStatus(config, issueKey, CERTIFICATION_UPDATE_STATUS);
-		await note(config, issueKey, `Rating exam marked complete by ${by}.`);
+		await note(config, issueKey, comment ?? `Rating exam marked complete by ${by}.`);
 	});
 }
 
@@ -228,12 +248,15 @@ export async function completeExam(
  * Instructor stays on the card while it waits at Needs CATP, so the TA can see
  * who examined. It comes off when the card goes back to training — see
  * `clearReturnedExaminers()` — so the retake is claimed afresh.
+ *
+ * `step.comment` replaces the usual card note, as for `completeExam()`.
  */
 export async function failExam(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
-	by: string
+	by: string,
+	{ comment }: Pick<StepOptions, 'comment'> = {}
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'fail exam', async (config, issueKey) => {
 		await transitionIssueToStatus(config, issueKey, NEEDS_CATP_STATUS);
@@ -241,7 +264,7 @@ export async function failExam(
 		await note(
 			config,
 			issueKey,
-			`Rating exam marked not passed by ${by}; Training Completed cleared.`
+			comment ?? `Rating exam marked not passed by ${by}; Training Completed cleared.`
 		);
 	});
 }

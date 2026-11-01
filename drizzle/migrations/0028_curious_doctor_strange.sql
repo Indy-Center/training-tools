@@ -1,0 +1,1 @@
+ALTER TABLE `enrollments` ADD `ctrs_checked_at` integer;

@@ -1,5 +1,6 @@
 import { SITE_URL } from '$lib/config';
 import { findCourse } from '$lib/courses';
+import type { ExamResult } from '$lib/ctrs';
 import { NOTIFICATION_LABELS, STATUS_LABELS } from '$lib/enrollment-status';
 import { formatCardDate } from '$lib/format';
 import type { DirectNotice, Notice } from '$lib/server/notify';
@@ -196,6 +197,108 @@ export function certificationHeldNotice(request: NoticeRequest, missing: string[
 			...card(request)
 		]
 	};
+}
+
+/**
+ * A CTRS record filed on VATUSA that the read-back would not act on
+ * (decisions/0038). `says` is what it records: an exam result, or a Recommend.
+ */
+export type CtrsRecordNotice = {
+	id: number;
+	/** The record's facility day, `YYYY-MM-DD`. */
+	day: string;
+	says: ExamResult | 'recommend';
+	position: string;
+};
+
+const RECORD_SAYS: Record<CtrsRecordNotice['says'], string> = {
+	passed: 'giving a pass',
+	'not-passed': 'giving a fail',
+	recommend: 'recommending a rating exam'
+};
+
+/** Every CTRS notice: what the record was, and that the card stayed put. */
+function ctrsNotice(request: NoticeRequest, record: CtrsRecordNotice, summary: string): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `CTRS record not acted on: ${request.name}`,
+		summary,
+		link: request.issueUrl ?? undefined,
+		fields: [
+			{ label: 'Student', value: student(request) },
+			{ label: 'Course', value: course(request.course) },
+			{ label: 'CTRS record', value: String(record.id) },
+			...card(request)
+		]
+	};
+}
+
+/** "Jo Rivera (1234567)'s Terminal Radar Control (T-RC) has a CTRS record of October 25, 2026 giving a pass" */
+function recordLine(request: NoticeRequest, record: CtrsRecordNotice): string {
+	return `${student(request)}'s ${course(request.course)} has a CTRS record of ${formatCardDate(record.day, 'long')} ${RECORD_SAYS[record.says]}`;
+}
+
+const CHECK_BY_HAND = 'Check the record on VATUSA, and move the card by hand if it stands.';
+
+/**
+ * A pass or fail at Rating Exam filed by the student's own teacher on the card.
+ * The card stays where it is: the examiner is never the teacher (0021).
+ */
+export function ctrsTeacherRecordNotice(
+	request: NoticeRequest,
+	/** `filedBy`: the teacher's name, or their CID when nobody here has it. */
+	record: CtrsRecordNotice & { filedBy: string }
+): Notice {
+	return ctrsNotice(
+		request,
+		record,
+		`${recordLine(request, record)}, filed by ${record.filedBy}, who is their teacher on the card. The card was not moved: the examiner can't be the student's teacher. ${CHECK_BY_HAND}`
+	);
+}
+
+/**
+ * A Recommend for a card In Training filed by someone who isn't the card's
+ * teacher, or for a card that has none.
+ */
+export function ctrsRecommendNotice(
+	request: NoticeRequest,
+	/** `filedBy`: the filer's name, or their CID when nobody here has it. */
+	record: CtrsRecordNotice & { filedBy: string }
+): Notice {
+	return ctrsNotice(
+		request,
+		record,
+		`${recordLine(request, record)}, filed by ${record.filedBy}, who isn't their teacher on the card (${teacherOnCard(request)}). The card was not moved. Ask the teacher to mark the training complete on /teach, or move the card by hand.`
+	);
+}
+
+/**
+ * A record that names no instructor, so it can't be checked against the
+ * card's teacher: the examiner must not be them, and a Recommend must be theirs.
+ */
+export function ctrsNoInstructorNotice(request: NoticeRequest, record: CtrsRecordNotice): Notice {
+	return ctrsNotice(
+		request,
+		record,
+		`${recordLine(request, record)}, but VATUSA names no instructor on it, so it can't be checked against their teacher on the card (${teacherOnCard(request)}). The card was not moved. ${CHECK_BY_HAND}`
+	);
+}
+
+/**
+ * A record that would end a Custom Training card, for a student with another
+ * card open: it could be for either, so neither is moved.
+ */
+export function ctrsUnclearCourseNotice(request: NoticeRequest, record: CtrsRecordNotice): Notice {
+	return ctrsNotice(
+		request,
+		record,
+		`${student(request)} has a CTRS record of ${formatCardDate(record.day, 'long')} ${RECORD_SAYS[record.says]} at ${record.position}, but more than one of their courses could be the one it's for. The card was not moved.`
+	);
+}
+
+function teacherOnCard(request: NoticeRequest): string {
+	return request.teacher?.trim() || 'no teacher';
 }
 
 /**

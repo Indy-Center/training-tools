@@ -1,7 +1,7 @@
 import { JiraError, jiraRequest, type JiraConfig } from './client';
 import { BOARD_ISSUE_FIELDS, type JiraBoardIssue } from './board-issue';
 import { STUDENT_ENROLLMENT_ISSUE_TYPE_ID } from './enrollment';
-import { STATUS_FIELDS, type JiraStatusIssue } from './status';
+import { STATUS_FIELDS, parseJiraTimestamp, type JiraStatusIssue } from './status';
 
 /**
  * Reads against TRK's Student Enrollment issues. Each read asks only for the
@@ -94,6 +94,82 @@ export async function searchEnrollmentIssues(
  */
 export async function listBoardIssues(config: JiraConfig): Promise<SearchResult<JiraBoardIssue>> {
 	return searchAll(config, enrollmentJql(config, [], 'created ASC'), BOARD_ISSUE_FIELDS);
+}
+
+type ChangelogHistory = { created?: string; items?: { field?: string }[] };
+
+type ChangelogResponse = {
+	values?: ChangelogHistory[];
+	isLast?: boolean;
+	/** How many history items the issue has in all. */
+	total?: number;
+};
+
+/** Changelog pages one read will take before giving up (100 history items each). */
+const MAX_CHANGELOG_PAGES = 10;
+
+/** The latest `status` change among these history items, or null. */
+function latestStatusChange(histories: readonly ChangelogHistory[]): Date | null {
+	let latest: Date | null = null;
+	for (const history of histories) {
+		if (!history.items?.some((item) => item.field === 'status')) continue;
+		const at = parseJiraTimestamp(history.created);
+		if (at && (!latest || at > latest)) latest = at;
+	}
+	return latest;
+}
+
+/**
+ * When the issue last changed `status`: the `created` time of the latest
+ * history item with a `status` change, else the issue's own `created`. Null
+ * when neither can be read. Throws on a Jira failure, so the caller leaves the
+ * row for the next run.
+ *
+ * Jira lists the history oldest first, so the latest change is near the end.
+ * The first page gives the total; the rest is read back from the end, and the
+ * first page holding a status change ends the read. A history too long to
+ * reach in `MAX_CHANGELOG_PAGES` throws rather than settle on an older change.
+ */
+export async function fetchStatusSince(config: JiraConfig, issueKey: string): Promise<Date | null> {
+	const key = encodeURIComponent(issueKey);
+	const page = async (startAt: number) =>
+		jiraRequest<ChangelogResponse>(
+			config,
+			`/issue/${key}/changelog?startAt=${startAt}&maxResults=${PAGE_SIZE}`,
+			{ method: 'GET' }
+		);
+
+	const first = await page(0);
+	const firstValues = first.values ?? [];
+	let latest: Date | null = null;
+
+	if (first.isLast === false && firstValues.length > 0) {
+		if (typeof first.total !== 'number') {
+			throw new Error(`Jira changelog for ${issueKey}: more than one page, and no total`);
+		}
+		// Jira's own page size, which can be smaller than the one asked for.
+		const size = firstValues.length;
+		let end = first.total;
+		for (let read = 1; !latest && end > size; read += 1) {
+			if (read >= MAX_CHANGELOG_PAGES) {
+				throw new Error(`Jira changelog for ${issueKey}: too long to find the latest status`);
+			}
+			const startAt = Math.max(size, end - size);
+			const values = (await page(startAt)).values ?? [];
+			latest = latestStatusChange(values.slice(0, end - startAt));
+			end = startAt;
+		}
+	}
+
+	latest ??= latestStatusChange(firstValues);
+	if (latest) return latest;
+
+	const issue = await jiraRequest<{ fields?: { created?: string | null } }>(
+		config,
+		`/issue/${key}?fields=created`,
+		{ method: 'GET' }
+	);
+	return parseJiraTimestamp(issue.fields?.created);
 }
 
 /** One issue's status and teacher, or null when the issue no longer exists. */
