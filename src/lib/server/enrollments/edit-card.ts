@@ -100,7 +100,10 @@ export function planCardEdit(input: {
 	const { issueKey, edit, card, stages, examiners, today } = input;
 
 	const examiner = edit.examiner === undefined ? card.reInstructor : edit.examiner.trim() || null;
-	if (examiner && card.teacher && fold(examiner) === fold(card.teacher)) {
+	const examinerChanged = fold(examiner) !== fold(card.reInstructor);
+	// Only a value this save changes is refused: one the card already holds and
+	// the form posts back never blocks an unrelated edit.
+	if (examinerChanged && examiner && card.teacher && fold(examiner) === fold(card.teacher)) {
 		return { refused: "The examiner can't be the student's teacher.", status: 400 };
 	}
 
@@ -111,13 +114,12 @@ export function planCardEdit(input: {
 		const posted = edit.dates[key];
 		if (posted === undefined) continue;
 		const value = posted.trim() || null;
+		if (value === card.dates[key]) continue;
 		if (value !== null && (!isRealDate(value) || value > today)) {
 			return { refused: `${label} must be a date no later than today.`, status: 400 };
 		}
-		if (value !== card.dates[key]) {
-			fields[JIRA_FIELDS[key]] = value;
-			changes.push(`${label} ${shown(card.dates[key])} → ${shown(value)}`);
-		}
+		fields[JIRA_FIELDS[key]] = value;
+		changes.push(`${label} ${shown(card.dates[key])} → ${shown(value)}`);
 	}
 
 	const stage = edit.stage?.trim() || card.status;
