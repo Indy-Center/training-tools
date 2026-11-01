@@ -120,6 +120,78 @@ async function writeRemovalHold(db: Database, startedAt: Date, cids: string[]): 
 		.onConflictDoUpdate({ target: syncStateTable.key, set: { value } });
 }
 
+/**
+ * `sync_state` key: an admin's "Apply now" (`/admin`). `value` is the CIDs the
+ * page showed, as a JSON array. The next sync applies an over-limit removal
+ * early only when every CID it finds missing is in this list; either way the
+ * sync deletes the key, so a release is good for one run.
+ */
+const REMOVAL_RELEASE_KEY = 'roster-removal-release';
+
+/** The hold as the admin page shows it, or null when there is none. */
+export type RosterHold = { startedAt: Date; appliesAt: Date; cids: string[] };
+
+function parseCids(value: string | null | undefined): string[] {
+	try {
+		const parsed: unknown = JSON.parse(value ?? '[]');
+		return Array.isArray(parsed) ? parsed.map(String) : [];
+	} catch {
+		return [];
+	}
+}
+
+export async function readRosterHold(db: Database): Promise<RosterHold | null> {
+	const row = await db.query.syncStateTable.findFirst({
+		where: eq(syncStateTable.key, REMOVAL_HOLD_KEY)
+	});
+	if (!row) return null;
+	return {
+		startedAt: row.cursorAt,
+		appliesAt: new Date(row.cursorAt.getTime() + REMOVAL_HOLD_MS),
+		cids: parseCids(row.value)
+	};
+}
+
+/** Records an admin's release of the held CIDs; the next `syncRoster()` uses it. */
+export async function writeRosterRelease(
+	db: Database,
+	cids: string[],
+	now = new Date()
+): Promise<void> {
+	const value = JSON.stringify(cids);
+	await db
+		.insert(syncStateTable)
+		.values({ key: REMOVAL_RELEASE_KEY, cursorAt: now, value })
+		.onConflictDoUpdate({ target: syncStateTable.key, set: { value, cursorAt: now } });
+}
+
+/** The released CIDs, or null when no release is waiting. */
+async function readRemovalRelease(db: Database): Promise<Set<string> | null> {
+	const row = await db.query.syncStateTable.findFirst({
+		where: eq(syncStateTable.key, REMOVAL_RELEASE_KEY)
+	});
+	return row ? new Set(parseCids(row.value)) : null;
+}
+
+export async function clearRosterRelease(db: Database): Promise<void> {
+	await db.delete(syncStateTable).where(eq(syncStateTable.key, REMOVAL_RELEASE_KEY));
+}
+
+/**
+ * The sync kept a removal on hold. `moreMissing` is set when an admin had
+ * released the hold and the release no longer covered everyone missing: how
+ * many are missing who were not shown.
+ */
+export class RosterHoldError extends Error {
+	constructor(
+		message: string,
+		readonly moreMissing: number | null
+	) {
+		super(message);
+		this.name = 'RosterHoldError';
+	}
+}
+
 async function clearRemovalHold(db: Database): Promise<void> {
 	await db.delete(syncStateTable).where(eq(syncStateTable.key, REMOVAL_HOLD_KEY));
 }
@@ -191,8 +263,17 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	// join it. It applies once it has run for 24 hours, or shrinks to the limit.
 	const overLimit = missingCids.length > limit;
 	const holdExpired = now.getTime() - holdStartedAt.getTime() >= REMOVAL_HOLD_MS;
+	// An admin's "Apply now" lifts the hold only if it names everyone missing
+	// now, and only while a hold is open. Anyone missing who was not shown
+	// keeps it (0039). The release is good for this run alone.
+	const release = await readRemovalRelease(db);
+	const unreleased =
+		release && previousHoldStart ? missingCids.filter((cid) => !release.has(cid)).length : null;
+	const released = unreleased === 0;
 	const holdUntil =
-		overLimit && !holdExpired ? new Date(holdStartedAt.getTime() + REMOVAL_HOLD_MS) : null;
+		overLimit && !holdExpired && !released
+			? new Date(holdStartedAt.getTime() + REMOVAL_HOLD_MS)
+			: null;
 
 	for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 		const statements = rows.slice(i, i + CHUNK_SIZE).map((row) =>
@@ -246,6 +327,7 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	// run, and removals that failed after it cleared are held again then.
 	if (holdUntil) await writeRemovalHold(db, holdStartedAt, missingCids);
 	else if (previousHoldStart) await clearRemovalHold(db);
+	if (release) await clearRosterRelease(db);
 
 	// Anyone still carrying an older syncedAt was absent from this run. Using the
 	// timestamp as the tombstone marker avoids listing every current CID in a
@@ -285,7 +367,7 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 	]);
 
 	if (holdUntil) {
-		throw overLimitError({
+		const held = overLimitError({
 			would: 'VATUSA roster would remove',
 			count: missingCids.length,
 			of: activeCids.length,
@@ -294,6 +376,7 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 			keeping: 'the mirror',
 			then: `Applies to whoever is still missing at ${formatUtc(holdUntil)}.`
 		});
+		throw new RosterHoldError(held.message, unreleased);
 	}
 
 	return {

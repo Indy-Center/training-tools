@@ -6,7 +6,15 @@ import { testDb } from '$lib/server/test-db';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { activityLogTable } from '$lib/db/schema/activity-log';
 import { fetchRoster } from '$lib/server/vatusa';
-import { parseFacilityJoin, syncRoster, toRosterRow } from './sync';
+import { syncStateTable } from '$lib/db/schema/sync-state';
+import {
+	parseFacilityJoin,
+	readRosterHold,
+	RosterHoldError,
+	syncRoster,
+	toRosterRow,
+	writeRosterRelease
+} from './sync';
 
 vi.mock('$lib/server/vatusa', () => ({ fetchRoster: vi.fn() }));
 
@@ -229,6 +237,96 @@ describe('syncRoster — removals', () => {
 		// Cleared: the next large drop starts a hold of its own.
 		vatusaAnswers(cids(1, 140));
 		await expect(syncRoster(db, at(2))).rejects.toThrow('missing at 2026-10-27 05:30 UTC');
+	});
+});
+
+describe('syncRoster — releasing a hold', () => {
+	const HOUR = 60 * 60 * 1000;
+	const START = new Date('2026-10-26T03:30:00Z');
+	const at = (hours: number) => new Date(START.getTime() + hours * HOUR);
+
+	let db: Database;
+
+	const cids = (from: number, to: number) =>
+		Array.from({ length: to - from + 1 }, (_, i) => 1000000 + from + i);
+	const strings = (list: number[]) => list.map(String);
+
+	function vatusaAnswers(list: number[]) {
+		vi.mocked(fetchRoster).mockResolvedValueOnce(list.map((cid) => member({ cid })));
+	}
+
+	async function active(): Promise<number[]> {
+		const rows = await db
+			.select({ cid: rosterMembersTable.cid })
+			.from(rosterMembersTable)
+			.where(isNull(rosterMembersTable.removedAt));
+		return rows.map((row) => Number(row.cid)).sort((a, b) => a - b);
+	}
+
+	async function keys(): Promise<string[]> {
+		const rows = await db.select().from(syncStateTable);
+		return rows.map((row) => row.key).sort();
+	}
+
+	// 160 members, limit 8; 10 go missing and the hold opens.
+	beforeEach(async () => {
+		vi.mocked(fetchRoster).mockReset();
+		db = testDb();
+		vatusaAnswers(cids(1, 160));
+		await syncRoster(db, at(-1));
+		vatusaAnswers(cids(1, 150));
+		await expect(syncRoster(db, at(0))).rejects.toThrow();
+	});
+
+	it('reads the hold: when it started, when it applies, and who it holds', async () => {
+		expect(await readRosterHold(db)).toEqual({
+			startedAt: START,
+			appliesAt: at(24),
+			cids: strings(cids(151, 160))
+		});
+	});
+
+	it('reads no hold when there is none', async () => {
+		expect(await readRosterHold(testDb())).toBeNull();
+	});
+
+	it('applies a release that covers every missing CID, and clears both keys', async () => {
+		await writeRosterRelease(db, strings(cids(151, 160)));
+		vatusaAnswers(cids(1, 150));
+		const result = await syncRoster(db, at(1));
+		expect(result.removed).toBe(10);
+		expect(await active()).toEqual(cids(1, 150));
+		expect(await keys()).toEqual([]);
+	});
+
+	it('keeps the hold, drops the release and counts the extra one when someone else is missing', async () => {
+		await writeRosterRelease(db, strings(cids(151, 160)));
+		vatusaAnswers(cids(1, 149));
+		const error = await syncRoster(db, at(1)).catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(RosterHoldError);
+		expect((error as RosterHoldError).moreMissing).toBe(1);
+		expect(await active()).toEqual(cids(1, 160));
+		expect(await keys()).toEqual(['roster-removal-hold']);
+		expect(await readRosterHold(db)).toMatchObject({ startedAt: START });
+	});
+
+	it('ignores a release when no hold is open, and drops it', async () => {
+		vatusaAnswers(cids(1, 160));
+		await syncRoster(db, at(1));
+		expect(await keys()).toEqual([]);
+
+		await writeRosterRelease(db, strings(cids(141, 160)));
+		vatusaAnswers(cids(1, 140));
+		await expect(syncRoster(db, at(2))).rejects.toBeInstanceOf(RosterHoldError);
+		expect(await active()).toEqual(cids(1, 160));
+		expect(await keys()).toEqual(['roster-removal-hold']);
+	});
+
+	it('still applies an expired hold with no release, as before', async () => {
+		vatusaAnswers(cids(1, 150));
+		const result = await syncRoster(db, at(24));
+		expect(result.removed).toBe(10);
+		expect(await keys()).toEqual([]);
 	});
 });
 

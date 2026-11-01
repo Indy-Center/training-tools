@@ -91,7 +91,7 @@ part works, written for whoever maintains it.
 | `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                                                                       |
 | `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`                                               |
 | `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs                                             |
-| `POST /admin`                | admin      | `?/retry` files a stuck request again                                                                              |
+| `POST /admin`                | admin      | `?/retry` files a stuck request again; `?/applyRosterHold` applies a held roster removal now                       |
 | `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
 | `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
 
@@ -399,7 +399,12 @@ VATUSA can answer with a short roster that looks like a valid one, so the sync
 run**. Everyone present is still updated and added; the removals are held (in
 `sync_state`) and the job fails, which alerts the tech team. Members who come
 back leave the hold. Whoever is still missing 24 hours later is removed, or
-sooner if the hold shrinks to the limit. The teacher roster sync refuses, with no
+sooner if the hold shrinks to the limit. `/admin` shows a held change, with
+who is held and when it applies by itself, and **Apply now** (`training:admin`)
+posts the CIDs shown into `sync_state` `roster-removal-release` and syncs at
+once. The sync applies early only when every CID it finds missing was in that
+release; if someone else has gone missing since, the hold stays and the page
+says how many more. The release is good for one run. The teacher roster sync refuses, with no
 hold, to remove or take a role from more than 2 teachers at once; an admin
 checks those.
 
