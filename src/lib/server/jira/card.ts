@@ -1,3 +1,4 @@
+import { CARD_DATE_FIELDS, type CardDateKey } from '$lib/card-page';
 import { jiraRequest, type JiraConfig } from './client';
 import { JIRA_FIELDS } from './fields';
 import { parseJiraTimestamp, RE_INSTRUCTOR_FIELD, TEACHER_FIELD, textareaText } from './status';
@@ -10,21 +11,8 @@ import { parseJiraTimestamp, RE_INSTRUCTOR_FIELD, TEACHER_FIELD, textareaText } 
  * See decisions/0040-admins-act-in-the-app-the-board-stays.md
  */
 
-/**
- * The card's date fields an admin can see and edit, in the order the page
- * lists them. `Recommended for RE` and `RE Failed` join once ticket 03 gives
- * them ids in `JIRA_FIELDS`.
- */
-export const CARD_DATE_FIELDS = [
-	{ key: 'trainingCompleted', label: 'Training Completed' },
-	{ key: 'reCompleted', label: 'RE Completed' },
-	{ key: 'teacherAssigned', label: 'Teacher Assigned' },
-	{ key: 'removed', label: 'Removed' },
-	{ key: 'vatusaAssigned', label: 'VATUSA Assigned' },
-	{ key: 'vatusaCompleted', label: 'VATUSA Completed' }
-] as const satisfies readonly { key: keyof typeof JIRA_FIELDS; label: string }[];
-
-export type CardDateKey = (typeof CARD_DATE_FIELDS)[number]['key'];
+// Every date the page lists is a field this file knows the id of.
+CARD_DATE_FIELDS satisfies readonly { key: keyof typeof JIRA_FIELDS }[];
 
 export type Card = {
 	/** TRK's status name, as the board shows it (`Needs CATP`). */
