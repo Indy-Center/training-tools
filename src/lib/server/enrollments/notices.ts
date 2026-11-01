@@ -1,3 +1,4 @@
+import { cardPagePath } from '$lib/card-page';
 import { SITE_URL } from '$lib/config';
 import { findCourse } from '$lib/courses';
 import type { ExamResult } from '$lib/ctrs';
@@ -52,6 +53,15 @@ function course(code: string): string {
 
 function student(request: Pick<NoticeRequest, 'name' | 'cid'>): string {
 	return `${request.name} (${request.cid})`;
+}
+
+/**
+ * The training admins' card page for the request (`/admin/cards/{key}`),
+ * absolute, or null when it has no card. For a notice whose next step is an
+ * admin's on the card; the card on Jira stays in the `TRK card` field.
+ */
+function cardPage(request: Pick<NoticeRequest, 'issueKey'>): string | null {
+	return request.issueKey ? `${SITE_URL}${cardPagePath(request.issueKey)}` : null;
 }
 
 function card(request: NoticeRequest): NonNullable<Notice['fields']> {
@@ -189,7 +199,7 @@ export function certificationHeldNotice(request: NoticeRequest, missing: string[
 		title: `Certification not applied: ${request.name}`,
 		summary:
 			'The card is at Audit but is missing what shows the course was finished, so nothing has been granted. Fill it in on the card, or move the card back if it is there by mistake.',
-		link: request.issueUrl ?? `${SITE_URL}/admin/audit`,
+		link: cardPage(request) ?? `${SITE_URL}/admin/audit`,
 		fields: [
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
@@ -224,7 +234,7 @@ function ctrsNotice(request: NoticeRequest, record: CtrsRecordNotice, summary: s
 		tone: 'warning',
 		title: `CTRS record not acted on: ${request.name}`,
 		summary,
-		link: request.issueUrl ?? undefined,
+		link: cardPage(request) ?? undefined,
 		fields: [
 			{ label: 'Student', value: student(request) },
 			{ label: 'Course', value: course(request.course) },
