@@ -140,6 +140,19 @@ export function missingEvidence(course: string, card: CardEvidence): CompletionE
 	return missing;
 }
 
+/**
+ * What Edit card warns when Audit is the chosen stage: what `missingEvidence()`
+ * says a card with these values would lack, or null when it would lack nothing.
+ * A warning only — the admin may still save, and the hold then works as usual
+ * (decisions/0024), releasing itself once the fields are filled.
+ */
+export function holdWarning(course: string, card: CardEvidence): string | null {
+	const missing = missingEvidence(course, card);
+	if (missing.length === 0) return null;
+	const labels = missing.map((key) => COMPLETION_EVIDENCE_LABELS[key]);
+	return `This card will be held: missing ${labels.join(', ')}.`;
+}
+
 /** As stored on a request (`certification_hold`): the keys, comma-separated. */
 export function formatHold(missing: readonly CompletionEvidence[]): string | null {
 	return missing.length > 0 ? missing.join(',') : null;

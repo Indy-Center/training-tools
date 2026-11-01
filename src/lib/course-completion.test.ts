@@ -9,6 +9,7 @@ import {
 	evaluatesCourse,
 	formatHold,
 	holdLabels,
+	holdWarning,
 	missingEvidence
 } from './course-completion';
 import { COURSES, isEnrollableCourseCode } from './courses';
@@ -207,6 +208,35 @@ describe('canCompleteExam', () => {
 	it('is not for their own request, or outside the exam stage', () => {
 		expect(canCompleteExam({ ...scheduled, cid: '100' }, teacher)).toBe(false);
 		expect(canCompleteExam({ ...scheduled, status: 'in-training' }, teacher)).toBe(false);
+	});
+});
+
+describe('holdWarning', () => {
+	it('names what a card sent to Audit with these values would lack', () => {
+		expect(
+			holdWarning('T-RC', {
+				trainingCompleted: null,
+				reInstructor: 'HI',
+				reCompleted: '2026-10-05'
+			})
+		).toBe('This card will be held: missing Training Completed.');
+		expect(
+			holdWarning('S-GC', {
+				trainingCompleted: '2026-10-01',
+				reInstructor: null,
+				reCompleted: null
+			})
+		).toBe('This card will be held: missing RE Instructor, RE Completed.');
+	});
+
+	it('says nothing for a card that has it all', () => {
+		expect(
+			holdWarning('A-GC', {
+				trainingCompleted: '2026-10-01',
+				reInstructor: null,
+				reCompleted: null
+			})
+		).toBeNull();
 	});
 });
 
