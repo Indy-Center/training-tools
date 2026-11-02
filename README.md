@@ -90,7 +90,7 @@ part works, written for whoever maintains it.
 | `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                                                                 |
 | `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                                                                       |
 | `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`                                               |
-| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs                                             |
+| `GET /admin`                 | admin      | Requests that never reached TRK, a held roster change, and the health of the background jobs                       |
 | `POST /admin`                | admin      | `?/retry` files a stuck request again; `?/applyRosterHold` applies a held roster removal now                       |
 | `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
 | `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
@@ -374,7 +374,7 @@ src/
 │   │   ├── scheduled.ts       the cron's job list, in order, and the runner that guards each
 │   │   ├── job-health.ts      records each job's last run; read back by /admin
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for / and /enroll/tier-2
-│   │   ├── jira/              Jira client, field ids, issue payload builder
+│   │   ├── jira/              Jira client, field ids, issue payload builder, live card reads
 │   │   ├── cms/               the one CMS (payload) reader, through copies kept in D1
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
