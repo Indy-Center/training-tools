@@ -108,13 +108,28 @@ export async function findSelectOption(
 	fieldId: string,
 	candidates: readonly (string | null | undefined)[]
 ): Promise<SelectOption | null> {
+	return matchSelectOption(await fetchSelectOptions(config, issueKey, fieldId), candidates);
+}
+
+/**
+ * Every option one of an issue's select fields offers it now (`allowedValues`
+ * in its edit metadata), in Jira's order. Edit card lists RE Instructor's.
+ * Throws JiraError.
+ */
+export async function fetchSelectOptions(
+	config: JiraConfig,
+	issueKey: string,
+	fieldId: string
+): Promise<SelectOption[]> {
 	const meta = await jiraRequest<EditMeta>(
 		config,
 		`/issue/${encodeURIComponent(issueKey)}/editmeta`,
 		{ method: 'GET' }
 	);
 
-	return matchSelectOption(meta.fields?.[fieldId]?.allowedValues ?? [], candidates);
+	return (meta.fields?.[fieldId]?.allowedValues ?? []).flatMap((option) =>
+		option.id && option.value ? [{ id: option.id, value: option.value }] : []
+	);
 }
 
 /** Pure half of `findSelectOption`, for testing. Case and stray spaces are ignored. */

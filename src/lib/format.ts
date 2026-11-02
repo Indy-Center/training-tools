@@ -60,3 +60,10 @@ export function formatAgo(value: DateInput, now: DateInput): string {
 export function formatCardDate(value: string, style: 'short' | 'long' = 'short'): string {
 	return formatDate(new Date(`${value}T12:00:00Z`), style);
 }
+
+/** A real calendar date, not just the right shape: 2026-02-30 is refused. */
+export function isRealDate(date: string): boolean {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+	const parsed = new Date(`${date}T00:00:00Z`);
+	return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+}

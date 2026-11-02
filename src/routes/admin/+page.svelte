@@ -14,6 +14,7 @@
 		needsAttention,
 		type JobHealthState
 	} from '$lib/job-health';
+	import IconAccountMinus from '~icons/mdi/account-minus-outline';
 	import IconClipboardAlert from '~icons/mdi/clipboard-alert-outline';
 	import IconClipboardCheck from '~icons/mdi/clipboard-check-outline';
 	import IconCheck from '~icons/mdi/check-circle';
@@ -25,6 +26,7 @@
 
 	/** The request being retried, so only its button shows as busy. */
 	let retryingId = $state<string | null>(null);
+	let applyingHold = $state(false);
 
 	const STATE_COLORS: Record<JobHealthState, 'green' | 'red' | 'orange' | 'gray'> = {
 		ok: 'green',
@@ -165,6 +167,58 @@
 {/snippet}
 
 <div class="space-y-6">
+	{#if data.rosterHold || form?.holdApplied || form?.holdError}
+		<Panel title="Held roster change" icon={IconAccountMinus}>
+			{#if form?.holdError}
+				<div class="px-4 pt-4">
+					<Alert>{form.holdError}</Alert>
+				</div>
+			{:else if form?.holdApplied}
+				<p class="flex items-center gap-2 px-4 pt-4 text-sm text-green-400">
+					<IconCheck class="h-4 w-4" />
+					{form.holdApplied}
+				</p>
+			{/if}
+
+			{#if data.rosterHold}
+				<p class="px-4 pt-4 text-sm text-gray-400">
+					VATUSA's roster dropped more members than one sync may remove, so none were removed. The
+					hold started {formatDateTime(data.rosterHold.startedAt)} and applies by itself
+					{formatDateTime(data.rosterHold.appliesAt)}, to whoever is still missing then. If these
+					members really have left, apply it now.
+				</p>
+				<ul class="mt-3 divide-y divide-slate-700/60 border-t border-slate-700/60">
+					{#each data.rosterHold.members as member (member.cid)}
+						<li class="flex flex-wrap items-center gap-2 px-4 py-2">
+							<span class="text-sm text-white">{member.name}</span>
+							<span class="font-mono text-xs text-gray-500">{member.cid}</span>
+						</li>
+					{/each}
+				</ul>
+				<form
+					method="POST"
+					action="?/applyRosterHold"
+					class="border-t border-slate-700/60 px-4 py-3"
+					use:enhance={() => {
+						applyingHold = true;
+						return async ({ update }) => {
+							await update();
+							await invalidateAll();
+							applyingHold = false;
+						};
+					}}
+				>
+					{#each data.rosterHold.members as member (member.cid)}
+						<input type="hidden" name="cid" value={member.cid} />
+					{/each}
+					<Button type="submit" variant="secondary" size="sm" disabled={applyingHold}>
+						{applyingHold ? 'Applying…' : 'Apply now'}
+					</Button>
+				</form>
+			{/if}
+		</Panel>
+	{/if}
+
 	<Panel title="Requests not on the TRK board" icon={IconClipboardAlert}>
 		{#if form?.retryError}
 			<div class="px-4 pt-4">

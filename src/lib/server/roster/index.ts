@@ -2,7 +2,15 @@ import { and, asc, eq, isNull, like, ne, or, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { rosterMembersTable, type RosterMemberRow } from '$lib/db/schema/roster';
 
-export { syncRoster, type RosterSyncResult } from './sync';
+export {
+	syncRoster,
+	clearRosterRelease,
+	readRosterHold,
+	writeRosterRelease,
+	RosterHoldError,
+	type RosterHold,
+	type RosterSyncResult
+} from './sync';
 export { readRoster } from './read';
 export { loadMirror, memberName, type MirrorMember } from './mirror';
 

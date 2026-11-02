@@ -90,10 +90,12 @@ part works, written for whoever maintains it.
 | `GET /teachers`              | admin      | The teacher roster, open slots, TRK dropdown drift                                                                 |
 | `GET /teachers/{cid}`        | admin/self | One teacher's profile, students and timeline                                                                       |
 | `POST /teachers/{cid}`       | admin/self | `?/updateProfile` (self too), `?/updateAdmin`, `?/setQualifications`                                               |
-| `GET /admin`                 | admin      | Requests that never reached TRK, and the health of the background jobs                                             |
-| `POST /admin`                | admin      | `?/retry` files a stuck request again                                                                              |
+| `GET /admin`                 | admin      | Requests that never reached TRK, a held roster change, and the health of the background jobs                       |
+| `POST /admin`                | admin      | `?/retry` files a stuck request again; `?/applyRosterHold` applies a held roster removal now                       |
 | `GET /admin/audit`           | admin      | Finished courses waiting on the TA                                                                                 |
 | `POST /admin/audit`          | admin      | `?/complete` moves the card to Completed                                                                           |
+| `GET /admin/cards/{key}`     | admin      | One TRK card, read live: its fields and latest comments                                                            |
+| `POST /admin/cards/{key}`    | admin      | `?/edit` sets the card's stage, dates and examiner, then reads it back                                             |
 
 `?/enroll` and `/enroll/tier-2` are open only to members `/` offers them to —
 both gate on `loadTrainingContext()`, the same call `/` renders from.
@@ -334,6 +336,7 @@ src/
 │   ├── content/               site copy as markdown, compiled at build time (DEV-119)
 │   ├── course-placement.ts    pure "which course is next" logic (DEV-119)
 │   ├── course-completion.ts   pure end-of-course rules: who may act, what it earns
+│   ├── card-page.ts           the admin card page's path and its editable date fields (client-safe)
 │   ├── courses.ts             the six courses + their Jira option ids (client-safe)
 │   ├── enrollment.ts          pure enrollment-form validation
 │   ├── identity-links.ts      login/logout URL builders (client-safe)
@@ -371,7 +374,7 @@ src/
 │   │   ├── scheduled.ts       the cron's job list, in order, and the runner that guards each
 │   │   ├── job-health.ts      records each job's last run; read back by /admin
 │   │   ├── training-flow.ts   loadTrainingContext(): the one gate for / and /enroll/tier-2
-│   │   ├── jira/              Jira client, field ids, issue payload builder
+│   │   ├── jira/              Jira client, field ids, issue payload builder, live card reads
 │   │   ├── cms/               the one CMS (payload) reader, through copies kept in D1
 │   │   └── db/                drizzle client factory
 │   └── utils/permissions.ts   training:* role vocabulary
@@ -399,7 +402,12 @@ VATUSA can answer with a short roster that looks like a valid one, so the sync
 run**. Everyone present is still updated and added; the removals are held (in
 `sync_state`) and the job fails, which alerts the tech team. Members who come
 back leave the hold. Whoever is still missing 24 hours later is removed, or
-sooner if the hold shrinks to the limit. The teacher roster sync refuses, with no
+sooner if the hold shrinks to the limit. `/admin` shows a held change, with
+who is held and when it applies by itself, and **Apply now** (`training:admin`)
+posts the CIDs shown into `sync_state` `roster-removal-release` and syncs at
+once. The sync applies early only when every CID it finds missing was in that
+release; if someone else has gone missing since, the hold stays and the page
+says how many more. The release is good for one run. The teacher roster sync refuses, with no
 hold, to remove or take a role from more than 2 teachers at once; an admin
 checks those.
 
@@ -1000,6 +1008,8 @@ behind the scenes is seen before a student has to report it.
   states: OK, Failing (its last run threw), Not running (no run for 30 minutes —
   three missed intervals), or No runs recorded. A failure shows its message and
   how many runs in a row; the last error stays visible after a recovery.
+- **Held roster change.** When the roster sync is holding removals back (see the
+  roster sync), who is held and when it applies by itself, with **Apply now**.
 - **Jira webhook.** The last verified delivery. It is never "Not running": it
   fires when staff change an issue, so a quiet board is not a fault.
 - **Configuration.** Whether the Jira credentials, the webhook secret and the
@@ -1012,6 +1022,32 @@ Recording a job's outcome is bookkeeping: if the write fails it is logged, and
 neither fails the job nor stops the next one. Training admins are told in
 Discord when a request gets stuck, and when a job starts failing or recovers —
 see Notifications.
+
+**The card page**, `/admin/cards/{key}` (`TRK-14`), shows one request's TRK
+card read live from Jira: its stage, Teacher, RE Instructor and dates, its five
+latest comments, and what a held certification lacks. If Jira can't be read it
+shows the request and Jira's error. It isn't in the nav: for a training admin,
+the TRK key on each `/waitlist` and `/admin/audit` row links there, and so do
+the notices about a held certification or a CTRS record the app didn't act on.
+
+**Edit card**, on that page, lets a training admin change the card without
+opening the board: its stage (the moves Jira offers it now, never Completed,
+which stays with the audit), its dates, and RE Instructor. A save writes the
+changed fields in one call, then makes the move, comments on the card with what
+landed (`Edited by …`), and reads the card back as after a drag on the board, so
+the dates on the move, the certification and its hold follow as usual. It's
+refused, writing nothing, for a request the student withdrew here; a hand-posted
+move to Completed (`A card is completed from the audit.`); an examiner who is the
+student's teacher; a date that is malformed or after today; a stage Jira no
+longer offers from the card's status (`TRK-14 can't move to … from … now. Reload
+and try again.`, 409); an examiner not on Jira's RE Instructor list (`TRK's RE
+Instructor list has no option for … . Reload and try again.`); or no change. The
+examiner and date refusals check only values the save changes: one the card
+already holds and the form posts back is never refused. If Jira refuses the
+move, the fields stay saved and the page says so.
+Choosing Audit warns what the card would be held for; it doesn't stop the save.
+`Waitlisted`, `Certificate Updated`, Teacher, course, CID and name stay on the
+board (Teacher is changed from `/waitlist`).
 
 ### Site copy
 

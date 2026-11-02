@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SITE_URL } from '$lib/config';
 import { ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 import {
 	announcementFor,
@@ -285,6 +286,20 @@ describe('CTRS record notices', () => {
 				.summary
 		).toContain('recommending a rating exam, but VATUSA names no instructor');
 	});
+
+	// The card page is where the admin moves the card the record did not.
+	it('links each to the card page, keeping the card on Jira as a field', () => {
+		const notices = [
+			ctrsTeacherRecordNotice(request, record),
+			ctrsRecommendNotice(request, { ...record, says: 'recommend' }),
+			ctrsNoInstructorNotice(request, record),
+			ctrsUnclearCourseNotice({ ...request, course: 'CUSTOM' }, record)
+		];
+		for (const notice of notices) {
+			expect(notice.link).toBe(`${SITE_URL}/admin/cards/TRK-42`);
+			expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+		}
+	});
 });
 
 describe('certificationHeldNotice', () => {
@@ -297,11 +312,18 @@ describe('certificationHeldNotice', () => {
 		expect(notice.summary).toContain('nothing has been granted');
 	});
 
-	it('links to the card, or to the audit page when Jira’s address is unknown', () => {
-		expect(notice.link).toBe('https://jira.test/browse/TRK-42');
-		expect(certificationHeldNotice({ ...request, issueUrl: null }, ['x']).link).toMatch(
-			/\/admin\/audit$/
+	it('links to the card page, and to the card on Jira beside it', () => {
+		expect(notice.link).toBe(`${SITE_URL}/admin/cards/TRK-42`);
+		expect(field(notice, 'TRK card')).toBe('[TRK-42](https://jira.test/browse/TRK-42)');
+		expect(certificationHeldNotice({ ...request, issueUrl: null }, ['x']).link).toBe(
+			`${SITE_URL}/admin/cards/TRK-42`
 		);
+	});
+
+	it('links to the audit page for a request with no card', () => {
+		expect(
+			certificationHeldNotice({ ...request, issueKey: null, issueUrl: null }, ['x']).link
+		).toBe(`${SITE_URL}/admin/audit`);
 	});
 
 	it('pings nobody', () => {
