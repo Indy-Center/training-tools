@@ -13,7 +13,7 @@
 	let { issueKey, url }: { issueKey: string | null; url: string | null } = $props();
 
 	// The root layout's load puts the viewer's roles on every page.
-	const admin = $derived(isTrainingAdmin((page.data as { roles?: string[] }).roles));
+	const admin = $derived(isTrainingAdmin(page.data.roles));
 </script>
 
 {#if issueKey && admin}

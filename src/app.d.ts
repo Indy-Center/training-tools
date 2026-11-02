@@ -37,6 +37,11 @@ declare global {
 			session: SessionContext | null;
 		}
 
+		/** What every page's `page.data` has: the root layout's load returns it. */
+		interface PageData {
+			roles?: string[];
+		}
+
 		interface Platform {
 			// `wrangler types` only knows IDENTITY and LARRY as bare Fetchers, so we
 			// replace them with the typed RPC bindings. Optional, because `vite dev`
