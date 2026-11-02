@@ -218,14 +218,17 @@ export const actions: Actions = {
 				holdApplied: `Applied: ${result.removed} members removed from the roster.`
 			};
 		} catch (error) {
-			// The sync died before it read the release (VATUSA unreachable, say):
-			// a release is good for one run, so do not leave it for a later one.
-			if (!(error instanceof RosterHoldError)) await clearRosterRelease(locals.db);
-			if (error instanceof RosterHoldError && error.moreMissing) {
+			if (error instanceof RosterHoldError) {
+				// No count when the hold cleared and a new one opened since the check
+				// above: the release didn't apply to it, so the list is out of date.
+				const more = error.moreMissing ? `: ${error.moreMissing} more are missing` : '';
 				return fail(409, {
-					holdError: `The roster changed since you looked: ${error.moreMissing} more are missing. Check the list and apply again.`
+					holdError: `The roster changed since you looked${more}. Check the list and apply again.`
 				});
 			}
+			// The sync died before it read the release (VATUSA unreachable, say):
+			// a release is good for one run, so do not leave it for a later one.
+			await clearRosterRelease(locals.db);
 			throw error;
 		}
 	}
