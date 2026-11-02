@@ -1,13 +1,13 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
+import type { Card } from '$lib/card-page';
 import { holdLabels } from '$lib/course-completion';
 import { issueUrl, JiraError, resolveJiraConfig } from '$lib/server/jira/client';
 import {
 	fetchCard,
 	fetchLatestComments,
 	fetchTransitions,
-	type Card,
 	type CardComment,
 	type CardTransition
 } from '$lib/server/jira/card';

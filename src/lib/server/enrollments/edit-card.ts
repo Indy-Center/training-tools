@@ -1,9 +1,9 @@
 import type { Database } from '$lib/server/db';
 import type { Enrollment } from '$lib/db/schema/enrollments';
-import { CARD_DATE_FIELDS, type CardDateKey } from '$lib/card-page';
-import { isRealDate } from '$lib/ctrs';
+import { CARD_DATE_FIELDS, type Card, type CardDateKey, type StageChoice } from '$lib/card-page';
+import { isRealDate } from '$lib/format';
 import { JiraError } from '$lib/server/jira/client';
-import { fetchCard, fetchTransitions, type Card, type CardTransition } from '$lib/server/jira/card';
+import { fetchCard, fetchTransitions, type CardTransition } from '$lib/server/jira/card';
 import { transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import {
@@ -28,36 +28,24 @@ import { note, onCard } from './completion';
  * See decisions/0040-admins-act-in-the-app-the-board-stays.md
  */
 
-/** A stage the form offers: the card's own, or where a move Jira offers now leads. */
-export type StageChoice = {
-	/** TRK's status name, as the board shows it. */
-	name: string;
-	/** Audit, where a card without its evidence is held (0024): the form warns. */
-	audit: boolean;
-};
-
 const fold = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
 
 /**
- * The form's stage choices: the card's current stage, then each move 04's
- * `fetchTransitions()` lists (already one per target status), **except
- * Completed**, which only the audit makes (0040).
+ * The form's stage choices: the card's current stage, then each move
+ * `fetchTransitions()` lists (already one per target status) that leads
+ * somewhere else, **except Completed**, which only the audit makes (0040).
  */
 export function stageChoices(
 	current: string | null,
 	transitions: readonly CardTransition[]
 ): StageChoice[] {
-	const names = [
-		...(current ? [current] : []),
-		...transitions.map((transition) => transition.to)
-	].filter((name) => mapJiraStatus(name) !== 'completed');
+	const elsewhere = transitions
+		.map((transition) => transition.to)
+		.filter((name) => fold(name) !== fold(current));
 
-	const seen = new Set<string>();
-	return names.flatMap((name) => {
-		if (seen.has(fold(name))) return [];
-		seen.add(fold(name));
-		return [{ name, audit: mapJiraStatus(name) === 'certification-update' }];
-	});
+	return [...(current ? [current] : []), ...elsewhere]
+		.filter((name) => mapJiraStatus(name) !== 'completed')
+		.map((name) => ({ name, audit: mapJiraStatus(name) === 'certification-update' }));
 }
 
 /**
@@ -135,7 +123,7 @@ export function planCardEdit(input: {
 		move = { from: card.status ?? 'none', to: offered.name };
 	}
 
-	if (fold(examiner) !== fold(card.reInstructor)) {
+	if (examinerChanged) {
 		if (examiner) {
 			const option = matchSelectOption(examiners, [examiner]);
 			if (!option) {
@@ -157,7 +145,9 @@ export function planCardEdit(input: {
 	return { fields, changes, move };
 }
 
-export type CardEditResult = { ok: true } | { ok: false; message: string; status: 400 | 409 | 502 };
+type CardEditFailure = { ok: false; message: string; status: 400 | 409 | 502 };
+
+export type CardEditResult = { ok: true } | CardEditFailure;
 
 /**
  * Save an Edit card form, in the spec's order: refuse (writing nothing), the
@@ -187,8 +177,9 @@ export async function editCard(
 		return { ok: false, message: 'A card is completed from the audit.', status: 400 };
 	}
 
-	let refusal: CardEditRefusal | null = null;
-	let moveError: string | null = null;
+	// What the save came to when `onCard()`'s own result can't say it: a refusal
+	// and its status, or a move Jira refused after the fields landed.
+	let failure: CardEditFailure | undefined;
 
 	const result = await onCard(db, env, enrollment, 'edit card', async (config, issueKey) => {
 		// Read again rather than trust what the page was given: the card, and the
@@ -207,8 +198,8 @@ export async function editCard(
 			today: toFacilityDate(now)
 		});
 		if ('refused' in plan) {
-			refusal = plan;
-			return { ok: false, message: plan.refused };
+			failure = { ok: false, message: plan.refused, status: plan.status };
+			return failure;
 		}
 
 		const landed: string[] = [];
@@ -223,17 +214,17 @@ export async function editCard(
 			} catch (err) {
 				const detail = err instanceof JiraError ? err.message : String(err);
 				console.error('[training-tools] edit card: move refused', issueKey, detail);
-				moveError = `${issueKey} can't move to ${plan.move.to} from ${plan.move.from} now. Reload and try again. (${detail})`;
+				failure = {
+					ok: false,
+					message: `${issueKey} can't move to ${plan.move.to} from ${plan.move.from} now. Reload and try again. (${detail})`,
+					status: 409
+				};
 			}
 		}
 		if (landed.length > 0) await note(config, issueKey, `Edited by ${by}: ${landed.join('; ')}.`);
 	});
 
-	if (refusal) {
-		const { refused, status } = refusal as CardEditRefusal;
-		return { ok: false, message: refused, status };
-	}
+	if (failure) return failure;
 	if (!result.ok) return { ok: false, message: result.message, status: 502 };
-	if (moveError) return { ok: false, message: moveError, status: 409 };
 	return { ok: true };
 }

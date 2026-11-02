@@ -3,18 +3,15 @@
 	import { invalidateAll } from '$app/navigation';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { CARD_DATE_FIELDS, type CardDateKey } from '$lib/card-page';
+	import { CARD_DATE_FIELDS, type Card, type StageChoice } from '$lib/card-page';
 	import { holdWarning } from '$lib/course-completion';
 
 	type Props = {
 		course: string;
-		card: {
-			status: string | null;
-			reInstructor: string | null;
-			dates: Record<CardDateKey, string | null>;
-		};
+		card: Pick<Card, 'status' | 'reInstructor' | 'dates'>;
 		/** The card's stage and each move Jira offers it, Completed left out. */
-		stages: { name: string; audit: boolean }[];
+		stages: StageChoice[];
+		/** RE Instructor's options (Jira's select options). */
 		examiners: { id: string; value: string }[];
 	};
 

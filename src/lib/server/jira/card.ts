@@ -1,4 +1,4 @@
-import { CARD_DATE_FIELDS, type CardDateKey } from '$lib/card-page';
+import { CARD_DATE_FIELDS, type Card, type CardDateKey } from '$lib/card-page';
 import { jiraRequest, type JiraConfig } from './client';
 import { JIRA_FIELDS } from './fields';
 import { parseJiraTimestamp, RE_INSTRUCTOR_FIELD, TEACHER_FIELD, textareaText } from './status';
@@ -13,17 +13,6 @@ import { parseJiraTimestamp, RE_INSTRUCTOR_FIELD, TEACHER_FIELD, textareaText } 
 
 // Every date the page lists is a field this file knows the id of.
 CARD_DATE_FIELDS satisfies readonly { key: keyof typeof JIRA_FIELDS }[];
-
-export type Card = {
-	/** TRK's status name, as the board shows it (`Needs CATP`). */
-	status: string | null;
-	/** `Teacher`'s value: initials. */
-	teacher: string | null;
-	/** `RE Instructor`'s value: initials, or `VATUSA`. */
-	reInstructor: string | null;
-	/** As the card holds them, `YYYY-MM-DD`, or null when empty. */
-	dates: Record<CardDateKey, string | null>;
-};
 
 type CardIssue = {
 	fields?: Record<string, unknown> | null;
