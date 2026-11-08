@@ -774,7 +774,12 @@ What staff do from a row:
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
   the two; either closes the request. Either way the card's `Removed` date is
-  filled in — see below.
+  filled in — see below. Remove asks why, with no default: No response, Not
+  eligible, Duplicate or mistake, or Other (`Pick a reason for removing <name>.`
+  if none is chosen, and nothing is written). The reason goes in the card's
+  `Removal Reason` before the move, and the comment names it (`Removed by <name>: <reason>.`).
+  The fifth reason, Roster removal, is set only by the roster removals job; a
+  withdrawal has no reason, and a card dragged to Removed on the board has none.
 
 **Some fields follow the card, not the button.** Whether the move was made here
 or on the board, the app stamps them when it sees the card move

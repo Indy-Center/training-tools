@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ActionForm from '$lib/components/forms/ActionForm.svelte';
 	import TeacherSelect from '$lib/components/teachers/TeacherSelect.svelte';
+	import type { RemovalReasonChoice } from '$lib/card-page';
 	import type { WaitlistRow } from '$lib/waitlist';
 	import RowMenu from './RowMenu.svelte';
 
@@ -14,11 +15,14 @@
 	let {
 		row,
 		courseName,
+		removalReasons,
 		busy = $bindable(null)
 	}: {
 		row: WaitlistRow;
 		/** The course's name, for the wording of the confirmations. */
 		courseName: string;
+		/** What Remove asks for. */
+		removalReasons: RemovalReasonChoice[];
 		busy?: string | null;
 	} = $props();
 </script>
@@ -42,7 +46,7 @@
 				currentLabel={row.teacher ?? 'No teacher'}
 			/>
 		</ActionForm>
-		<RowMenu {row} {courseName} attached bind:busy />
+		<RowMenu {row} {courseName} {removalReasons} attached bind:busy />
 	</div>
 	{#if row.examiner}
 		<p class="mt-1 text-gray-500">Examiner: {row.examiner}</p>
@@ -59,7 +63,7 @@
 		>
 			<TeacherSelect teachers={row.teachers} />
 		</ActionForm>
-		<RowMenu {row} {courseName} attached variant="primary" bind:busy />
+		<RowMenu {row} {courseName} {removalReasons} attached variant="primary" bind:busy />
 	</div>
 {:else}
 	<!-- Nobody to choose yet: say why, and keep the other actions within reach. -->
@@ -73,6 +77,6 @@
 		{:else}
 			<span class="text-orange-300">No active teacher is qualified for this course</span>
 		{/if}
-		<RowMenu {row} {courseName} bind:busy />
+		<RowMenu {row} {courseName} {removalReasons} bind:busy />
 	</div>
 {/if}
