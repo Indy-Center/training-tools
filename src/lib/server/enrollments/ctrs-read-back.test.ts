@@ -203,7 +203,7 @@ describe('the ctrs records job, Rating Exam half', () => {
 
 		expect(result.ratingExam).toMatchObject({ failed: 1, errors: 0 });
 		expect(jira.comments('TRK-1')).toContain(
-			"Rating exam not passed: CTRS record 501 of 2026-10-25, filed by 1000555, found in VATUSA's records. Training Completed cleared. The card's examiner is EF. (through training.flyindycenter.com)"
+			"Rating exam not passed: CTRS record 501 of 2026-10-25, filed by 1000555, found in VATUSA's records. The card's examiner is EF. (through training.flyindycenter.com)"
 		);
 		expect(jira.puts('TRK-1')).not.toContainEqual(
 			expect.objectContaining({ [RE_INSTRUCTOR_FIELD]: expect.anything() })

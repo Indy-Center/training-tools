@@ -16,7 +16,7 @@ export function examResultCopy(result: ExamResult, student: string, course: stri
 		tone: passed ? ('default' as const) : ('danger' as const),
 		before: passed
 			? `${student}'s ${name} rating exam will be marked passed, and the enrollment advanced to Audit.`
-			: `${student}'s ${name} rating exam will be marked not passed, and the enrollment advanced to Needs CATP. Training Completed is cleared.`,
+			: `${student}'s ${name} rating exam will be marked not passed, and the enrollment advanced to Needs CATP.`,
 		...NO_REPORT_FILED
 	};
 }
@@ -25,5 +25,5 @@ export function examResultCopy(result: ExamResult, student: string, course: stri
 export function examResultNote(result: ExamResult, by: string): string {
 	return result === 'passed'
 		? `Rating exam marked passed by ${by} on /teach; ${NOT_FILED_THROUGH_THE_APP}.`
-		: `Rating exam marked not passed by ${by} on /teach; ${NOT_FILED_THROUGH_THE_APP}. Training Completed cleared.`;
+		: `Rating exam marked not passed by ${by} on /teach; ${NOT_FILED_THROUGH_THE_APP}.`;
 }

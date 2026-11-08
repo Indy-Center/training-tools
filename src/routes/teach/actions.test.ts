@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Database } from '$lib/server/db';
+import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { testDb } from '$lib/server/test-db';
 import { enrollmentsTable, type InsertEnrollment } from '$lib/db/schema/enrollments';
 import { teachersTable } from '$lib/db/schema/teachers';
@@ -81,6 +82,21 @@ function fakeJira() {
 		calls.filter((call) => call.path.endsWith('/transitions') && call.method === 'POST');
 	return { calls, comments, moves };
 }
+
+describe('/teach ?/failExam keeps Training Completed', () => {
+	it('moves to Needs CATP and comments, writing no field to the card', async () => {
+		await addRequest({ status: 'rating-exam', reInstructor: 'OT' });
+		const jira = fakeJira();
+
+		await actions.failExam(post('1000002', { id: 'req-1' }));
+
+		expect(jira.moves().map((move) => move.body)).toEqual([{ transition: { id: '3' } }]);
+		expect(jira.comments()).toHaveLength(1);
+		const puts = jira.calls.filter((call) => call.method === 'PUT');
+		expect(JSON.stringify(puts)).not.toContain(JIRA_FIELDS.trainingCompleted);
+		expect(puts).toEqual([]);
+	});
+});
 
 /** A POST to `?/completeTraining` by the teacher with this CID. */
 function post(cid: string, fields: Record<string, string>) {
@@ -191,7 +207,7 @@ describe.each([
 		done: 'Rating exam marked not passed for Jo Rivera.',
 		moveId: '3',
 		comment:
-			'Rating exam marked not passed by Sam Teacher on /teach; no training report filed through the app. Training Completed cleared. (through training.flyindycenter.com)'
+			'Rating exam marked not passed by Sam Teacher on /teach; no training report filed through the app. (through training.flyindycenter.com)'
 	}
 ])('/teach ?/$action', ({ action, done, moveId, comment }) => {
 	const run = (cid: string) => actions[action](post(cid, { id: 'req-1' }));
