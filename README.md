@@ -656,7 +656,8 @@ withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 **A student who leaves the home roster comes off their request by themselves**
 (decisions/0037, the `roster removals` job). Once their `left_home_at` is more
 than 24 hours ago, an open request at Waitlist, In Training, Rating Exam or
-Needs CATP (never Audit) that is not **kept in line** is removed: the card is
+Needs CATP (never Audit) that is not **kept in line** is removed: the card's
+`Removal Reason` is set to Roster removal, the card is
 commented on ("Left the ZID home roster on … restored to … if back on the home
 roster by …"), moved to Removed and read back, then the row is stamped with
 `roster_removed_at`, the stage it left, the student's `left_home_at` and

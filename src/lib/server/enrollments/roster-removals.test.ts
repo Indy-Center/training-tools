@@ -168,6 +168,22 @@ describe('processRosterRemovals: removal', () => {
 		expect(removed.restoreClosedAt).toBeNull();
 	});
 
+	it('sets Removal Reason to Roster removal before the move', async () => {
+		await addMember({ cid: '1000001', leftHomeAt: LEFT, removedAt: LEFT });
+		await addRequest({ id: 'a', cid: '1000001', jiraIssueKey: 'TRK-1' });
+		const jira = fakeJira({ 'TRK-1': { status: 'Waitlist', updated: updatedAt } });
+
+		await processRosterRemovals(db, fakeLarry().env, NOW);
+
+		const writes = jira.calls.filter((call) => call.method !== 'GET');
+		const reason = writes.findIndex(
+			(call) => call.method === 'PUT' && 'customfield_10323' in call.body.fields
+		);
+		const move = writes.findIndex((call) => call.path.endsWith('/transitions'));
+		expect(writes[reason]?.body.fields).toEqual({ customfield_10323: { id: '10180' } });
+		expect(reason).toBeLessThan(move);
+	});
+
 	it('names the stage the request left in the comment', async () => {
 		await addMember({ cid: '1000001', leftHomeAt: LEFT, membership: 'visit' });
 		await addRequest({ id: 'a', cid: '1000001', status: 'rating-exam', jiraIssueKey: 'TRK-1' });
