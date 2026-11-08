@@ -5,7 +5,7 @@ import { isRealDate } from '$lib/format';
 import { JiraError } from '$lib/server/jira/client';
 import { fetchCard, fetchTransitions, type CardTransition } from '$lib/server/jira/card';
 import { transitionIssueToStatus } from '$lib/server/jira/enrollment';
-import { JIRA_FIELDS } from '$lib/server/jira/fields';
+import { adminRemovalReason, JIRA_FIELDS, REMOVAL_REASONS } from '$lib/server/jira/fields';
 import {
 	fetchSelectOptions,
 	matchSelectOption,
@@ -45,7 +45,12 @@ export function stageChoices(
 
 	return [...(current ? [current] : []), ...elsewhere]
 		.filter((name) => mapJiraStatus(name) !== 'completed')
-		.map((name) => ({ name, audit: mapJiraStatus(name) === 'certification-update' }));
+		.map((name) => ({
+			name,
+			audit: mapJiraStatus(name) === 'certification-update',
+			// The card's own stage is never a removal, even when it is Removed.
+			removal: name !== current && mapJiraStatus(name) === 'removed'
+		}));
 }
 
 /**
@@ -57,6 +62,8 @@ export type CardEditInput = {
 	/** RE Instructor's value (`HI`, `VATUSA`), or empty for none. */
 	examiner?: string;
 	dates: Partial<Record<CardDateKey, string>>;
+	/** Our name for the reason (`no-response`), read only on a move to Removed. */
+	removalReason?: string;
 };
 
 export type CardEditPlan = {
@@ -84,8 +91,19 @@ export function planCardEdit(input: {
 	examiners: readonly SelectOption[];
 	/** The facility's day, `YYYY-MM-DD`. */
 	today: string;
+	/** The student's name, for the refusal that names them. */
+	name: string;
 }): CardEditPlan | CardEditRefusal {
-	const { issueKey, edit, card, stages, examiners, today } = input;
+	const { issueKey, edit, card, stages, examiners, today, name } = input;
+
+	// A move to Removed needs a reason an admin may give. A card already there
+	// (a drag on the board leaves none) is not asked for one.
+	const stage = edit.stage?.trim() || card.status;
+	const removing = mapJiraStatus(stage) === 'removed' && mapJiraStatus(card.status) !== 'removed';
+	const reason = removing ? adminRemovalReason(edit.removalReason?.trim()) : null;
+	if (removing && !reason) {
+		return { refused: `Pick a reason for removing ${name}.`, status: 400 };
+	}
 
 	const examiner = edit.examiner === undefined ? card.reInstructor : edit.examiner.trim() || null;
 	const examinerChanged = fold(examiner) !== fold(card.reInstructor);
@@ -110,7 +128,6 @@ export function planCardEdit(input: {
 		changes.push(`${label} ${shown(card.dates[key])} → ${shown(value)}`);
 	}
 
-	const stage = edit.stage?.trim() || card.status;
 	let move: CardEditPlan['move'] = null;
 	if (stage && fold(stage) !== fold(card.status)) {
 		const offered = stages.find((choice) => fold(choice.name) === fold(stage));
@@ -140,6 +157,13 @@ export function planCardEdit(input: {
 		}
 	}
 
+	// Written with the other fields, so it is on the card before the move.
+	if (reason) {
+		const { id, label } = REMOVAL_REASONS[reason];
+		fields[JIRA_FIELDS.removalReason] = { id };
+		changes.push(`Removal Reason ${shown(card.removalReason)} → ${label}`);
+	}
+
 	if (changes.length === 0 && !move) return { refused: 'Nothing changed.', status: 400 };
 
 	return { fields, changes, move };
@@ -165,11 +189,13 @@ export async function editCard(
 	edit: CardEditInput,
 	now = new Date()
 ): Promise<CardEditResult> {
+	const nameOf = async () =>
+		(await getPeople(db)).get(enrollment.cid)?.name ?? enrollment.submittedName;
+
 	if (enrollment.withdrawnAt) {
-		const name = (await getPeople(db)).get(enrollment.cid)?.name ?? enrollment.submittedName;
 		return {
 			ok: false,
-			message: `${name} withdrew this request themselves; it can't be edited here.`,
+			message: `${await nameOf()} withdrew this request themselves; it can't be edited here.`,
 			status: 409
 		};
 	}
@@ -195,7 +221,9 @@ export async function editCard(
 			card,
 			stages: stageChoices(card.status, transitions),
 			examiners,
-			today: toFacilityDate(now)
+			today: toFacilityDate(now),
+			// Only a move to Removed's refusal names the student.
+			name: mapJiraStatus(edit.stage) === 'removed' ? await nameOf() : enrollment.submittedName
 		});
 		if ('refused' in plan) {
 			failure = { ok: false, message: plan.refused, status: plan.status };

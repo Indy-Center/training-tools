@@ -301,6 +301,47 @@ describe('/admin/cards/{key} ?/edit refusals', () => {
 		);
 	});
 
+	it('refuses a move to Removed without a reason, writing nothing', async () => {
+		await addRow();
+		const jira = fakeJira();
+
+		const result = await actions.edit(post({ stage: 'Removed' }));
+
+		expect(result).toMatchObject(refused(400, 'Pick a reason for removing Jo Rivera.'));
+		expect(jira.writes()).toEqual([]);
+	});
+
+	it('refuses Roster removal posted by hand as no reason', async () => {
+		await addRow();
+		const jira = fakeJira();
+
+		const result = await actions.edit(post({ stage: 'Removed', removalReason: 'roster-removal' }));
+
+		expect(result).toMatchObject(refused(400, 'Pick a reason for removing Jo Rivera.'));
+		expect(jira.writes()).toEqual([]);
+	});
+
+	it('asks for the reason before it checks the examiner', async () => {
+		await addRow();
+		fakeJira();
+
+		expect(await actions.edit(post({ stage: 'Removed', examiner: 'SW' }))).toMatchObject(
+			refused(400, 'Pick a reason for removing Jo Rivera.')
+		);
+	});
+
+	// A card dragged to Removed on the board has no reason; editing its dates
+	// later is not a removal.
+	it('does not ask for a reason on a card already in Removed', async () => {
+		await addRow({ status: 'removed' });
+		const jira = fakeJira({ fields: { status: { name: 'Removed' } } });
+
+		const result = await actions.edit(post({ stage: 'Removed', removed: '2026-10-03' }));
+
+		expect(result).toEqual({ edited: 'TRK-9001' });
+		expect(jira.puts()).toEqual([{ [JIRA_FIELDS.removed]: '2026-10-03' }]);
+	});
+
 	it('refuses a stage Jira does not offer the card now, writing nothing', async () => {
 		await addRow();
 		const jira = fakeJira();
@@ -365,6 +406,32 @@ describe('/admin/cards/{key} ?/edit saves', () => {
 		// The read-back brought our row into line with the card.
 		const row = await db.query.enrollmentsTable.findFirst();
 		expect(row?.status).toBe('in-training');
+	});
+
+	it('writes the reason with the other fields, then moves to Removed, and the comment names it', async () => {
+		await addRow();
+		const jira = fakeJira();
+
+		const result = await actions.edit(
+			post({ stage: 'Removed', removalReason: 'not-eligible', trainingCompleted: '2026-10-02' })
+		);
+
+		expect(result).toEqual({ edited: 'TRK-9001' });
+		const [fields, move, comment] = jira.writes();
+		expect(fields).toMatchObject({
+			method: 'PUT',
+			body: {
+				fields: {
+					[JIRA_FIELDS.trainingCompleted]: '2026-10-02',
+					customfield_10323: { id: '10182' }
+				}
+			}
+		});
+		expect(move.body.transition.id).toBe('13');
+		expect(comment.path).toBe('/issue/TRK-9001/comment');
+		expect(jira.comments()).toEqual([
+			'Edited by Sam Admin: Training Completed 2026-10-01 → 2026-10-02; Removal Reason none → Not eligible; moved Needs CATP → Removed. (through training.flyindycenter.com)'
+		]);
 	});
 
 	it('keeps the fields when the move fails, and says why', async () => {
@@ -440,10 +507,10 @@ describe('/admin/cards/{key} Edit card choices', () => {
 		const data = await loaded();
 
 		expect(data.stages).toEqual([
-			{ name: 'Needs CATP', audit: false },
-			{ name: 'In Training', audit: false },
-			{ name: 'Removed', audit: false },
-			{ name: 'Audit', audit: true }
+			{ name: 'Needs CATP', audit: false, removal: false },
+			{ name: 'In Training', audit: false, removal: false },
+			{ name: 'Removed', audit: false, removal: true },
+			{ name: 'Audit', audit: true, removal: false }
 		]);
 		expect(data.examiners).toEqual([
 			{ id: '201', value: 'HI' },
@@ -452,5 +519,14 @@ describe('/admin/cards/{key} Edit card choices', () => {
 		]);
 		// 04's list is passed on as Jira gave it, Completed included.
 		expect(data.transitions.map((t: { to: string }) => t.to)).toContain('Completed');
+	});
+
+	it('does not mark a card already in Removed as a removal', async () => {
+		await addRow({ status: 'removed' });
+		fakeJira({ fields: { status: { name: 'Removed' } } });
+
+		const data = await loaded();
+
+		expect(data.stages[0]).toEqual({ name: 'Removed', audit: false, removal: false });
 	});
 });

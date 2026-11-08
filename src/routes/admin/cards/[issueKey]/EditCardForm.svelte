@@ -3,7 +3,12 @@
 	import { invalidateAll } from '$app/navigation';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { CARD_DATE_FIELDS, type Card, type StageChoice } from '$lib/card-page';
+	import {
+		CARD_DATE_FIELDS,
+		type Card,
+		type RemovalReasonChoice,
+		type StageChoice
+	} from '$lib/card-page';
 	import { holdWarning } from '$lib/course-completion';
 
 	type Props = {
@@ -13,9 +18,11 @@
 		stages: StageChoice[];
 		/** RE Instructor's options (Jira's select options). */
 		examiners: { id: string; value: string }[];
+		/** Asked for on a move to Removed: the reasons an admin may choose. */
+		removalReasons: RemovalReasonChoice[];
 	};
 
-	let { course, card, stages, examiners }: Props = $props();
+	let { course, card, stages, examiners, removalReasons }: Props = $props();
 
 	// The form starts from the card; the page re-creates it when the card is read again.
 	const initial = () => ({
@@ -23,7 +30,9 @@
 		examiner: card.reInstructor ?? '',
 		trainingCompleted: card.dates.trainingCompleted ?? '',
 		reCompleted: card.dates.reCompleted ?? '',
-		reFailed: card.dates.reFailed ?? ''
+		reFailed: card.dates.reFailed ?? '',
+		// No default: a move to Removed waits for one to be picked.
+		removalReason: ''
 	});
 	let values = $state(initial());
 	let busy = $state(false);
@@ -34,6 +43,10 @@
 			!examiners.some((option) => option.value.toLowerCase() === card.reInstructor!.toLowerCase())
 			? [{ id: '', value: card.reInstructor }, ...examiners]
 			: examiners
+	);
+
+	const removing = $derived(
+		stages.find((choice) => choice.name === values.stage)?.removal ?? false
 	);
 
 	const warning = $derived(
@@ -75,6 +88,23 @@
 				{/each}
 			</select>
 		</div>
+		{#if removing}
+			<div>
+				<label for="edit-removal-reason" class={labelClasses}>Removal reason</label>
+				<select
+					id="edit-removal-reason"
+					name="removalReason"
+					required
+					bind:value={values.removalReason}
+					class="mt-2 {inputClasses}"
+				>
+					<option value="" disabled>Choose a reason</option>
+					{#each removalReasons as choice (choice.name)}
+						<option value={choice.name}>{choice.label}</option>
+					{/each}
+				</select>
+			</div>
+		{/if}
 		<div>
 			<label for="edit-examiner" class={labelClasses}>RE Instructor</label>
 			<select

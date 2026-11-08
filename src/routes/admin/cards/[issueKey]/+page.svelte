@@ -127,6 +127,7 @@
 					card={data.card}
 					stages={data.stages}
 					examiners={data.examiners}
+					removalReasons={data.removalReasons}
 				/>
 			{/key}
 		</Panel>

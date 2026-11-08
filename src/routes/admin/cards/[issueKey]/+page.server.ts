@@ -42,7 +42,12 @@ function editInput(form: FormData): CardEditInput {
 		const value = text(key);
 		if (value !== undefined) dates[key] = value;
 	}
-	return { stage: text('stage'), examiner: text('examiner'), dates };
+	return {
+		stage: text('stage'),
+		examiner: text('examiner'),
+		dates,
+		removalReason: text('removalReason')
+	};
 }
 
 export const actions: Actions = {

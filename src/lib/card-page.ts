@@ -53,4 +53,6 @@ export type StageChoice = {
 	name: string;
 	/** Audit, where a card without its evidence is held (0024): the form warns. */
 	audit: boolean;
+	/** A move to Removed from another stage: the form asks why, and a save without a reason is refused. */
+	removal: boolean;
 };

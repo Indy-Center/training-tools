@@ -1060,7 +1060,8 @@ changed fields in one call, then makes the move, comments on the card with what
 landed (`Edited by …`), and reads the card back as after a drag on the board, so
 the dates on the move, the certification and its hold follow as usual. It's
 refused, writing nothing, for a request the student withdrew here; a hand-posted
-move to Completed (`A card is completed from the audit.`); an examiner who is the
+move to Completed (`A card is completed from the audit.`); a move to Removed
+without a reason (`Pick a reason for removing <name>.`); an examiner who is the
 student's teacher; a date that is malformed or after today; a stage Jira no
 longer offers from the card's status (`TRK-14 can't move to … from … now. Reload
 and try again.`, 409); an examiner not on Jira's RE Instructor list (`TRK's RE
@@ -1069,6 +1070,11 @@ examiner and date refusals check only values the save changes: one the card
 already holds and the form posts back is never refused. If Jira refuses the
 move, the fields stay saved and the page says so.
 Choosing Audit warns what the card would be held for; it doesn't stop the save.
+Choosing Removed, on a card not already there, asks for the reason, as
+`/waitlist`'s Remove does: it goes in the same write as the other fields,
+before the move, and the comment names it (`Removal Reason none → No response`).
+A save on a card already in Removed (dragged there on the board, so with no
+reason) isn't asked for one.
 `Waitlisted`, `Certificate Updated`, `RE Attempts` (a counter), Teacher, course,
 CID and name stay on the board (Teacher is changed from `/waitlist`).
 
