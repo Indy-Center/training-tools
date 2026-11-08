@@ -228,7 +228,7 @@ async function actOnExam(
 		return step.ok ? 'passed' : 'errors';
 	}
 	const step = await failExam(db, env, card, BY, {
-		comment: comment(`Rating exam not passed: ${found} Training Completed cleared.`)
+		comment: comment(`Rating exam not passed: ${found}`)
 	});
 	return step.ok ? 'failed' : 'errors';
 }

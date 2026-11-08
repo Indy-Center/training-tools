@@ -239,13 +239,12 @@ export async function completeExam(
  * The examiner records that the rating exam was not passed.
  *
  * The card moves to Needs CATP, where the TA decides what further training the
- * student needs and sends it back on the board. `Training Completed` is cleared,
- * because the training is not complete after all; the teacher dates it again
- * when it is.
+ * student needs and sends it back on the board. `Training Completed` stays as it
+ * was: the move stamps `RE Failed`, and the certification hold wants `Training
+ * Completed` dated after that, so the teacher dates it again once the further
+ * training is done.
  *
- * The move comes first and the date second — the reverse of the other steps —
- * so a refused move leaves the card exactly as it was, date and all. RE
- * Instructor stays on the card while it waits at Needs CATP, so the TA can see
+ * RE Instructor stays on the card while it waits at Needs CATP, so the TA can see
  * who examined. It comes off when the card goes back to training — see
  * `clearReturnedExaminers()` — so the retake is claimed afresh.
  *
@@ -260,12 +259,7 @@ export async function failExam(
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'fail exam', async (config, issueKey) => {
 		await transitionIssueToStatus(config, issueKey, NEEDS_CATP_STATUS);
-		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.trainingCompleted]: null });
-		await note(
-			config,
-			issueKey,
-			comment ?? `Rating exam marked not passed by ${by}; Training Completed cleared.`
-		);
+		await note(config, issueKey, comment ?? `Rating exam marked not passed by ${by}.`);
 	});
 }
 

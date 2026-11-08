@@ -13,11 +13,13 @@ export function cardPagePath(issueKey: string): string {
 /**
  * The card's date fields an admin can see and edit, in the order the page
  * lists them. Keys are `JIRA_FIELDS`'. `Recommended for RE` and `RE Failed`
- * join once `JIRA_FIELDS` has their ids.
+ * are stamped on the move too, and editable here like the rest.
  */
 export const CARD_DATE_FIELDS = [
 	{ key: 'trainingCompleted', label: 'Training Completed' },
 	{ key: 'reCompleted', label: 'RE Completed' },
+	{ key: 'recommendedForRe', label: 'Recommended for RE' },
+	{ key: 'reFailed', label: 'RE Failed' },
 	{ key: 'teacherAssigned', label: 'Teacher Assigned' },
 	{ key: 'removed', label: 'Removed' },
 	{ key: 'vatusaAssigned', label: 'VATUSA Assigned' },
@@ -36,7 +38,14 @@ export type Card = {
 	reInstructor: string | null;
 	/** As the card holds them, `YYYY-MM-DD`, or null when empty. */
 	dates: Record<CardDateKey, string | null>;
+	/** `RE Attempts`: rating exams taken, counted on the move. Shown, never edited here. Null when empty. */
+	reAttempts: number | null;
+	/** `Removal Reason`'s label (`No response`), as the card holds it. Shown, and set only by a move to Removed. */
+	removalReason: string | null;
 };
+
+/** A reason Edit card and `/waitlist`'s Remove offer: our name for it, and Jira's label. */
+export type RemovalReasonChoice = { name: string; label: string };
 
 /** A stage Edit card offers: the card's own, or where a move Jira offers now leads. */
 export type StageChoice = {
@@ -44,4 +53,6 @@ export type StageChoice = {
 	name: string;
 	/** Audit, where a card without its evidence is held (0024): the form warns. */
 	audit: boolean;
+	/** A move to Removed from another stage: the form asks why, and a save without a reason is refused. */
+	removal: boolean;
 };

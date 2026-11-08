@@ -7,7 +7,7 @@ import { fetchEnrollmentIssue, searchEnrollmentIssues } from '$lib/server/jira/i
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import {
-	datesForMove,
+	fieldsForMove,
 	isStale,
 	parseJiraTimestamp,
 	resolveStatusUpdate,
@@ -159,15 +159,16 @@ export async function applyIssueMove(
 }
 
 /**
- * Stamp the dates a card's move calls for (`datesForMove()`), with the day it
- * was seen.
+ * Stamp the fields a card's move calls for (`fieldsForMove()`): its dates,
+ * with the day it was seen, and the exam count.
  *
  * Driven by the move, not by what made it: a step taken here, a card dragged on
- * the board and a transition made by a script are dated alike. Called wherever
+ * the board and a transition made by a script are stamped alike. Called wherever
  * a card is read — the webhook, the sweep, and the read-back after a step here
- * — so a move is dated within seconds, and one the webhook missed within
- * ten minutes. Never throws: a date that could not be written is logged,
- * and is not a reason to fail the read that found the move.
+ * — so a move is stamped within seconds, and one the webhook missed within
+ * ten minutes. One write per move. Never throws: a write that failed is logged
+ * and not retried (the move has been consumed), and is not a reason to fail the
+ * read that found the move.
  */
 export async function dateCardMove(
 	env: Partial<Env> | undefined,
@@ -175,16 +176,15 @@ export async function dateCardMove(
 	moved: CardMove | null,
 	now = new Date()
 ): Promise<void> {
-	const fields = moved ? datesForMove(moved, issue) : [];
-	if (fields.length === 0) return;
+	const fields = fieldsForMove(moved, issue, toFacilityDate(now));
+	if (Object.keys(fields).length === 0) return;
 
 	const config = resolveJiraConfig(env);
 	if (!config) return;
 
 	const what = JSON.stringify({ issue: issue.key, ...moved, fields });
 	try {
-		const today = toFacilityDate(now);
-		await updateIssueFields(config, issue.key, Object.fromEntries(fields.map((f) => [f, today])));
+		await updateIssueFields(config, issue.key, fields);
 		console.log('[training-tools] dated card', what);
 	} catch (err) {
 		console.error('[training-tools] could not date card', what, err);

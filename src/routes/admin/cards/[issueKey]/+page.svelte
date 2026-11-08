@@ -81,6 +81,10 @@
 					<dt class="text-gray-400">{label}</dt>
 					<dd class="font-mono text-white">{data.card.dates[key] ?? '—'}</dd>
 				{/each}
+				<dt class="text-gray-400">RE Attempts</dt>
+				<dd class="font-mono text-white">{data.card.reAttempts ?? '—'}</dd>
+				<dt class="text-gray-400">Removal Reason</dt>
+				<dd class="text-white">{data.card.removalReason ?? '—'}</dd>
 			</dl>
 		</Panel>
 
@@ -123,6 +127,7 @@
 					card={data.card}
 					stages={data.stages}
 					examiners={data.examiners}
+					removalReasons={data.removalReasons}
 				/>
 			{/key}
 		</Panel>

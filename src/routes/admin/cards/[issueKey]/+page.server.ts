@@ -4,6 +4,7 @@ import { requireRole } from '$lib/server/guards';
 import { CARD_DATE_FIELDS, type CardDateKey } from '$lib/card-page';
 import { getEnrollmentByIssueKey, loadCardPage } from '$lib/server/enrollments/card-page';
 import { editCard, stageChoices, type CardEditInput } from '$lib/server/enrollments/edit-card';
+import { ADMIN_REMOVAL_REASON_CHOICES } from '$lib/server/jira/fields';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -24,7 +25,9 @@ export const load: PageServerLoad = async ({ locals, params, platform }) => {
 	return {
 		...page,
 		// Edit card's stage choices: the card's own and each move, Completed left out.
-		stages: page.card ? stageChoices(page.card.status, page.transitions) : []
+		stages: page.card ? stageChoices(page.card.status, page.transitions) : [],
+		// Edit card's reasons for a move to Removed: the four an admin may choose.
+		removalReasons: ADMIN_REMOVAL_REASON_CHOICES
 	};
 };
 
@@ -39,7 +42,12 @@ function editInput(form: FormData): CardEditInput {
 		const value = text(key);
 		if (value !== undefined) dates[key] = value;
 	}
-	return { stage: text('stage'), examiner: text('examiner'), dates };
+	return {
+		stage: text('stage'),
+		examiner: text('examiner'),
+		dates,
+		removalReason: text('removalReason')
+	};
 }
 
 export const actions: Actions = {

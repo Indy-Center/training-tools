@@ -175,7 +175,11 @@ describe('fetchCard', () => {
 				[JIRA_FIELDS.reCompleted]: null,
 				[JIRA_FIELDS.teacherAssigned]: '2026-09-01',
 				[JIRA_FIELDS.vatusaAssigned]: '2026-08-20',
-				[JIRA_FIELDS.vatusaCompleted]: '2026-08-25'
+				[JIRA_FIELDS.vatusaCompleted]: '2026-08-25',
+				customfield_10326: '2026-09-20',
+				customfield_10324: '2026-10-02',
+				customfield_10325: 1,
+				customfield_10323: { id: '10181', value: 'No response' }
 			}
 		});
 
@@ -186,11 +190,15 @@ describe('fetchCard', () => {
 			dates: {
 				trainingCompleted: '2026-10-01',
 				reCompleted: null,
+				recommendedForRe: '2026-09-20',
+				reFailed: '2026-10-02',
 				teacherAssigned: '2026-09-01',
 				removed: null,
 				vatusaAssigned: '2026-08-20',
 				vatusaCompleted: '2026-08-25'
-			}
+			},
+			reAttempts: 1,
+			removalReason: 'No response'
 		});
 
 		const url = new URL(fetch.mock.calls[0][0]);
@@ -205,7 +213,11 @@ describe('fetchCard', () => {
 				JIRA_FIELDS.teacherAssigned,
 				JIRA_FIELDS.removed,
 				JIRA_FIELDS.vatusaAssigned,
-				JIRA_FIELDS.vatusaCompleted
+				JIRA_FIELDS.vatusaCompleted,
+				'customfield_10326',
+				'customfield_10324',
+				'customfield_10325',
+				'customfield_10323'
 			])
 		);
 	});
@@ -217,6 +229,8 @@ describe('fetchCard', () => {
 		expect(card.teacher).toBeNull();
 		expect(card.reInstructor).toBeNull();
 		expect(Object.values(card.dates).every((value) => value === null)).toBe(true);
+		expect(card.reAttempts).toBeNull();
+		expect(card.removalReason).toBeNull();
 	});
 
 	it('throws when Jira fails', async () => {

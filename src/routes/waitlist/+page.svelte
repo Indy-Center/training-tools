@@ -37,6 +37,7 @@
 				rows={data.sheet.rows}
 				leftTheRoster={data.sheet.leftTheRoster}
 				vatusaKeySet={data.sheet.vatusaKeySet}
+				removalReasons={data.sheet.removalReasons}
 				{form}
 			/>
 		</div>

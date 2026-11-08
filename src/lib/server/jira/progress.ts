@@ -58,6 +58,7 @@ export async function updateIssueFields(
 type EvidenceIssue = {
 	fields?: {
 		[JIRA_FIELDS.trainingCompleted]?: string | null;
+		[JIRA_FIELDS.reFailed]?: string | null;
 		[JIRA_FIELDS.reCompleted]?: string | null;
 		[RE_INSTRUCTOR_FIELD]?: { value?: string | null } | null;
 	} | null;
@@ -74,7 +75,12 @@ export async function fetchCardEvidence(
 	config: JiraConfig,
 	issueKey: string
 ): Promise<CardEvidence> {
-	const fields = [JIRA_FIELDS.trainingCompleted, JIRA_FIELDS.reCompleted, RE_INSTRUCTOR_FIELD];
+	const fields = [
+		JIRA_FIELDS.trainingCompleted,
+		JIRA_FIELDS.reFailed,
+		JIRA_FIELDS.reCompleted,
+		RE_INSTRUCTOR_FIELD
+	];
 	const issue = await jiraRequest<EvidenceIssue>(
 		config,
 		`/issue/${encodeURIComponent(issueKey)}?fields=${fields.join(',')}`,
@@ -83,6 +89,7 @@ export async function fetchCardEvidence(
 
 	return {
 		trainingCompleted: issue.fields?.[JIRA_FIELDS.trainingCompleted] || null,
+		reFailed: issue.fields?.[JIRA_FIELDS.reFailed] || null,
 		reCompleted: issue.fields?.[JIRA_FIELDS.reCompleted] || null,
 		reInstructor: issue.fields?.[RE_INSTRUCTOR_FIELD]?.value?.trim() || null
 	};

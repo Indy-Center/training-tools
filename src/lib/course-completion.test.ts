@@ -216,6 +216,7 @@ describe('holdWarning', () => {
 		expect(
 			holdWarning('T-RC', {
 				trainingCompleted: null,
+				reFailed: null,
 				reInstructor: 'HI',
 				reCompleted: '2026-10-05'
 			})
@@ -223,6 +224,7 @@ describe('holdWarning', () => {
 		expect(
 			holdWarning('S-GC', {
 				trainingCompleted: '2026-10-01',
+				reFailed: null,
 				reInstructor: null,
 				reCompleted: null
 			})
@@ -233,16 +235,77 @@ describe('holdWarning', () => {
 		expect(
 			holdWarning('A-GC', {
 				trainingCompleted: '2026-10-01',
+				reFailed: null,
 				reInstructor: null,
 				reCompleted: null
+			})
+		).toBeNull();
+	});
+
+	it('names a Training Completed that is not after the form’s RE Failed', () => {
+		expect(
+			holdWarning('S-GC', {
+				trainingCompleted: '2026-10-20',
+				reFailed: '2026-11-02',
+				reInstructor: 'HI',
+				reCompleted: '2026-10-05'
+			})
+		).toBe('This card will be held: missing Training Completed (after the failed exam).');
+		expect(
+			holdWarning('S-GC', {
+				trainingCompleted: '2026-11-10',
+				reFailed: '2026-11-02',
+				reInstructor: 'HI',
+				reCompleted: '2026-10-05'
 			})
 		).toBeNull();
 	});
 });
 
 describe('missingEvidence', () => {
-	const full = { trainingCompleted: '2026-10-01', reInstructor: 'HI', reCompleted: '2026-10-05' };
-	const none = { trainingCompleted: null, reInstructor: null, reCompleted: null };
+	const full = {
+		trainingCompleted: '2026-10-01',
+		reFailed: null,
+		reInstructor: 'HI',
+		reCompleted: '2026-10-05'
+	};
+	const none = { trainingCompleted: null, reFailed: null, reInstructor: null, reCompleted: null };
+
+	describe('after a failed exam', () => {
+		const failed = { ...full, reFailed: '2026-11-02' };
+
+		it('asks for Training Completed dated again, for each course kind', () => {
+			for (const course of ['S-GC', 'A-GC']) {
+				expect(missingEvidence(course, { ...failed, trainingCompleted: '2026-10-20' })).toEqual([
+					'training-completed-since-fail'
+				]);
+			}
+		});
+
+		it('wants it after RE Failed, not on the same day', () => {
+			expect(missingEvidence('S-GC', { ...failed, trainingCompleted: '2026-11-02' })).toEqual([
+				'training-completed-since-fail'
+			]);
+		});
+
+		it('is not held for training once Training Completed is later', () => {
+			expect(missingEvidence('S-GC', { ...failed, trainingCompleted: '2026-11-10' })).toEqual([]);
+		});
+
+		it('reports only training-completed when it is missing outright', () => {
+			expect(missingEvidence('S-GC', { ...failed, trainingCompleted: null })).toEqual([
+				'training-completed'
+			]);
+		});
+
+		it('is unchanged with RE Failed empty', () => {
+			for (const course of COURSES) {
+				expect(missingEvidence(course.code, { ...none, reFailed: null })).toEqual(
+					missingEvidence(course.code, none)
+				);
+			}
+		});
+	});
 
 	it('asks every course for Training Completed', () => {
 		for (const course of COURSES) {
