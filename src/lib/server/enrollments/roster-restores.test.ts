@@ -295,13 +295,18 @@ describe('processRosterRemovals: restore a student back on the home roster', () 
 
 			await processRosterRemovals(db, env, NOW);
 
-			// The move first, then one edit clearing the Removed date and the Teacher.
+			// The move first, then one edit clearing the Removed date and the Teacher,
+			// then the read-back's own write for the move, clearing Removal Reason.
 			const order = jira.calls
 				.filter(
 					(c) => c.method === 'PUT' || (c.method === 'POST' && c.path.endsWith('/transitions'))
 				)
 				.map((c) => (c.method === 'PUT' ? Object.keys(c.body.fields).sort() : 'move'));
-			expect(order).toEqual(['move', [JIRA_FIELDS.removed, TEACHER_FIELD].sort()]);
+			expect(order).toEqual([
+				'move',
+				[JIRA_FIELDS.removed, TEACHER_FIELD].sort(),
+				[JIRA_FIELDS.removalReason]
+			]);
 			expect(jira.comments()[0].text).toBe('Back on the ZID home roster. Restored to Waitlist.');
 
 			const restored = await row('a');

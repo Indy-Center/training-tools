@@ -787,6 +787,7 @@ or on the board, the app stamps them when it sees the card move
 | In Training → Rating Exam            | `Recommended for RE` | the day, if empty        |
 | Rating Exam → Needs CATP             | `RE Failed`          | the day, always (latest) |
 | Rating Exam → Audit, or → Needs CATP | `RE Attempts`        | the card's count + 1     |
+| Removed → any open stage             | `Removal Reason`     | cleared                  |
 
 "If empty" keeps a date entered by hand. Leaving Rating Exam for Removed or
 Withdrawn is not an attempt. Each move is seen once however many deliveries and
@@ -1041,7 +1042,7 @@ see Notifications.
 
 **The card page**, `/admin/cards/{key}` (`TRK-14`), shows one request's TRK
 card read live from Jira: its stage, Teacher, RE Instructor, dates and
-`RE Attempts`, its five latest comments, and what a held certification lacks. If Jira can't be read it
+`RE Attempts`, its `Removal Reason` (shown, set only with a move to Removed), its five latest comments, and what a held certification lacks. If Jira can't be read it
 shows the request and Jira's error. It isn't in the nav: for a training admin,
 the TRK key on each `/waitlist` and `/admin/audit` row links there, and so do
 the notices about a held certification or a CTRS record the app didn't act on.

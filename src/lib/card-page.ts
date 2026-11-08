@@ -40,7 +40,12 @@ export type Card = {
 	dates: Record<CardDateKey, string | null>;
 	/** `RE Attempts`: rating exams taken, counted on the move. Shown, never edited here. Null when empty. */
 	reAttempts: number | null;
+	/** `Removal Reason`'s label (`No response`), as the card holds it. Shown, and set only by a move to Removed. */
+	removalReason: string | null;
 };
+
+/** A reason Edit card and `/waitlist`'s Remove offer: our name for it, and Jira's label. */
+export type RemovalReasonChoice = { name: string; label: string };
 
 /** A stage Edit card offers: the card's own, or where a move Jira offers now leads. */
 export type StageChoice = {

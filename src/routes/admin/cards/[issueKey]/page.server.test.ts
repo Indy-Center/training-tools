@@ -99,7 +99,9 @@ function stubJira({ fail = false } = {}) {
 				[JIRA_FIELDS.trainingCompleted]: '2026-10-01',
 				[JIRA_FIELDS.teacherAssigned]: '2026-09-01',
 				[JIRA_FIELDS.reFailed]: '2026-10-02',
-				[JIRA_FIELDS.reAttempts]: 2
+				[JIRA_FIELDS.reAttempts]: 2,
+				// Left from a removal the board undid; the page shows what the card holds.
+				[JIRA_FIELDS.removalReason]: { id: '10183', value: 'Duplicate or mistake' }
 			}
 		});
 	});
@@ -147,8 +149,16 @@ describe('/admin/cards/{key} access', () => {
 				recommendedForRe: null,
 				reFailed: '2026-10-02'
 			},
-			reAttempts: 2
+			reAttempts: 2,
+			removalReason: 'Duplicate or mistake'
 		});
+		// Edit card's reason select: the four an admin may choose, never Roster removal.
+		expect(data.removalReasons).toEqual([
+			{ name: 'no-response', label: 'No response' },
+			{ name: 'not-eligible', label: 'Not eligible' },
+			{ name: 'duplicate', label: 'Duplicate or mistake' },
+			{ name: 'other', label: 'Other' }
+		]);
 		expect(data.transitions).toEqual([
 			{ id: '11', name: 'Back to training', to: 'In Training' },
 			{ id: '13', name: 'Remove', to: 'Removed' }

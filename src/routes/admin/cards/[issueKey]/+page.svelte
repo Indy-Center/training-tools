@@ -83,6 +83,8 @@
 				{/each}
 				<dt class="text-gray-400">RE Attempts</dt>
 				<dd class="font-mono text-white">{data.card.reAttempts ?? '—'}</dd>
+				<dt class="text-gray-400">Removal Reason</dt>
+				<dd class="text-white">{data.card.removalReason ?? '—'}</dd>
 			</dl>
 		</Panel>
 

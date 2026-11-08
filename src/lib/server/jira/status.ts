@@ -8,6 +8,7 @@
  * See decisions/0014-enrollment-status-from-jira.md
  */
 import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
+import { isOpenEnrollmentStatus } from '$lib/training-flow';
 import { JIRA_FIELDS } from './fields';
 
 /** `Teacher` on the Student Enrollment issue type: a select of instructor initials. */
@@ -87,6 +88,8 @@ function attemptsOn(issue: JiraStatusIssue): number {
  * - Rating Exam → Needs CATP: `RE Failed`, always (it holds the latest fail)
  * - Rating Exam → Audit or Needs CATP: `RE Attempts` + 1. Leaving Rating Exam
  *   for Removed or Withdrawn is not an attempt.
+ * - Removed → any open stage: `Removal Reason` cleared, whatever it holds
+ *   (the card isn't asked for it): the card is no longer removed.
  *
  * "If empty" keeps a date staff entered by hand, or the first of two arrivals
  * at the same status. The caller writes the result once per move, and each
@@ -119,6 +122,9 @@ export function fieldsForMove(
 	}
 	if (fromExam && (move.to === 'needs-catp' || move.to === 'certification-update')) {
 		fields[JIRA_FIELDS.reAttempts] = attemptsOn(issue) + 1;
+	}
+	if (move.from === 'removed' && isOpenEnrollmentStatus(move.to)) {
+		fields[JIRA_FIELDS.removalReason] = null;
 	}
 
 	return fields;

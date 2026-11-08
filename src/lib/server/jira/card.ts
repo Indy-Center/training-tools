@@ -23,7 +23,8 @@ const CARD_FIELDS = [
 	TEACHER_FIELD,
 	RE_INSTRUCTOR_FIELD,
 	...CARD_DATE_FIELDS.map(({ key }) => JIRA_FIELDS[key]),
-	JIRA_FIELDS.reAttempts
+	JIRA_FIELDS.reAttempts,
+	JIRA_FIELDS.removalReason
 ];
 
 /** A select's value, trimmed, or null. */
@@ -54,7 +55,8 @@ export async function fetchCard(config: JiraConfig, issueKey: string): Promise<C
 				return [key, typeof value === 'string' && value ? value : null];
 			})
 		) as Record<CardDateKey, string | null>,
-		reAttempts: typeof attempts === 'number' && Number.isFinite(attempts) ? attempts : null
+		reAttempts: typeof attempts === 'number' && Number.isFinite(attempts) ? attempts : null,
+		removalReason: selectValue(fields[JIRA_FIELDS.removalReason])
 	};
 }
 

@@ -141,6 +141,7 @@ describe('fieldsForMove', () => {
 	const RE_FAILED = 'customfield_10324';
 	const RE_ATTEMPTS = 'customfield_10325';
 	const RECOMMENDED_FOR_RE = 'customfield_10326';
+	const REMOVAL_REASON = 'customfield_10323';
 	const TODAY = '2026-11-08';
 	const card = (fields: Record<string, string | number | null> = {}) => ({
 		key: 'TRK-9001',
@@ -220,6 +221,34 @@ describe('fieldsForMove', () => {
 		expect(fieldsForMove({ from: 'rating-exam', to: 'withdrawn' }, counted, TODAY)).toEqual({
 			[REMOVED]: TODAY
 		});
+	});
+
+	// A card brought back is no longer removed, so the reason it was is cleared,
+	// whether or not the card holds one.
+	it('clears Removal Reason on a move from Removed to any open stage', () => {
+		expect(
+			fieldsForMove(
+				{ from: 'removed', to: 'waitlist' },
+				card({ [REMOVAL_REASON]: 'No response', [REMOVED]: '2026-10-01' }),
+				TODAY
+			)
+		).toEqual({ [REMOVAL_REASON]: null });
+		expect(fieldsForMove({ from: 'removed', to: 'rating-exam' }, card(), TODAY)).toEqual({
+			[REMOVAL_REASON]: null
+		});
+		expect(
+			fieldsForMove(
+				{ from: 'removed', to: 'in-training' },
+				card({ [TEACHER_ASSIGNED]: '2026-09-01' }),
+				TODAY
+			)
+		).toEqual({ [REMOVAL_REASON]: null });
+	});
+
+	it('keeps Removal Reason on a move from Removed that does not reopen the card', () => {
+		const removed = card({ [REMOVAL_REASON]: 'Duplicate or mistake', [REMOVED]: '2026-10-01' });
+		expect(fieldsForMove({ from: 'removed', to: 'withdrawn' }, removed, TODAY)).toEqual({});
+		expect(fieldsForMove({ from: 'removed', to: 'completed' }, removed, TODAY)).toEqual({});
 	});
 
 	it('stamps nothing when the card has not moved', () => {
