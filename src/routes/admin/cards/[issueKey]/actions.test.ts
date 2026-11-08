@@ -333,6 +333,23 @@ describe('/admin/cards/{key} ?/edit saves', () => {
 		]);
 	});
 
+	it('edits Recommended for RE and RE Failed like the other dates', async () => {
+		await addRow();
+		const jira = fakeJira();
+
+		const result = await actions.edit(
+			post({ stage: 'Needs CATP', recommendedForRe: '2026-09-20', reFailed: '2026-10-03' })
+		);
+
+		expect(result).toEqual({ edited: 'TRK-9001' });
+		expect(jira.puts()).toEqual([
+			{ customfield_10326: '2026-09-20', customfield_10324: '2026-10-03' }
+		]);
+		expect(jira.comments()).toEqual([
+			'Edited by Sam Admin: Recommended for RE none → 2026-09-20; RE Failed none → 2026-10-03. (through training.flyindycenter.com)'
+		]);
+	});
+
 	it('moves Needs CATP → In Training by name, comments, and reads the card back', async () => {
 		await addRow();
 		const jira = fakeJira();

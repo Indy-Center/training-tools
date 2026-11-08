@@ -1036,15 +1036,16 @@ Discord when a request gets stuck, and when a job starts failing or recovers —
 see Notifications.
 
 **The card page**, `/admin/cards/{key}` (`TRK-14`), shows one request's TRK
-card read live from Jira: its stage, Teacher, RE Instructor and dates, its five
-latest comments, and what a held certification lacks. If Jira can't be read it
+card read live from Jira: its stage, Teacher, RE Instructor, dates and
+`RE Attempts`, its five latest comments, and what a held certification lacks. If Jira can't be read it
 shows the request and Jira's error. It isn't in the nav: for a training admin,
 the TRK key on each `/waitlist` and `/admin/audit` row links there, and so do
 the notices about a held certification or a CTRS record the app didn't act on.
 
 **Edit card**, on that page, lets a training admin change the card without
 opening the board: its stage (the moves Jira offers it now, never Completed,
-which stays with the audit), its dates, and RE Instructor. A save writes the
+which stays with the audit), its dates (`Recommended for RE` and `RE Failed`
+among them), and RE Instructor. A save writes the
 changed fields in one call, then makes the move, comments on the card with what
 landed (`Edited by …`), and reads the card back as after a drag on the board, so
 the dates on the move, the certification and its hold follow as usual. It's
@@ -1058,8 +1059,8 @@ examiner and date refusals check only values the save changes: one the card
 already holds and the form posts back is never refused. If Jira refuses the
 move, the fields stay saved and the page says so.
 Choosing Audit warns what the card would be held for; it doesn't stop the save.
-`Waitlisted`, `Certificate Updated`, Teacher, course, CID and name stay on the
-board (Teacher is changed from `/waitlist`).
+`Waitlisted`, `Certificate Updated`, `RE Attempts` (a counter), Teacher, course,
+CID and name stay on the board (Teacher is changed from `/waitlist`).
 
 ### Site copy
 

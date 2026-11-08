@@ -13,11 +13,13 @@ export function cardPagePath(issueKey: string): string {
 /**
  * The card's date fields an admin can see and edit, in the order the page
  * lists them. Keys are `JIRA_FIELDS`'. `Recommended for RE` and `RE Failed`
- * join once `JIRA_FIELDS` has their ids.
+ * are stamped on the move too, and editable here like the rest.
  */
 export const CARD_DATE_FIELDS = [
 	{ key: 'trainingCompleted', label: 'Training Completed' },
 	{ key: 'reCompleted', label: 'RE Completed' },
+	{ key: 'recommendedForRe', label: 'Recommended for RE' },
+	{ key: 'reFailed', label: 'RE Failed' },
 	{ key: 'teacherAssigned', label: 'Teacher Assigned' },
 	{ key: 'removed', label: 'Removed' },
 	{ key: 'vatusaAssigned', label: 'VATUSA Assigned' },
@@ -36,6 +38,8 @@ export type Card = {
 	reInstructor: string | null;
 	/** As the card holds them, `YYYY-MM-DD`, or null when empty. */
 	dates: Record<CardDateKey, string | null>;
+	/** `RE Attempts`: rating exams taken, counted on the move. Shown, never edited here. Null when empty. */
+	reAttempts: number | null;
 };
 
 /** A stage Edit card offers: the card's own, or where a move Jira offers now leads. */

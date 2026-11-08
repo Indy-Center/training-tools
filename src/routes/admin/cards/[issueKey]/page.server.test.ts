@@ -97,7 +97,9 @@ function stubJira({ fail = false } = {}) {
 				[TEACHER_FIELD]: { value: 'SW' },
 				[RE_INSTRUCTOR_FIELD]: { value: 'HI' },
 				[JIRA_FIELDS.trainingCompleted]: '2026-10-01',
-				[JIRA_FIELDS.teacherAssigned]: '2026-09-01'
+				[JIRA_FIELDS.teacherAssigned]: '2026-09-01',
+				[JIRA_FIELDS.reFailed]: '2026-10-02',
+				[JIRA_FIELDS.reAttempts]: 2
 			}
 		});
 	});
@@ -138,7 +140,14 @@ describe('/admin/cards/{key} access', () => {
 			status: 'Needs CATP',
 			teacher: 'SW',
 			reInstructor: 'HI',
-			dates: { trainingCompleted: '2026-10-01', teacherAssigned: '2026-09-01', reCompleted: null }
+			dates: {
+				trainingCompleted: '2026-10-01',
+				teacherAssigned: '2026-09-01',
+				reCompleted: null,
+				recommendedForRe: null,
+				reFailed: '2026-10-02'
+			},
+			reAttempts: 2
 		});
 		expect(data.transitions).toEqual([
 			{ id: '11', name: 'Back to training', to: 'In Training' },

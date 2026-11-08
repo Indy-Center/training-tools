@@ -81,6 +81,8 @@
 					<dt class="text-gray-400">{label}</dt>
 					<dd class="font-mono text-white">{data.card.dates[key] ?? '—'}</dd>
 				{/each}
+				<dt class="text-gray-400">RE Attempts</dt>
+				<dd class="font-mono text-white">{data.card.reAttempts ?? '—'}</dd>
 			</dl>
 		</Panel>
 
