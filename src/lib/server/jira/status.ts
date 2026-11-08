@@ -30,6 +30,7 @@ export const STATUS_FIELDS = [
 	JIRA_FIELDS.recommendedForRe,
 	JIRA_FIELDS.reFailed,
 	JIRA_FIELDS.reAttempts,
+	JIRA_FIELDS.trainingCompleted,
 	'updated'
 ] as const;
 
@@ -75,6 +76,18 @@ function attemptsOn(issue: JiraStatusIssue): number {
 }
 
 /**
+ * True when the card's `RE Failed` is on or after its `Training Completed`, so
+ * it already dates this exam's fail. Both are `YYYY-MM-DD`, which compare as
+ * strings. Without a `Training Completed` there is nothing to tell an old fail
+ * from this one, so it is false.
+ */
+function failDatedForThisExam(issue: JiraStatusIssue): boolean {
+	const failed = issue.fields?.[JIRA_FIELDS.reFailed]?.trim();
+	const trained = issue.fields?.[JIRA_FIELDS.trainingCompleted]?.trim();
+	return !!failed && !!trained && failed >= trained;
+}
+
+/**
  * The fields a move calls for, and the value of each, with `today` the
  * facility day the move was seen.
  *
@@ -85,7 +98,10 @@ function attemptsOn(issue: JiraStatusIssue): number {
  * - into In Training: `Teacher Assigned`, if empty
  * - to Removed or Withdrawn: `Removed`, if empty
  * - In Training → Rating Exam: `Recommended for RE`, if empty
- * - Rating Exam → Needs CATP: `RE Failed`, always (it holds the latest fail)
+ * - Rating Exam → Needs CATP: `RE Failed` (it holds the latest fail), unless
+ *   the card's is already on or after `Training Completed`: the CTRS read-back
+ *   writes the exam's session day before it moves the card, and a fail from an
+ *   earlier attempt is always before the retraining's `Training Completed`
  * - Rating Exam → Audit or Needs CATP: `RE Attempts` + 1. Leaving Rating Exam
  *   for Removed or Withdrawn is not an attempt.
  * - Removed → any open stage: `Removal Reason` cleared, whatever it holds
@@ -117,7 +133,7 @@ export function fieldsForMove(
 	if (move.from === 'in-training' && move.to === 'rating-exam' && empty('recommendedForRe')) {
 		fields[JIRA_FIELDS.recommendedForRe] = today;
 	}
-	if (fromExam && move.to === 'needs-catp') {
+	if (fromExam && move.to === 'needs-catp' && !failDatedForThisExam(issue)) {
 		fields[JIRA_FIELDS.reFailed] = today;
 	}
 	if (fromExam && (move.to === 'needs-catp' || move.to === 'certification-update')) {
@@ -146,6 +162,7 @@ export type JiraStatusIssue = {
 		[JIRA_FIELDS.removed]?: string | null;
 		[JIRA_FIELDS.recommendedForRe]?: string | null;
 		[JIRA_FIELDS.reFailed]?: string | null;
+		[JIRA_FIELDS.trainingCompleted]?: string | null;
 		/** A number field. */
 		[JIRA_FIELDS.reAttempts]?: number | null;
 		/** Jira's last-updated time, e.g. "2026-09-23T10:32:53.283-0400". */

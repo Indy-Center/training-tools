@@ -786,16 +786,19 @@ What staff do from a row:
 or on the board, the app stamps them when it sees the card move
 (`fieldsForMove`, `dateCardMove`), in one write per move:
 
-| Move                                 | Field                | Value                    |
-| ------------------------------------ | -------------------- | ------------------------ |
-| into In Training                     | `Teacher Assigned`   | the day, if empty        |
-| to Removed or Withdrawn              | `Removed`            | the day, if empty        |
-| In Training → Rating Exam            | `Recommended for RE` | the day, if empty        |
-| Rating Exam → Needs CATP             | `RE Failed`          | the day, always (latest) |
-| Rating Exam → Audit, or → Needs CATP | `RE Attempts`        | the card's count + 1     |
-| Removed → any open stage             | `Removal Reason`     | cleared                  |
+| Move                                 | Field                | Value                       |
+| ------------------------------------ | -------------------- | --------------------------- |
+| into In Training                     | `Teacher Assigned`   | the day, if empty           |
+| to Removed or Withdrawn              | `Removed`            | the day, if empty           |
+| In Training → Rating Exam            | `Recommended for RE` | the day, if empty           |
+| Rating Exam → Needs CATP             | `RE Failed`          | the day (latest), see below |
+| Rating Exam → Audit, or → Needs CATP | `RE Attempts`        | the card's count + 1        |
+| Removed → any open stage             | `Removal Reason`     | cleared                     |
 
-"If empty" keeps a date entered by hand. Leaving Rating Exam for Removed or
+"If empty" keeps a date entered by hand. `RE Failed` is kept when the card's is
+already on or after `Training Completed`: that dates this exam, as the CTRS
+read-back writes it from the session day before the move, while an earlier
+attempt's fail is always before the retraining's `Training Completed`. Leaving Rating Exam for Removed or
 Withdrawn is not an attempt. Each move is seen once however many deliveries and
 sweeps report it, so an exam is counted once; a write Jira refuses is logged
 and not retried, so the count can run short, never long.
@@ -933,7 +936,8 @@ Rating Exam, each run, and takes ZID's latest pass or fail on the course's
 position type (GND / TWR / APP / CTR) dated on or after the day the card reached
 Rating Exam (`enrollments.status_since`). A pass moves the card as the
 examiner's passed report would, with `RE Completed` set to the record's session
-day; a fail as the not-passed one. An empty `RE Instructor` is filled with the
+day; a fail as the not-passed one, with `RE Failed` set to the session day before
+the move. An empty `RE Instructor` is filled with the
 record's instructor (initials, then CID), or `VATUSA`; a different examiner
 already on the card is named in the comment, not replaced. The card comment
 gives the record's id and date and who filed it. Nothing moves when:

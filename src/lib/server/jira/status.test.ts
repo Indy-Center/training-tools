@@ -142,6 +142,7 @@ describe('fieldsForMove', () => {
 	const RE_ATTEMPTS = 'customfield_10325';
 	const RECOMMENDED_FOR_RE = 'customfield_10326';
 	const REMOVAL_REASON = 'customfield_10323';
+	const TRAINING_COMPLETED = 'customfield_10248';
 	const TODAY = '2026-11-08';
 	const card = (fields: Record<string, string | number | null> = {}) => ({
 		key: 'TRK-9001',
@@ -205,6 +206,32 @@ describe('fieldsForMove', () => {
 				TODAY
 			)
 		).toEqual({ [RE_FAILED]: TODAY, [RE_ATTEMPTS]: 3 });
+	});
+
+	// A fail from an earlier attempt is dated before the retraining's Training
+	// Completed (the certification hold relies on it), so it is overwritten.
+	it('overwrites an RE Failed dated before Training Completed', () => {
+		expect(
+			fieldsForMove(
+				{ from: 'rating-exam', to: 'needs-catp' },
+				card({ [TRAINING_COMPLETED]: '2026-10-01', [RE_FAILED]: '2026-09-15', [RE_ATTEMPTS]: 1 }),
+				TODAY
+			)
+		).toEqual({ [RE_FAILED]: TODAY, [RE_ATTEMPTS]: 2 });
+	});
+
+	// The CTRS read-back writes this exam's session day before the move: on or
+	// after Training Completed, it is this fail's date and stays.
+	it('keeps an RE Failed on or after Training Completed, still counting the attempt', () => {
+		for (const failed of ['2026-10-01', '2026-10-20']) {
+			expect(
+				fieldsForMove(
+					{ from: 'rating-exam', to: 'needs-catp' },
+					card({ [TRAINING_COMPLETED]: '2026-10-01', [RE_FAILED]: failed }),
+					TODAY
+				)
+			).toEqual({ [RE_ATTEMPTS]: 1 });
+		}
 	});
 
 	it('counts a passed exam as an attempt, an empty count as 0', () => {

@@ -249,15 +249,21 @@ export async function completeExam(
  * `clearReturnedExaminers()` — so the retake is claimed afresh.
  *
  * `step.comment` replaces the usual card note, as for `completeExam()`.
+ * `step.completedOn` is the exam's day, for a fail found in a CTRS record: it
+ * is written as `RE Failed` before the move, and the move's stamp keeps it
+ * (`fieldsForMove()`). Without it, the move stamps the day it is seen.
  */
 export async function failExam(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
 	by: string,
-	{ comment }: Pick<StepOptions, 'comment'> = {}
+	{ comment, completedOn }: Pick<StepOptions, 'comment' | 'completedOn'> = {}
 ): Promise<FlowResult> {
 	return onCard(db, env, enrollment, 'fail exam', async (config, issueKey) => {
+		if (completedOn) {
+			await updateIssueFields(config, issueKey, { [JIRA_FIELDS.reFailed]: completedOn });
+		}
 		await transitionIssueToStatus(config, issueKey, NEEDS_CATP_STATUS);
 		await note(config, issueKey, comment ?? `Rating exam marked not passed by ${by}.`);
 	});
