@@ -256,7 +256,8 @@ async function removeDepartedStudents(
 /**
  * Set the reason (Roster removal), comment, move to Removed, and read the card
  * back. True once the row reads `removed`; false, having logged why, for
- * anything else.
+ * anything else. A refused reason write is logged and doesn't stop the
+ * removal, which matters more than its reason.
  */
 async function moveToRemoved(
 	db: Database,
@@ -271,6 +272,15 @@ async function moveToRemoved(
 		await updateIssueFields(config, issueKey, {
 			[JIRA_FIELDS.removalReason]: { id: REMOVAL_REASONS['roster-removal'].id }
 		});
+	} catch (err) {
+		console.error(
+			'[training-tools] roster removal: Removal Reason refused, removing anyway',
+			issueKey,
+			err instanceof JiraError ? err.message : err
+		);
+	}
+
+	try {
 		await commentOnIssue(config, issueKey, removalComment(removal));
 		await transitionIssueToStatus(config, issueKey, REMOVED_STATUS);
 	} catch (err) {

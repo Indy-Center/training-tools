@@ -65,8 +65,11 @@ const row = async (id: string) =>
 
 type Card = { status: string; updated: string };
 
-/** TRK, as far as a removal touches it. `refuse` leaves no transition to Removed. */
-function fakeJira(cards: Record<string, Card>, { refuse = false } = {}) {
+/**
+ * TRK, as far as a removal touches it. `refuse` leaves no transition to Removed;
+ * `refuseReason` answers 400 to a Removal Reason write.
+ */
+function fakeJira(cards: Record<string, Card>, { refuse = false, refuseReason = false } = {}) {
 	const calls: { method: string; path: string; body: any }[] = [];
 
 	vi.stubGlobal(
@@ -92,6 +95,12 @@ function fakeJira(cards: Record<string, Card>, { refuse = false } = {}) {
 				card.status = 'Removed';
 				card.updated = new Date(new Date(card.updated).getTime() + 60_000).toISOString();
 				return new Response(null, { status: 204 });
+			}
+			if (init.method === 'PUT' && refuseReason && 'customfield_10323' in body.fields) {
+				return Response.json(
+					{ errors: { customfield_10323: 'Option not valid' } },
+					{ status: 400 }
+				);
 			}
 			if (init.method === 'PUT') return new Response(null, { status: 204 });
 			return Response.json({
@@ -182,6 +191,23 @@ describe('processRosterRemovals: removal', () => {
 		const move = writes.findIndex((call) => call.path.endsWith('/transitions'));
 		expect(writes[reason]?.body.fields).toEqual({ customfield_10323: { id: '10180' } });
 		expect(reason).toBeLessThan(move);
+	});
+
+	// The removal matters more than its reason (#217).
+	it('still moves the card when Jira refuses the Removal Reason write', async () => {
+		await addMember({ cid: '1000001', leftHomeAt: LEFT, removedAt: LEFT });
+		await addRequest({ id: 'a', cid: '1000001', jiraIssueKey: 'TRK-1' });
+		const jira = fakeJira(
+			{ 'TRK-1': { status: 'Waitlist', updated: updatedAt } },
+			{ refuseReason: true }
+		);
+
+		const result = await processRosterRemovals(db, fakeLarry().env, NOW);
+
+		expect(jira.moves()).toHaveLength(1);
+		expect(jira.comments()).toHaveLength(1);
+		expect(result).toMatchObject({ due: 1, removed: 1, refused: 0 });
+		expect((await row('a')).status).toBe('removed');
 	});
 
 	it('names the stage the request left in the comment', async () => {

@@ -661,7 +661,8 @@ Needs CATP (never Audit) that is not **kept in line** is removed: the card's
 commented on ("Left the ZID home roster on … restored to … if back on the home
 roster by …"), moved to Removed and read back, then the row is stamped with
 `roster_removed_at`, the stage it left, the student's `left_home_at` and
-`restore_by` (30 days after leaving). Jira refusing leaves the row for the next
+`restore_by` (30 days after leaving). Jira refusing the reason is logged and the
+removal goes on; refusing the comment or the move leaves the row for the next
 pass. A request not yet filed is stamped and set to `removed` here; neither the
 reconcile nor `/admin`'s Retry ever files it, and `/admin` does not list it as
 unfiled. The rule is `$lib/roster-removal.ts`. While
