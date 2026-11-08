@@ -22,7 +22,8 @@
 		stage: card.status ?? '',
 		examiner: card.reInstructor ?? '',
 		trainingCompleted: card.dates.trainingCompleted ?? '',
-		reCompleted: card.dates.reCompleted ?? ''
+		reCompleted: card.dates.reCompleted ?? '',
+		reFailed: card.dates.reFailed ?? ''
 	});
 	let values = $state(initial());
 	let busy = $state(false);
@@ -39,6 +40,7 @@
 		stages.find((choice) => choice.name === values.stage)?.audit
 			? holdWarning(course, {
 					trainingCompleted: values.trainingCompleted || null,
+					reFailed: values.reFailed || null,
 					reCompleted: values.reCompleted || null,
 					reInstructor: values.examiner || null
 				})
@@ -90,7 +92,7 @@
 		{#each CARD_DATE_FIELDS as { key, label } (key)}
 			<div>
 				<label for="edit-{key}" class={labelClasses}>{label}</label>
-				{#if key === 'trainingCompleted' || key === 'reCompleted'}
+				{#if key === 'trainingCompleted' || key === 'reCompleted' || key === 'reFailed'}
 					<input
 						id="edit-{key}"
 						name={key}

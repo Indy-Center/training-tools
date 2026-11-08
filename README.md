@@ -888,7 +888,7 @@ How a course finishes, and who moves it. The rules are pure functions in
 | Mark training complete      | the teacher on the card, at In Training (`/teach`)                   | the same, with no training report filed                                                     |
 | Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
 | Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
-| Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
+| Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` kept                                              |
 | Passed / Not passed         | that examiner (`/teach`)                                             | the same, with no training report filed                                                     |
 | _(automatic)_               | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
 | Audit complete              | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
@@ -973,6 +973,9 @@ pass; `enrollments.certification_applied_at` is what makes it happen once.
 **But only if the card shows the course was finished.** Before granting anything
 the app reads the card: every course needs `Training Completed`, and the four
 that end in a rating exam also need `RE Instructor` and `RE Completed`. A card
+with an `RE Failed` date also needs `Training Completed` **after** it (shown as
+`Training Completed (after the failed exam)`); a missing `Training Completed`
+is reported alone. A card
 without them — dragged past its exam, or across before the training was done —
 is **held**: nothing is granted, the training admins are told once, and
 `/admin/audit` lists it with what it lacks. It is checked again on every pass,
@@ -992,10 +995,11 @@ exam, below, or a card staff move there from In Training on the board. The
 student's page does not say which. The training admins' notice says an exam was
 failed only when the card arrived from Rating Exam.
 
-A **failed exam** goes to Needs CATP, with `Training Completed` cleared: the
-training was not complete after all. The TA decides what further training the
-student gets and returns the card to training on the board; the teacher dates it
-again when it is done. RE Instructor stays on the card while it waits at Needs
+A **failed exam** goes to Needs CATP, and `Training Completed` stays on the
+card. The move stamps `RE Failed`, and the hold wants `Training Completed` after
+it, so the card cannot certify on its old date. The TA decides what further
+training the student gets and returns the card to training on the board; the
+teacher dates it again when it is done. RE Instructor stays on the card while it waits at Needs
 CATP, so the TA can see who examined, and is **removed when the card goes back
 into training** — by the webhook or the cron, however it was moved — so the
 retake is claimed afresh. The student's page explains, and the

@@ -102,11 +102,13 @@ export function credentialChangeFor(course: string, held: readonly string[]): Cr
 }
 
 /** Something a card must carry before its course's certification is applied. */
-export type CompletionEvidence = 'training-completed' | 're-instructor' | 're-completed';
+export type CompletionEvidence =
+	'training-completed' | 'training-completed-since-fail' | 're-instructor' | 're-completed';
 
 /** Each by the name of its field on the TRK card, which is where it gets fixed. */
 export const COMPLETION_EVIDENCE_LABELS: Record<CompletionEvidence, string> = {
 	'training-completed': 'Training Completed',
+	'training-completed-since-fail': 'Training Completed (after the failed exam)',
 	're-instructor': 'RE Instructor',
 	're-completed': 'RE Completed'
 };
@@ -114,6 +116,8 @@ export const COMPLETION_EVIDENCE_LABELS: Record<CompletionEvidence, string> = {
 /** The fields on a TRK card that show a course was finished. */
 export type CardEvidence = {
 	trainingCompleted: string | null;
+	/** `RE Failed`: when set, `Training Completed` must be after it. */
+	reFailed: string | null;
 	reInstructor: string | null;
 	reCompleted: string | null;
 };
@@ -132,6 +136,11 @@ export function missingEvidence(course: string, card: CardEvidence): CompletionE
 	const missing: CompletionEvidence[] = [];
 
 	if (!card.trainingCompleted) missing.push('training-completed');
+	// A failed exam leaves Training Completed as it was, so it must be dated
+	// again after the fail (YYYY-MM-DD strings compare as dates).
+	else if (card.reFailed && card.trainingCompleted <= card.reFailed) {
+		missing.push('training-completed-since-fail');
+	}
 	if (afterTraining(course) === 'rating-exam') {
 		if (!card.reInstructor) missing.push('re-instructor');
 		if (!card.reCompleted) missing.push('re-completed');
