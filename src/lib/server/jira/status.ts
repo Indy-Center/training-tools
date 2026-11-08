@@ -8,6 +8,7 @@
  * See decisions/0014-enrollment-status-from-jira.md
  */
 import type { EnrollmentStatus } from '$lib/db/schema/enrollments';
+import { isOpenEnrollmentStatus } from '$lib/training-flow';
 import { JIRA_FIELDS } from './fields';
 
 /** `Teacher` on the Student Enrollment issue type: a select of instructor initials. */
@@ -26,6 +27,9 @@ export const STATUS_FIELDS = [
 	JIRA_FIELDS.vatusaCompleted,
 	JIRA_FIELDS.teacherAssigned,
 	JIRA_FIELDS.removed,
+	JIRA_FIELDS.recommendedForRe,
+	JIRA_FIELDS.reFailed,
+	JIRA_FIELDS.reAttempts,
 	'updated'
 ] as const;
 
@@ -58,28 +62,69 @@ export function mapJiraStatus(name: string | null | undefined): EnrollmentStatus
 /** A card seen to change status: where our row had it, and where the card is now. */
 export type CardMove = { from: EnrollmentStatus; to: EnrollmentStatus };
 
+/** What a move writes to the card: field id to value. */
+export type MoveFields = Record<string, string | number | null>;
+
 /**
- * The date fields a move calls for, as field ids to stamp with the day it was
- * seen.
+ * `RE Attempts` as the card holds it. Jira's number field is a float (`2.0`
+ * reads back as `2`); empty, or anything that isn't a count, is 0.
+ */
+function attemptsOn(issue: JiraStatusIssue): number {
+	const value = issue.fields?.[JIRA_FIELDS.reAttempts];
+	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * The fields a move calls for, and the value of each, with `today` the
+ * facility day the move was seen.
  *
  * Driven by the move alone — not by who made it or how: a step taken in this
- * app and a card dragged on the board are dated the same way. Only a field the
- * card still has empty, so a date staff entered by hand, or the first of two
- * arrivals at the same status, is never overwritten.
+ * app and a card dragged on the board are stamped the same way. Values come
+ * from the move and the card as just read, nothing else.
  *
- * - into In Training: `Teacher Assigned`
- * - to Removed or Withdrawn: `Removed`
+ * - into In Training: `Teacher Assigned`, if empty
+ * - to Removed or Withdrawn: `Removed`, if empty
+ * - In Training → Rating Exam: `Recommended for RE`, if empty
+ * - Rating Exam → Needs CATP: `RE Failed`, always (it holds the latest fail)
+ * - Rating Exam → Audit or Needs CATP: `RE Attempts` + 1. Leaving Rating Exam
+ *   for Removed or Withdrawn is not an attempt.
+ * - Removed → any open stage: `Removal Reason` cleared, whatever it holds
+ *   (the card isn't asked for it): the card is no longer removed.
+ *
+ * "If empty" keeps a date staff entered by hand, or the first of two arrivals
+ * at the same status. The caller writes the result once per move, and each
+ * move is reported once (`applyIssueMove()`), so the count never goes up twice
+ * for one move.
  */
-export function datesForMove(move: CardMove, issue: JiraStatusIssue): string[] {
-	const empty = (field: 'teacherAssigned' | 'removed') =>
+export function fieldsForMove(
+	move: CardMove | null,
+	issue: JiraStatusIssue,
+	today: string
+): MoveFields {
+	const fields: MoveFields = {};
+	if (!move || move.from === move.to) return fields;
+
+	const empty = (field: 'teacherAssigned' | 'removed' | 'recommendedForRe') =>
 		!issue.fields?.[JIRA_FIELDS[field]]?.trim();
-	const fields: string[] = [];
+	const fromExam = move.from === 'rating-exam';
 
 	if (move.to === 'in-training' && empty('teacherAssigned')) {
-		fields.push(JIRA_FIELDS.teacherAssigned);
+		fields[JIRA_FIELDS.teacherAssigned] = today;
 	}
 	if ((move.to === 'removed' || move.to === 'withdrawn') && empty('removed')) {
-		fields.push(JIRA_FIELDS.removed);
+		fields[JIRA_FIELDS.removed] = today;
+	}
+	if (move.from === 'in-training' && move.to === 'rating-exam' && empty('recommendedForRe')) {
+		fields[JIRA_FIELDS.recommendedForRe] = today;
+	}
+	if (fromExam && move.to === 'needs-catp') {
+		fields[JIRA_FIELDS.reFailed] = today;
+	}
+	if (fromExam && (move.to === 'needs-catp' || move.to === 'certification-update')) {
+		fields[JIRA_FIELDS.reAttempts] = attemptsOn(issue) + 1;
+	}
+	if (move.from === 'removed' && isOpenEnrollmentStatus(move.to)) {
+		fields[JIRA_FIELDS.removalReason] = null;
 	}
 
 	return fields;
@@ -99,6 +144,10 @@ export type JiraStatusIssue = {
 		[JIRA_FIELDS.vatusaCompleted]?: string | null;
 		[JIRA_FIELDS.teacherAssigned]?: string | null;
 		[JIRA_FIELDS.removed]?: string | null;
+		[JIRA_FIELDS.recommendedForRe]?: string | null;
+		[JIRA_FIELDS.reFailed]?: string | null;
+		/** A number field. */
+		[JIRA_FIELDS.reAttempts]?: number | null;
 		/** Jira's last-updated time, e.g. "2026-09-23T10:32:53.283-0400". */
 		updated?: string | null;
 	} | null;

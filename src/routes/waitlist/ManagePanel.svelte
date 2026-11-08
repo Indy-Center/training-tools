@@ -2,6 +2,7 @@
 	import ActionResult from '$lib/components/forms/ActionResult.svelte';
 	import Alert from '$lib/components/ui/Alert.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
+	import type { RemovalReasonChoice } from '$lib/card-page';
 	import { findCourse } from '$lib/courses';
 	import {
 		allStatuses,
@@ -27,6 +28,7 @@
 		rows: all,
 		leftTheRoster,
 		vatusaKeySet,
+		removalReasons,
 		form
 	}: {
 		rows: WaitlistRow[];
@@ -34,6 +36,8 @@
 		leftTheRoster: LeftRosterRow[];
 		/** Whether VATUSA can be asked to assign a course, or only the card dated. */
 		vatusaKeySet: boolean;
+		/** What Remove asks for. */
+		removalReasons: RemovalReasonChoice[];
 		form: { sheetError?: string; sheetDone?: string; sheetNote?: string | null } | null | undefined;
 	} = $props();
 
@@ -94,7 +98,14 @@
 						</tr>
 
 						{#each group.rows as row (row.id)}
-							<StudentRow {row} {courseName} {vatusaKeySet} columns={COLUMNS} bind:busy />
+							<StudentRow
+								{row}
+								{courseName}
+								{vatusaKeySet}
+								{removalReasons}
+								columns={COLUMNS}
+								bind:busy
+							/>
 						{/each}
 					</tbody>
 				{/each}

@@ -7,7 +7,7 @@ import { COURSES, findCourse } from '$lib/courses';
 import { CLOSED_ENROLLMENT_STATUSES } from '$lib/db/schema/enrollments';
 import { issueUrl, resolveJiraConfig } from '$lib/server/jira/client';
 import { transitionIssueToStatus, WITHDRAWN_STATUS } from '$lib/server/jira/enrollment';
-import { JIRA_FIELDS } from '$lib/server/jira/fields';
+import { JIRA_FIELDS, REMOVAL_REASONS, type AdminRemovalReason } from '$lib/server/jira/fields';
 import {
 	findSelectOption,
 	REMOVED_STATUS,
@@ -553,16 +553,22 @@ export async function changeTeacher(
  * Staff take someone off the list: the card moves to Removed. For a request
  * staff are ending — no response, no longer eligible — as opposed to one the
  * student is giving up, which is `withdrawStudent()`.
+ *
+ * The reason is written first, so the card never sits at Removed without it,
+ * then the move, then a comment naming it.
  */
 export async function removeStudent(
 	db: Database,
 	env: Partial<Env> | undefined,
 	enrollment: Enrollment,
+	reason: AdminRemovalReason,
 	by: string
 ): Promise<FlowResult> {
+	const { id, label } = REMOVAL_REASONS[reason];
 	return onCard(db, env, enrollment, 'remove student', async (config, issueKey) => {
+		await updateIssueFields(config, issueKey, { [JIRA_FIELDS.removalReason]: { id } });
 		await transitionIssueToStatus(config, issueKey, REMOVED_STATUS);
-		await note(config, issueKey, `Removed by ${by}.`);
+		await note(config, issueKey, `Removed by ${by}: ${label}.`);
 	});
 }
 

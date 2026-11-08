@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { testDb } from '$lib/server/test-db';
 import { enrollmentsTable } from '$lib/db/schema/enrollments';
 import { TEACHER_FIELD, type JiraStatusIssue } from '$lib/server/jira/status';
-import { applyIssueMove, sweepWindowMinutes } from './status-sync';
+import { applyIssueMove, dateCardMove, sweepWindowMinutes } from './status-sync';
 
 const NOW = new Date('2026-09-23T12:00:00Z');
 
@@ -103,6 +103,108 @@ describe('applyIssueMove and ctrs_notice', () => {
 		const { outcome } = await applyIssueMove(db, issue('Needs CATP'), older, NOW);
 		expect(outcome).toBe('stale');
 		expect(await notice()).toBe('501');
+	});
+});
+
+describe('applyIssueMove reports a move once', () => {
+	const SEEN = new Date('2026-09-22T10:00:00Z');
+	const LATER = new Date('2026-09-22T10:00:05Z');
+	let db: Database;
+
+	beforeEach(async () => {
+		db = testDb();
+		await db.insert(enrollmentsTable).values({
+			id: 'e1',
+			cid: '1000001',
+			course: 'S-GC',
+			status: 'rating-exam',
+			submittedName: 'Jo Rivera',
+			jiraIssueKey: 'TRK-1',
+			teacher: 'AB'
+		});
+	});
+
+	const atCatp: JiraStatusIssue = {
+		key: 'TRK-1',
+		fields: { status: { name: 'Needs CATP' }, [TEACHER_FIELD]: { value: 'AB' } }
+	};
+
+	// The webhook and the sweep both describe the same move; only the first
+	// says it moved, so the exam count goes up once.
+	it('says it moved on the write that moved it, and not on a second read of it', async () => {
+		expect((await applyIssueMove(db, atCatp, SEEN, NOW)).moved).toEqual({
+			from: 'rating-exam',
+			to: 'needs-catp'
+		});
+		expect((await applyIssueMove(db, atCatp, SEEN, NOW)).moved).toBeNull();
+		expect((await applyIssueMove(db, atCatp, LATER, NOW)).moved).toBeNull();
+	});
+});
+
+describe('dateCardMove', () => {
+	const env = {
+		JIRA_BASE_URL: 'https://jira.test',
+		JIRA_PROJECT_KEY: 'TRK',
+		JIRA_USER_EMAIL: 'bot@example.com',
+		JIRA_API_TOKEN: 'token'
+	} as unknown as Partial<Env>;
+
+	function stubJira(status = 204) {
+		const fetch = vi.fn(async (_url: string, _init?: RequestInit) =>
+			status < 300 ? new Response(null, { status }) : new Response('Bad', { status })
+		);
+		vi.stubGlobal('fetch', fetch);
+		return fetch;
+	}
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	const failed: JiraStatusIssue = {
+		key: 'TRK-9001',
+		fields: {
+			status: { name: 'Needs CATP' },
+			customfield_10324: '2026-09-15',
+			customfield_10325: 2
+		}
+	};
+
+	it('sends a failed exam’s fields in one write', async () => {
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const fetch = stubJira();
+
+		await dateCardMove(env, failed, { from: 'rating-exam', to: 'needs-catp' }, NOW);
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		const [url, init] = fetch.mock.calls[0];
+		expect(url).toBe('https://jira.test/rest/api/3/issue/TRK-9001');
+		expect(init?.method).toBe('PUT');
+		expect(JSON.parse(String(init?.body))).toEqual({
+			fields: { customfield_10324: '2026-09-23', customfield_10325: 3 }
+		});
+	});
+
+	it('writes nothing when the card has not moved', async () => {
+		const fetch = stubJira();
+		await dateCardMove(env, failed, null, NOW);
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	// The move is consumed: a second try could count the exam twice.
+	it('logs a failed write and does not retry it', async () => {
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const fetch = stubJira(500);
+
+		await dateCardMove(env, failed, { from: 'rating-exam', to: 'needs-catp' }, NOW);
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+		expect(error).toHaveBeenCalledWith(
+			'[training-tools] could not date card',
+			expect.stringContaining('TRK-9001'),
+			expect.anything()
+		);
 	});
 });
 

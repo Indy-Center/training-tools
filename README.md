@@ -656,7 +656,8 @@ withdraw, which comments on the Jira issue **and** transitions it to `Withdrawn`
 **A student who leaves the home roster comes off their request by themselves**
 (decisions/0037, the `roster removals` job). Once their `left_home_at` is more
 than 24 hours ago, an open request at Waitlist, In Training, Rating Exam or
-Needs CATP (never Audit) that is not **kept in line** is removed: the card is
+Needs CATP (never Audit) that is not **kept in line** is removed: the card's
+`Removal Reason` is set to Roster removal, the card is
 commented on ("Left the ZID home roster on … restored to … if back on the home
 roster by …"), moved to Removed and read back, then the row is stamped with
 `roster_removed_at`, the stage it left, the student's `left_home_at` and
@@ -774,13 +775,31 @@ What staff do from a row:
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
   the two; either closes the request. Either way the card's `Removed` date is
-  filled in — see below.
+  filled in — see below. Remove asks why, with no default: No response, Not
+  eligible, Duplicate or mistake, or Other (`Pick a reason for removing <name>.`
+  if none is chosen, and nothing is written). The reason goes in the card's
+  `Removal Reason` before the move, and the comment names it (`Removed by <name>: <reason>.`).
+  The fifth reason, Roster removal, is set only by the roster removals job; a
+  withdrawal has no reason, and a card dragged to Removed on the board has none.
 
-**Some dates follow the card, not the button.** `Teacher Assigned` is stamped
-when the app sees a card move into In Training, and `Removed` when it sees one
-move to Removed or Withdrawn — whether the move was made here or on the board
-(`datesForMove`, `dateCardMove`). Only an empty field is filled, so a date entered
-by hand stays. `Training Completed`, `RE Completed` and `Certificate Updated`
+**Some fields follow the card, not the button.** Whether the move was made here
+or on the board, the app stamps them when it sees the card move
+(`fieldsForMove`, `dateCardMove`), in one write per move:
+
+| Move                                 | Field                | Value                    |
+| ------------------------------------ | -------------------- | ------------------------ |
+| into In Training                     | `Teacher Assigned`   | the day, if empty        |
+| to Removed or Withdrawn              | `Removed`            | the day, if empty        |
+| In Training → Rating Exam            | `Recommended for RE` | the day, if empty        |
+| Rating Exam → Needs CATP             | `RE Failed`          | the day, always (latest) |
+| Rating Exam → Audit, or → Needs CATP | `RE Attempts`        | the card's count + 1     |
+| Removed → any open stage             | `Removal Reason`     | cleared                  |
+
+"If empty" keeps a date entered by hand. Leaving Rating Exam for Removed or
+Withdrawn is not an attempt. Each move is seen once however many deliveries and
+sweeps report it, so an exam is counted once; a write Jira refuses is logged
+and not retried, so the count can run short, never long.
+`Training Completed`, `RE Completed` and `Certificate Updated`
 are still stamped by the step that earns them, because the certification is
 held on a card that reaches Audit without them.
 
@@ -876,7 +895,7 @@ How a course finishes, and who moves it. The rules are pure functions in
 | Mark training complete      | the teacher on the card, at In Training (`/teach`)                   | the same, with no training report filed                                                     |
 | Claim this exam             | any evaluator on that course except the student's teacher (`/teach`) | they become its `RE Instructor`                                                             |
 | Training report: passed     | that examiner (`/teach/report`)                                      | `RE Completed` dated; moved to Audit                                                        |
-| Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` cleared                                           |
+| Training report: not passed | that examiner (`/teach/report`)                                      | moved to Needs CATP; `Training Completed` kept                                              |
 | Passed / Not passed         | that examiner (`/teach`)                                             | the same, with no training report filed                                                     |
 | _(automatic)_               | the app                                                              | the certification is applied; `Certificate Updated` dated                                   |
 | Audit complete              | a training admin (`/admin/audit`)                                    | moved to Completed                                                                          |
@@ -961,6 +980,9 @@ pass; `enrollments.certification_applied_at` is what makes it happen once.
 **But only if the card shows the course was finished.** Before granting anything
 the app reads the card: every course needs `Training Completed`, and the four
 that end in a rating exam also need `RE Instructor` and `RE Completed`. A card
+with an `RE Failed` date also needs `Training Completed` **after** it (shown as
+`Training Completed (after the failed exam)`); a missing `Training Completed`
+is reported alone. A card
 without them — dragged past its exam, or across before the training was done —
 is **held**: nothing is granted, the training admins are told once, and
 `/admin/audit` lists it with what it lacks. It is checked again on every pass,
@@ -980,10 +1002,11 @@ exam, below, or a card staff move there from In Training on the board. The
 student's page does not say which. The training admins' notice says an exam was
 failed only when the card arrived from Rating Exam.
 
-A **failed exam** goes to Needs CATP, with `Training Completed` cleared: the
-training was not complete after all. The TA decides what further training the
-student gets and returns the card to training on the board; the teacher dates it
-again when it is done. RE Instructor stays on the card while it waits at Needs
+A **failed exam** goes to Needs CATP, and `Training Completed` stays on the
+card. The move stamps `RE Failed`, and the hold wants `Training Completed` after
+it, so the card cannot certify on its old date. The TA decides what further
+training the student gets and returns the card to training on the board; the
+teacher dates it again when it is done. RE Instructor stays on the card while it waits at Needs
 CATP, so the TA can see who examined, and is **removed when the card goes back
 into training** — by the webhook or the cron, however it was moved — so the
 retake is claimed afresh. The student's page explains, and the
@@ -1024,20 +1047,22 @@ Discord when a request gets stuck, and when a job starts failing or recovers —
 see Notifications.
 
 **The card page**, `/admin/cards/{key}` (`TRK-14`), shows one request's TRK
-card read live from Jira: its stage, Teacher, RE Instructor and dates, its five
-latest comments, and what a held certification lacks. If Jira can't be read it
+card read live from Jira: its stage, Teacher, RE Instructor, dates and
+`RE Attempts`, its `Removal Reason` (shown, set only with a move to Removed), its five latest comments, and what a held certification lacks. If Jira can't be read it
 shows the request and Jira's error. It isn't in the nav: for a training admin,
 the TRK key on each `/waitlist` and `/admin/audit` row links there, and so do
 the notices about a held certification or a CTRS record the app didn't act on.
 
 **Edit card**, on that page, lets a training admin change the card without
 opening the board: its stage (the moves Jira offers it now, never Completed,
-which stays with the audit), its dates, and RE Instructor. A save writes the
+which stays with the audit), its dates (`Recommended for RE` and `RE Failed`
+among them), and RE Instructor. A save writes the
 changed fields in one call, then makes the move, comments on the card with what
 landed (`Edited by …`), and reads the card back as after a drag on the board, so
 the dates on the move, the certification and its hold follow as usual. It's
 refused, writing nothing, for a request the student withdrew here; a hand-posted
-move to Completed (`A card is completed from the audit.`); an examiner who is the
+move to Completed (`A card is completed from the audit.`); a move to Removed
+without a reason (`Pick a reason for removing <name>.`); an examiner who is the
 student's teacher; a date that is malformed or after today; a stage Jira no
 longer offers from the card's status (`TRK-14 can't move to … from … now. Reload
 and try again.`, 409); an examiner not on Jira's RE Instructor list (`TRK's RE
@@ -1046,8 +1071,13 @@ examiner and date refusals check only values the save changes: one the card
 already holds and the form posts back is never refused. If Jira refuses the
 move, the fields stay saved and the page says so.
 Choosing Audit warns what the card would be held for; it doesn't stop the save.
-`Waitlisted`, `Certificate Updated`, Teacher, course, CID and name stay on the
-board (Teacher is changed from `/waitlist`).
+Choosing Removed, on a card not already there, asks for the reason, as
+`/waitlist`'s Remove does: it goes in the same write as the other fields,
+before the move, and the comment names it (`Removal Reason none → No response`).
+A save on a card already in Removed (dragged there on the board, so with no
+reason) isn't asked for one.
+`Waitlisted`, `Certificate Updated`, `RE Attempts` (a counter), Teacher, course,
+CID and name stay on the board (Teacher is changed from `/waitlist`).
 
 ### Site copy
 

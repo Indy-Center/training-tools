@@ -25,6 +25,7 @@ import {
 	stopKeepingRequestInLine,
 	type AdminActionResult
 } from '$lib/server/enrollments/roster-admin';
+import { ADMIN_REMOVAL_REASON_CHOICES, adminRemovalReason } from '$lib/server/jira/fields';
 import { SHEET_STATUSES } from '$lib/waitlist';
 import { displayName } from '$lib/user';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
@@ -70,7 +71,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 					rows: await getWaitlistSheet(locals.db, platform?.env.JIRA_BASE_URL),
 					leftTheRoster: await getLeftTheRoster(locals.db, platform?.env.JIRA_BASE_URL),
 					// Whether VATUSA can be asked to assign a course, or only the card dated.
-					vatusaKeySet: Boolean(env?.VATUSA_API_KEY?.trim())
+					vatusaKeySet: Boolean(env?.VATUSA_API_KEY?.trim()),
+					// Remove's reasons: the four an admin may choose.
+					removalReasons: ADMIN_REMOVAL_REASON_CHOICES
 				}
 			: null
 	};
@@ -197,12 +200,28 @@ export const actions: Actions = {
 		return { sheetDone: `Teacher changed for ${enrollment.submittedName}.` };
 	},
 
-	/** Staff end the request: the card moves to Removed. */
+	/**
+	 * Staff end the request, with a reason: the card moves to Removed. Roster
+	 * removal is the roster-removal pass's alone, so it is refused here.
+	 */
 	removeStudent: async (event) => {
-		const { by, enrollment } = await actingOnSheet(event);
+		const { by, form, enrollment } = await actingOnSheet(event);
 		if (!enrollment) return fail(404, { sheetError: GONE });
 
-		const result = await removeStudent(event.locals.db, event.platform?.env, enrollment, by);
+		const reason = adminRemovalReason(form.get('reason'));
+		if (!reason) {
+			return fail(400, {
+				sheetError: `Pick a reason for removing ${enrollment.submittedName}.`
+			});
+		}
+
+		const result = await removeStudent(
+			event.locals.db,
+			event.platform?.env,
+			enrollment,
+			reason,
+			by
+		);
 		if (!result.ok) return fail(502, { sheetError: result.message });
 
 		return { sheetDone: `${enrollment.submittedName} removed.` };

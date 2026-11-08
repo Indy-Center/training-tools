@@ -19,7 +19,7 @@ describe('examResultCopy', () => {
 		expect(copy.title).toBe('Mark the rating exam not passed?');
 		expect(copy.confirmLabel).toBe('Mark not passed');
 		expect(copy.before).toBe(
-			"Jo Rivera's Simple Ground Control rating exam will be marked not passed, and the enrollment advanced to Needs CATP. Training Completed is cleared."
+			"Jo Rivera's Simple Ground Control rating exam will be marked not passed, and the enrollment advanced to Needs CATP."
 		);
 		expect(copy.tone).toBe('danger');
 	});
@@ -31,7 +31,7 @@ describe('examResultNote', () => {
 			'Rating exam marked passed by Sam Examiner on /teach; no training report filed through the app.'
 		);
 		expect(examResultNote('not-passed', 'Sam Examiner')).toBe(
-			'Rating exam marked not passed by Sam Examiner on /teach; no training report filed through the app. Training Completed cleared.'
+			'Rating exam marked not passed by Sam Examiner on /teach; no training report filed through the app.'
 		);
 	});
 });

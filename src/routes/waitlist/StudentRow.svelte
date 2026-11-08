@@ -3,6 +3,7 @@
 	import IssueLink from '$lib/components/enrollment/IssueLink.svelte';
 	import { notificationLabel } from '$lib/enrollment-status';
 	import { formatDate } from '$lib/format';
+	import type { RemovalReasonChoice } from '$lib/card-page';
 	import type { WaitlistRow } from '$lib/waitlist';
 	import TeacherCell from './TeacherCell.svelte';
 	import VatusaCourseCell from './VatusaCourseCell.svelte';
@@ -16,6 +17,7 @@
 		row,
 		courseName,
 		vatusaKeySet,
+		removalReasons,
 		columns,
 		busy = $bindable(null)
 	}: {
@@ -23,6 +25,8 @@
 		/** The course's name, for the wording of the confirmations. */
 		courseName: string;
 		vatusaKeySet: boolean;
+		/** What Remove asks for. */
+		removalReasons: RemovalReasonChoice[];
 		/** How many columns the table has, for the availability line to span. */
 		columns: number;
 		/** Shared with every other row: see ActionForm. */
@@ -69,7 +73,7 @@
 	</td>
 
 	<td class="px-3 py-3 text-xs">
-		<TeacherCell {row} {courseName} bind:busy />
+		<TeacherCell {row} {courseName} {removalReasons} bind:busy />
 	</td>
 </tr>
 

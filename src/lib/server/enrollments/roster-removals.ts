@@ -11,7 +11,8 @@ import { isDueForRemoval, restoreByFor } from '$lib/roster-removal';
 import { isAssignedTo } from '$lib/teachers';
 import { issueUrl, JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
-import { REMOVED_STATUS, toFacilityDate } from '$lib/server/jira/progress';
+import { JIRA_FIELDS, REMOVAL_REASONS } from '$lib/server/jira/fields';
+import { REMOVED_STATUS, toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import { notify, notifyDirect, type DirectNotice } from '$lib/server/notify';
 import { loadMirror, memberName, type MirrorMember } from '$lib/server/roster';
 import { listTeachers } from '$lib/server/teachers';
@@ -253,8 +254,9 @@ async function removeDepartedStudents(
 }
 
 /**
- * Comment, move to Removed, and read the card back. True once the row reads
- * `removed`; false, having logged why, for anything else.
+ * Set the reason (Roster removal), comment, move to Removed, and read the card
+ * back. True once the row reads `removed`; false, having logged why, for
+ * anything else.
  */
 async function moveToRemoved(
 	db: Database,
@@ -266,6 +268,9 @@ async function moveToRemoved(
 	const issueKey = request.jiraIssueKey!;
 
 	try {
+		await updateIssueFields(config, issueKey, {
+			[JIRA_FIELDS.removalReason]: { id: REMOVAL_REASONS['roster-removal'].id }
+		});
 		await commentOnIssue(config, issueKey, removalComment(removal));
 		await transitionIssueToStatus(config, issueKey, REMOVED_STATUS);
 	} catch (err) {

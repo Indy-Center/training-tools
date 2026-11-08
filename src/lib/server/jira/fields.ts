@@ -34,8 +34,59 @@ export const JIRA_FIELDS = {
 	/** Date. When they passed it. */
 	vatusaCompleted: 'customfield_10288',
 	/** Date. Stamped when the card is seen to move to Removed or Withdrawn. */
-	removed: 'customfield_10251'
+	removed: 'customfield_10251',
+	/**
+	 * Date. Stamped when the card is seen to move from In Training to Rating
+	 * Exam, if empty. Recreated 2026-11-01; the old `customfield_10252` is gone.
+	 */
+	recommendedForRe: 'customfield_10326',
+	/** Date. Stamped when the card is seen to move from Rating Exam to Needs CATP: the latest fail. */
+	reFailed: 'customfield_10324',
+	/**
+	 * Number (Jira's `float`, read back as e.g. `2`). Goes up by one when the card
+	 * is seen to leave Rating Exam for Audit or Needs CATP.
+	 */
+	reAttempts: 'customfield_10325',
+	/**
+	 * Select: why the card was removed (`REMOVAL_REASONS`). Written before the
+	 * move to Removed; cleared when the card is seen to move back to an open stage.
+	 */
+	removalReason: 'customfield_10323'
 } as const;
+
+/**
+ * Option ids on the `Removal Reason` select, by our own name for each, with
+ * the label Jira shows. Read 2026-11-01; the select has no default. A drag on
+ * the board leaves it empty, and a withdrawal has none.
+ */
+export const REMOVAL_REASONS = {
+	/** Set only by the roster-removal pass, never chosen by an admin. */
+	'roster-removal': { id: '10180', label: 'Roster removal' },
+	'no-response': { id: '10181', label: 'No response' },
+	'not-eligible': { id: '10182', label: 'Not eligible' },
+	duplicate: { id: '10183', label: 'Duplicate or mistake' },
+	other: { id: '10184', label: 'Other' }
+} as const;
+
+export type RemovalReason = keyof typeof REMOVAL_REASONS;
+
+/** The reasons an admin chooses from, in the order the forms list them. */
+export const ADMIN_REMOVAL_REASONS = ['no-response', 'not-eligible', 'duplicate', 'other'] as const;
+
+export type AdminRemovalReason = (typeof ADMIN_REMOVAL_REASONS)[number];
+
+/** A posted reason, if it is one an admin may choose; `roster-removal` is not. */
+export function adminRemovalReason(value: unknown): AdminRemovalReason | null {
+	return (ADMIN_REMOVAL_REASONS as readonly unknown[]).includes(value)
+		? (value as AdminRemovalReason)
+		: null;
+}
+
+/** The admin reasons as the forms list them: our name, and Jira's label. */
+export const ADMIN_REMOVAL_REASON_CHOICES = ADMIN_REMOVAL_REASONS.map((name) => ({
+	name,
+	label: REMOVAL_REASONS[name].label
+}));
 
 /**
  * Option ids on the `Notification Prefrence` select.
