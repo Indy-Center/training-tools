@@ -34,7 +34,19 @@ export const JIRA_FIELDS = {
 	/** Date. When they passed it. */
 	vatusaCompleted: 'customfield_10288',
 	/** Date. Stamped when the card is seen to move to Removed or Withdrawn. */
-	removed: 'customfield_10251'
+	removed: 'customfield_10251',
+	/**
+	 * Date. Stamped when the card is seen to move from In Training to Rating
+	 * Exam, if empty. Recreated 2026-11-01; the old `customfield_10252` is gone.
+	 */
+	recommendedForRe: 'customfield_10326',
+	/** Date. Stamped when the card is seen to move from Rating Exam to Needs CATP: the latest fail. */
+	reFailed: 'customfield_10324',
+	/**
+	 * Number (Jira's `float`, read back as e.g. `2`). Goes up by one when the card
+	 * is seen to leave Rating Exam for Audit or Needs CATP.
+	 */
+	reAttempts: 'customfield_10325'
 } as const;
 
 /**

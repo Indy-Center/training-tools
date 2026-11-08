@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	isStale,
 	mapJiraStatus,
-	datesForMove,
+	fieldsForMove,
 	parseJiraTimestamp,
 	RE_INSTRUCTOR_FIELD,
 	resolveStatusUpdate,
@@ -135,39 +135,102 @@ describe('resolveStatusUpdate', () => {
 	});
 });
 
-describe('datesForMove', () => {
+describe('fieldsForMove', () => {
 	const TEACHER_ASSIGNED = 'customfield_10247';
 	const REMOVED = 'customfield_10251';
-	const card = (fields: Record<string, string | null> = {}) => ({ key: 'TRK-1', fields });
+	const RE_FAILED = 'customfield_10324';
+	const RE_ATTEMPTS = 'customfield_10325';
+	const RECOMMENDED_FOR_RE = 'customfield_10326';
+	const TODAY = '2026-11-08';
+	const card = (fields: Record<string, string | number | null> = {}) => ({
+		key: 'TRK-9001',
+		fields
+	});
 
 	it('dates Teacher Assigned on a move into In Training', () => {
-		expect(datesForMove({ from: 'waitlist', to: 'in-training' }, card())).toEqual([
-			TEACHER_ASSIGNED
-		]);
+		expect(fieldsForMove({ from: 'waitlist', to: 'in-training' }, card(), TODAY)).toEqual({
+			[TEACHER_ASSIGNED]: TODAY
+		});
 	});
 
 	it('dates Removed on a move to Removed or Withdrawn, from anywhere', () => {
-		expect(datesForMove({ from: 'waitlist', to: 'removed' }, card())).toEqual([REMOVED]);
-		expect(datesForMove({ from: 'in-training', to: 'withdrawn' }, card())).toEqual([REMOVED]);
+		expect(fieldsForMove({ from: 'waitlist', to: 'removed' }, card(), TODAY)).toEqual({
+			[REMOVED]: TODAY
+		});
+		expect(fieldsForMove({ from: 'in-training', to: 'withdrawn' }, card(), TODAY)).toEqual({
+			[REMOVED]: TODAY
+		});
 	});
 
 	// A date entered by hand, or the first assignment before a card came back
 	// from Needs CATP, stays as it is.
-	it('never overwrites a date the card already has', () => {
+	it('never overwrites a Teacher Assigned or Removed the card already has', () => {
 		expect(
-			datesForMove(
+			fieldsForMove(
 				{ from: 'needs-catp', to: 'in-training' },
-				card({ [TEACHER_ASSIGNED]: '2026-09-01' })
+				card({ [TEACHER_ASSIGNED]: '2026-09-01' }),
+				TODAY
 			)
-		).toEqual([]);
+		).toEqual({});
 		expect(
-			datesForMove({ from: 'waitlist', to: 'removed' }, card({ [REMOVED]: '2026-10-01' }))
-		).toEqual([]);
+			fieldsForMove({ from: 'waitlist', to: 'removed' }, card({ [REMOVED]: '2026-10-01' }), TODAY)
+		).toEqual({});
 	});
 
-	it('dates nothing on any other move', () => {
-		expect(datesForMove({ from: 'in-training', to: 'rating-exam' }, card())).toEqual([]);
-		expect(datesForMove({ from: 'certification-update', to: 'completed' }, card())).toEqual([]);
+	it('dates Recommended for RE on In Training → Rating Exam, only when it is empty', () => {
+		expect(fieldsForMove({ from: 'in-training', to: 'rating-exam' }, card(), TODAY)).toEqual({
+			[RECOMMENDED_FOR_RE]: TODAY
+		});
+		expect(
+			fieldsForMove(
+				{ from: 'in-training', to: 'rating-exam' },
+				card({ [RECOMMENDED_FOR_RE]: '2026-10-20' }),
+				TODAY
+			)
+		).toEqual({});
+	});
+
+	// Recommended for RE is the first recommendation: a retake from Needs CATP
+	// is not one.
+	it('leaves Recommended for RE on a move to Rating Exam from anywhere else', () => {
+		expect(fieldsForMove({ from: 'needs-catp', to: 'rating-exam' }, card(), TODAY)).toEqual({});
+	});
+
+	it('overwrites RE Failed and counts an attempt on a failed exam', () => {
+		expect(
+			fieldsForMove(
+				{ from: 'rating-exam', to: 'needs-catp' },
+				card({ [RE_FAILED]: '2026-09-15', [RE_ATTEMPTS]: 2 }),
+				TODAY
+			)
+		).toEqual({ [RE_FAILED]: TODAY, [RE_ATTEMPTS]: 3 });
+	});
+
+	it('counts a passed exam as an attempt, an empty count as 0', () => {
+		expect(
+			fieldsForMove({ from: 'rating-exam', to: 'certification-update' }, card(), TODAY)
+		).toEqual({ [RE_ATTEMPTS]: 1 });
+	});
+
+	it('does not count leaving Rating Exam for Removed or Withdrawn as an attempt', () => {
+		const counted = card({ [RE_ATTEMPTS]: 1 });
+		expect(fieldsForMove({ from: 'rating-exam', to: 'removed' }, counted, TODAY)).toEqual({
+			[REMOVED]: TODAY
+		});
+		expect(fieldsForMove({ from: 'rating-exam', to: 'withdrawn' }, counted, TODAY)).toEqual({
+			[REMOVED]: TODAY
+		});
+	});
+
+	it('stamps nothing when the card has not moved', () => {
+		expect(fieldsForMove({ from: 'in-training', to: 'in-training' }, card(), TODAY)).toEqual({});
+		expect(fieldsForMove(null, card(), TODAY)).toEqual({});
+	});
+
+	it('stamps nothing on any other move', () => {
+		expect(fieldsForMove({ from: 'certification-update', to: 'completed' }, card(), TODAY)).toEqual(
+			{}
+		);
 	});
 });
 

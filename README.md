@@ -776,11 +776,23 @@ What staff do from a row:
   the two; either closes the request. Either way the card's `Removed` date is
   filled in — see below.
 
-**Some dates follow the card, not the button.** `Teacher Assigned` is stamped
-when the app sees a card move into In Training, and `Removed` when it sees one
-move to Removed or Withdrawn — whether the move was made here or on the board
-(`datesForMove`, `dateCardMove`). Only an empty field is filled, so a date entered
-by hand stays. `Training Completed`, `RE Completed` and `Certificate Updated`
+**Some fields follow the card, not the button.** Whether the move was made here
+or on the board, the app stamps them when it sees the card move
+(`fieldsForMove`, `dateCardMove`), in one write per move:
+
+| Move                                 | Field                | Value                    |
+| ------------------------------------ | -------------------- | ------------------------ |
+| into In Training                     | `Teacher Assigned`   | the day, if empty        |
+| to Removed or Withdrawn              | `Removed`            | the day, if empty        |
+| In Training → Rating Exam            | `Recommended for RE` | the day, if empty        |
+| Rating Exam → Needs CATP             | `RE Failed`          | the day, always (latest) |
+| Rating Exam → Audit, or → Needs CATP | `RE Attempts`        | the card's count + 1     |
+
+"If empty" keeps a date entered by hand. Leaving Rating Exam for Removed or
+Withdrawn is not an attempt. Each move is seen once however many deliveries and
+sweeps report it, so an exam is counted once; a write Jira refuses is logged
+and not retried, so the count can run short, never long.
+`Training Completed`, `RE Completed` and `Certificate Updated`
 are still stamped by the step that earns them, because the certification is
 held on a card that reaches Audit without them.
 
