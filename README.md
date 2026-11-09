@@ -627,8 +627,9 @@ creates rows from Jira; the sweep and webhook only update existing ones. A card
 matching a request the roster removals job took off before it was filed is
 adopted onto it while it is in its restore window (the window closes as
 `moved-on-board`, the card's stage stands, nobody is told). Once that window has
-closed the card is left unlinked, no row is created, and the training admins are
-told once per card (`sync_state` key `import-left-unlinked:<TRK key>`).
+closed, and while it is still the student's latest request for the course, the
+card is left unlinked, no row is created, and the training admins are told once
+per card (`sync_state` key `import-left-unlinked:<TRK key>`).
 
 **`status_since` is the day a card entered its current status.** It is set only by
 the write in `applyIssueMove()` that changes `status` (to the move's observed

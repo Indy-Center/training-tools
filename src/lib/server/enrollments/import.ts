@@ -58,7 +58,10 @@ export type ImportResult = {
 	imported: number;
 	/** Unfiled rows of ours that turned out to already have an issue. */
 	adopted: number;
-	/** Issues with no row that could not become one. Logged individually. */
+	/**
+	 * Issues with no row that could not become one: logged individually, or,
+	 * for a card left unlinked after a roster removal, told to the admins once.
+	 */
 	skipped: number;
 	/** False when the page cap was hit; the rest are picked up on a later run. */
 	complete: boolean;
@@ -162,9 +165,10 @@ export async function importBoardIssues(
 				console.error('[training-tools] left-unlinked notice failed', err)
 			);
 			result.skipped += 1;
-		} else if (await insertImportedRow(db, parsed.enrollment, now)) {
-			result.imported += 1;
+			continue;
 		}
+
+		if (await insertImportedRow(db, parsed.enrollment, now)) result.imported += 1;
 	}
 
 	await reportBoardProblems(db, env, problems, now).catch((err) =>
@@ -258,23 +262,24 @@ async function adoptUnfiledRow(
 }
 
 /**
- * The unfiled request for the same student and course that the roster removals
- * job took off and whose window has since closed, if there is one.
+ * The student's latest request for the course, when it is one the roster
+ * removals job took off before it was filed and whose window has since closed.
+ * Only the latest: once they have had another request for the course, an old
+ * closed one no longer stands in the way of a card.
  */
 async function closedAfterRemoval(
 	db: Database,
 	enrollment: BoardEnrollment
 ): Promise<Enrollment | undefined> {
-	return db.query.enrollmentsTable.findFirst({
+	const latest = await db.query.enrollmentsTable.findFirst({
 		where: and(
 			eq(enrollmentsTable.cid, enrollment.cid),
-			eq(enrollmentsTable.course, enrollment.course),
-			isNull(enrollmentsTable.jiraIssueKey),
-			isNotNull(enrollmentsTable.rosterRemovedAt),
-			isNotNull(enrollmentsTable.restoreClosedAt)
+			eq(enrollmentsTable.course, enrollment.course)
 		),
 		orderBy: desc(enrollmentsTable.createdAt)
 	});
+	if (!latest || latest.jiraIssueKey) return undefined;
+	return latest.rosterRemovedAt && latest.restoreClosedAt ? latest : undefined;
 }
 
 /** `sync_state` key prefix: a card the training admins were told was left unlinked. */

@@ -85,7 +85,7 @@ const BATCH_SIZE = 25;
 export type RosterRestoreResult = {
 	/** Step 1: cards read back off Removed at a stage, finished as restored. */
 	finished: number;
-	/** Step 2: windows closed because the card went to Withdrawn, Audit, Completed or Needs CATP. */
+	/** Step 2: windows closed by a move to Withdrawn, Audit, Completed or Needs CATP. */
 	closedOnBoard: number;
 	/** Step 3: requests whose student is back, restored this pass. */
 	restored: number;
@@ -145,8 +145,8 @@ export async function finishBoardRestores(
 
 /**
  * Step 2. A card in its window moved to Withdrawn, Audit or Completed, or to
- * Needs CATP from any other stage: the window closes, `moved-on-board`, and the card's new stage
- * stands. Nobody is told; Jira is not touched.
+ * Needs CATP from any other stage: the window closes, `moved-on-board`, and
+ * the card's new stage stands. Nobody is told; Jira is not touched.
  */
 export async function closeBoardEndedWindows(db: Database, now: Date): Promise<number> {
 	let closed = 0;

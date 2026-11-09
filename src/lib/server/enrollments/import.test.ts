@@ -149,6 +149,49 @@ describe('importBoardIssues: a hand-filed card for a removed, unfiled request', 
 		]);
 	});
 
+	it('imports a card as usual once the student has had a later request for the course', async () => {
+		await addRemovedUnfiled({
+			id: 'a',
+			restoreClosedAt: RESTORE_BY,
+			restoreClosedReason: 'expired'
+		});
+		await db.insert(enrollmentsTable).values({
+			id: 'b',
+			cid: '1000001',
+			course: 'T-RC',
+			status: 'completed',
+			submittedName: 'Jo Rivera',
+			jiraIssueKey: 'TRK-30',
+			createdAt: new Date(RESTORE_BY.getTime() + DAY)
+		});
+		const { env, sent } = fakeBoard([card('TRK-40')]);
+
+		expect(await importBoardIssues(db, env, NOW)).toMatchObject({ imported: 1 });
+
+		expect((await row('a')).jiraIssueKey).toBeNull();
+		expect(await rows()).toHaveLength(3);
+		expect(sent).toEqual([]);
+	});
+
+	it('tells the admins on a later pass when the notice could not be sent', async () => {
+		await addRemovedUnfiled({
+			id: 'a',
+			restoreClosedAt: RESTORE_BY,
+			restoreClosedReason: 'expired'
+		});
+		const down = fakeBoard([card('TRK-40')]);
+		(down.env as any).LARRY.enqueue = async () => {
+			throw new Error('queue down');
+		};
+		await importBoardIssues(db, down.env, NOW);
+		const up = fakeBoard([card('TRK-40')]);
+		await importBoardIssues(db, up.env, new Date(NOW.getTime() + DAY));
+
+		expect(down.sent).toEqual([]);
+		expect(up.sent).toHaveLength(1);
+		expect((await row('a')).jiraIssueKey).toBeNull();
+	});
+
 	it('adopts the card onto a later request the student filed, not the closed one', async () => {
 		await addRemovedUnfiled({
 			id: 'a',
