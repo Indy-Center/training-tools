@@ -694,8 +694,9 @@ refusal for a card that has already left Removed (another restore got there
 first) is not counted as one. **A card moved off Removed any other way**
 counts the same: at Waitlist, In Training or Rating Exam (or Needs CATP, if it
 was removed from there) it is finished as restored, and kept in line by the
-board (`kept_in_line_by` null) if the student is still away; at Withdrawn, or
-Needs CATP from another stage, the window closes as `moved-on-board`. The
+board (`kept_in_line_by` null) if the student is still away; at Withdrawn,
+Audit or Completed, or Needs CATP from another stage, the window closes as
+`moved-on-board` and nobody is told. The
 training admins, the student, the teacher it was restored to and an examiner
 still on the card are told. Until the pass runs, `/` tells a returning student
 the request is being restored, and they cannot enroll again.

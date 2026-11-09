@@ -41,8 +41,9 @@ import { syncEnrollmentIssue } from './status-sync';
  * 1. `finishBoardRestores()`: a card in its window read back off Removed at a
  *    stage is finished as restored (staff on the board, or a restore whose last
  *    step was not reached).
- * 2. `closeBoardEndedWindows()`: one read back at Withdrawn, or at Needs CATP
- *    from another stage, closes its window `moved-on-board`.
+ * 2. `closeBoardEndedWindows()`: one read back at Withdrawn, Audit or
+ *    Completed, or at Needs CATP from another stage, closes its window
+ *    `moved-on-board`.
  * 3. `restoreReturnedStudents()`: a request whose student is back on the home
  *    roster is moved off Removed, then finished.
  *
@@ -84,7 +85,7 @@ const BATCH_SIZE = 25;
 export type RosterRestoreResult = {
 	/** Step 1: cards read back off Removed at a stage, finished as restored. */
 	finished: number;
-	/** Step 2: windows closed because the card went to Withdrawn or Needs CATP. */
+	/** Step 2: windows closed because the card went to Withdrawn, Audit, Completed or Needs CATP. */
 	closedOnBoard: number;
 	/** Step 3: requests whose student is back, restored this pass. */
 	restored: number;
@@ -143,21 +144,14 @@ export async function finishBoardRestores(
 }
 
 /**
- * Step 2. A card in its window moved to Withdrawn, or to Needs CATP from any
- * other stage: the window closes, `moved-on-board`, and the card's new stage
+ * Step 2. A card in its window moved to Withdrawn, Audit or Completed, or to
+ * Needs CATP from any other stage: the window closes, `moved-on-board`, and the card's new stage
  * stands. Nobody is told; Jira is not touched.
  */
 export async function closeBoardEndedWindows(db: Database, now: Date): Promise<number> {
 	let closed = 0;
 	for (const request of await windowRequests(db, false)) {
-		const outcome = boardMoveOutcome(request);
-		if (outcome === null) {
-			console.warn(
-				'[training-tools] roster restore: card left Removed for a stage it cannot reach',
-				JSON.stringify({ issue: request.jiraIssueKey, status: request.status })
-			);
-		}
-		if (outcome !== 'closed') continue;
+		if (boardMoveOutcome(request) !== 'closed') continue;
 
 		const [written] = await db
 			.update(enrollmentsTable)

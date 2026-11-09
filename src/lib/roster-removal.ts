@@ -89,10 +89,12 @@ export function isBackOnHomeRoster(
  *
  * - `restored`: Waitlist, In Training or Rating Exam, or Needs CATP when that is
  *   where it was removed from. Finished as a restore.
- * - `closed`: Withdrawn, or Needs CATP from any other stage. The window closes,
- *   `moved-on-board`, and the card's new stage stands.
- * - null: still Removed, or somewhere TRK cannot take a card from Removed
- *   (Audit, Completed). Left alone.
+ * - `closed`: Withdrawn, Audit or Completed, or Needs CATP from any other stage.
+ *   The window closes, `moved-on-board`, and the card's new stage stands. TRK
+ *   offers no move from Removed to Audit or Completed (read 2026-11-08), but a
+ *   card that gets there by some other route has finished, so it is not left to
+ *   expire as "did not return".
+ * - null: still Removed. Left alone.
  */
 export function boardMoveOutcome(
 	request: Pick<Enrollment, 'status' | 'rosterRemovedFrom'>
@@ -105,6 +107,8 @@ export function boardMoveOutcome(
 		case 'needs-catp':
 			return request.rosterRemovedFrom === 'needs-catp' ? 'restored' : 'closed';
 		case 'withdrawn':
+		case 'certification-update':
+		case 'completed':
 			return 'closed';
 		default:
 			return null;
