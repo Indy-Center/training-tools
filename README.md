@@ -623,7 +623,13 @@ Student Enrollment issue no row holds, queued by its `Waitlisted` date. Those
 students then see their request on `/`, are counted on `/waitlist`, and cannot file
 a duplicate. An issue with no usable CID, course or date is skipped and logged
 each run until someone fixes it on the board. The import is the only code that
-creates rows from Jira; the sweep and webhook only update existing ones.
+creates rows from Jira; the sweep and webhook only update existing ones. A card
+matching a request the roster removals job took off before it was filed is
+adopted onto it while it is in its restore window (the window closes as
+`moved-on-board`, the card's stage stands, nobody is told). Once that window has
+closed, and while it is still the student's latest request for the course, the
+card is left unlinked, no row is created, and the training admins are told once
+per card (`sync_state` key `import-left-unlinked:<TRK key>`).
 
 **`status_since` is the day a card entered its current status.** It is set only by
 the write in `applyIssueMove()` that changes `status` (to the move's observed
@@ -694,8 +700,9 @@ refusal for a card that has already left Removed (another restore got there
 first) is not counted as one. **A card moved off Removed any other way**
 counts the same: at Waitlist, In Training or Rating Exam (or Needs CATP, if it
 was removed from there) it is finished as restored, and kept in line by the
-board (`kept_in_line_by` null) if the student is still away; at Withdrawn, or
-Needs CATP from another stage, the window closes as `moved-on-board`. The
+board (`kept_in_line_by` null) if the student is still away; at Withdrawn,
+Audit or Completed, or Needs CATP from another stage, the window closes as
+`moved-on-board` and nobody is told. The
 training admins, the student, the teacher it was restored to and an examiner
 still on the card are told. Until the pass runs, `/` tells a returning student
 the request is being restored, and they cannot enroll again.

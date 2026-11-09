@@ -511,6 +511,35 @@ describe('processRosterRemovals: a card that left Removed by another route', () 
 		expect(restored.rosterRemovedAt).toBeNull();
 		expect(restored.keptInLineAt).toEqual(NOW);
 	});
+
+	it('closes the window of a card moved to Audit or Completed, and leaves its stage', async () => {
+		await addMember({ cid: '1000001', leftHomeAt: LEFT, removedAt: LEFT });
+		await addMember({ cid: '1000002', leftHomeAt: LEFT, removedAt: LEFT });
+		await addRemoved({
+			id: 'a',
+			cid: '1000001',
+			from: 'rating-exam',
+			status: 'certification-update'
+		});
+		await addRemoved({ id: 'b', cid: '1000002', from: 'rating-exam', status: 'completed' });
+		const jira = fakeJira({});
+		const { env, channel, direct } = fakeLarry();
+
+		expect(await processRosterRemovals(db, env, NOW)).toMatchObject({ closedOnBoard: 2 });
+		// Past restore_by, nothing expires them as "did not return".
+		await processRosterRemovals(db, env, new Date(RESTORE_BY.getTime() + DAY));
+
+		const audit = await row('a');
+		expect(audit.status).toBe('certification-update');
+		expect(audit.restoreClosedAt).toEqual(NOW);
+		expect(audit.restoreClosedReason).toBe('moved-on-board');
+		const completed = await row('b');
+		expect(completed.status).toBe('completed');
+		expect(completed.restoreClosedReason).toBe('moved-on-board');
+		expect(jira.calls).toEqual([]);
+		expect(channel).toEqual([]);
+		expect(direct).toEqual([]);
+	});
 });
 
 describe('processRosterRemovals: notices on restore', () => {

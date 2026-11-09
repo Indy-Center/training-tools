@@ -115,16 +115,16 @@ describe('boardMoveOutcome', () => {
 		);
 	});
 
-	it('closes the window for Withdrawn, or Needs CATP from another stage', () => {
-		expect(boardMoveOutcome({ status: 'withdrawn', rosterRemovedFrom: 'waitlist' })).toBe('closed');
+	it('closes the window for Withdrawn, Audit, Completed, or Needs CATP from another stage', () => {
+		for (const status of ['withdrawn', 'certification-update', 'completed'] as const) {
+			expect(boardMoveOutcome({ status, rosterRemovedFrom: 'rating-exam' })).toBe('closed');
+		}
 		expect(boardMoveOutcome({ status: 'needs-catp', rosterRemovedFrom: 'rating-exam' })).toBe(
 			'closed'
 		);
 	});
 
-	it('leaves a card still at Removed, or anywhere else', () => {
-		for (const status of ['removed', 'certification-update', 'completed'] as const) {
-			expect(boardMoveOutcome({ status, rosterRemovedFrom: 'waitlist' })).toBeNull();
-		}
+	it('leaves a card still at Removed', () => {
+		expect(boardMoveOutcome({ status: 'removed', rosterRemovedFrom: 'waitlist' })).toBeNull();
 	});
 });
