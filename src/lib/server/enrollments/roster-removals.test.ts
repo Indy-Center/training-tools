@@ -193,7 +193,7 @@ describe('processRosterRemovals: removal', () => {
 		expect(reason).toBeLessThan(move);
 	});
 
-	// The removal matters more than its reason (#217).
+	// The removal matters more than its reason.
 	it('still moves the card when Jira refuses the Removal Reason write', async () => {
 		await addMember({ cid: '1000001', leftHomeAt: LEFT, removedAt: LEFT });
 		await addRequest({ id: 'a', cid: '1000001', jiraIssueKey: 'TRK-1' });

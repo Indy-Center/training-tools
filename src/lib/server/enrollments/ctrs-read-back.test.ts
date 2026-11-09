@@ -211,8 +211,8 @@ describe('the ctrs records job, Rating Exam half', () => {
 		expect((await row('1')).status).toBe('needs-catp');
 	});
 
-	// The fail is dated from the session, not the day the record was found
-	// (#215); the move's own stamp then keeps it (`fieldsForMove()`).
+	// The fail is dated from the session, not the day the record was found; the
+	// move's own stamp then keeps it (`fieldsForMove()`).
 	it('dates RE Failed from the session, before the move', async () => {
 		await addCard({ id: '1', cid: '1000001', reInstructor: 'EF' });
 		const jira = fakeServices({ '1000001': [pass({ ots_status: 2 })] });
