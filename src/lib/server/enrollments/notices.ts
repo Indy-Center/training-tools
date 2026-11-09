@@ -660,6 +660,22 @@ export function rosterRestoreExaminerMessage(request: {
 }
 
 /**
+ * The board import found a hand-filed card for a request the roster removals
+ * job took off before it was filed, after its window closed, and left the card
+ * unlinked. Sent once per card.
+ */
+export function importLeftUnlinkedNotice(request: NoticeRequest & { issueKey: string }): Notice {
+	return {
+		audience: 'training-admins',
+		tone: 'warning',
+		title: `Card left unlinked: ${request.issueKey}`,
+		summary: `${request.issueKey} matches ${request.name}'s ${course(request.course)} request, which closed after they left the ZID home roster, so the import left it unlinked. Enroll them again, or close the card.`,
+		link: request.issueUrl ?? undefined,
+		fields: [{ label: 'Student', value: student(request) }, ...card(request)]
+	};
+}
+
+/**
  * Jira refused to take a returning student's card off Removed. Sent once per
  * request, however many passes retry it. `transition` is the one the board
  * needs; `error` is what Jira said.

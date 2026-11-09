@@ -1,14 +1,16 @@
-import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
-import { enrollmentsTable } from '$lib/db/schema/enrollments';
+import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { syncStateTable } from '$lib/db/schema/sync-state';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { boardProblemsNotice, type BoardProblem } from '$lib/server/jira/notices';
 import { resolveStatusUpdate } from '$lib/server/jira/status';
 import { notify } from '$lib/server/notify';
-import { resolveJiraConfig } from '$lib/server/jira/client';
+import { issueUrl, resolveJiraConfig } from '$lib/server/jira/client';
 import { listBoardIssues } from '$lib/server/jira/issues';
 import { parseBoardIssue, type BoardEnrollment } from '$lib/server/jira/board-issue';
+import { isInRestoreWindow } from '$lib/roster-removal';
+import { importLeftUnlinkedNotice } from './notices';
 import { applyIssueMove } from './status-sync';
 
 /**
@@ -39,6 +41,14 @@ import { applyIssueMove } from './status-sync';
  *
  * Anything still racing after that hits the unique index on `jira_issue_key`,
  * and the insert does nothing.
+ *
+ * ## A request the roster removals job took off before it was filed
+ *
+ * In its restore window, it is adopted like any other, and the window closes
+ * `moved-on-board`: the card's stage stands, and nobody is told. Once the
+ * window has closed it is never adopted, and no row is created either: the
+ * card stays unlinked, and the training admins are told once per card (marked
+ * in `sync_state`). See decisions/0037-roster-removal-and-restore.md
  */
 
 export type ImportResult = {
@@ -141,6 +151,17 @@ export async function importBoardIssues(
 			// up is not a move anyone has just made, so it is not dated.
 			await applyIssueMove(db, issue, parsed.enrollment.updatedAt, now);
 			result.adopted += 1;
+			continue;
+		}
+
+		const closed = await closedAfterRemoval(db, parsed.enrollment);
+		if (closed) {
+			// The student's request closed while they were off the home roster.
+			// Left unlinked rather than brought back as a new request.
+			await reportLeftUnlinked(db, env, parsed.enrollment, closed, now).catch((err) =>
+				console.error('[training-tools] left-unlinked notice failed', err)
+			);
+			result.skipped += 1;
 		} else if (await insertImportedRow(db, parsed.enrollment, now)) {
 			result.imported += 1;
 		}
@@ -205,21 +226,90 @@ async function adoptUnfiledRow(
 			eq(enrollmentsTable.cid, enrollment.cid),
 			eq(enrollmentsTable.course, enrollment.course),
 			isNull(enrollmentsTable.jiraIssueKey),
-			isNull(enrollmentsTable.withdrawnAt)
+			isNull(enrollmentsTable.withdrawnAt),
+			// Never one whose restore window has closed: that request is over.
+			or(isNull(enrollmentsTable.rosterRemovedAt), isNull(enrollmentsTable.restoreClosedAt))
 		),
 		orderBy: asc(enrollmentsTable.createdAt)
 	});
 	if (!candidate) return false;
 
+	// A request the roster removals job took off before it was filed, still in
+	// its window: staff filing a card for it is a move on the board, so the
+	// window closes and the card's stage stands. Nobody is told.
+	const closesWindow = isInRestoreWindow(candidate)
+		? { restoreClosedAt: now, restoreClosedReason: 'moved-on-board' as const, updatedAt: now }
+		: {};
+
 	// Guarded on a null key, like the form's own write-back: whichever of the two
 	// lands first wins, and the other changes nothing.
 	const adopted = await db
 		.update(enrollmentsTable)
-		.set({ jiraIssueKey: enrollment.issueKey, jiraSyncedAt: now, jiraSyncError: null })
+		.set({
+			jiraIssueKey: enrollment.issueKey,
+			jiraSyncedAt: now,
+			jiraSyncError: null,
+			...closesWindow
+		})
 		.where(and(eq(enrollmentsTable.id, candidate.id), isNull(enrollmentsTable.jiraIssueKey)))
 		.returning({ id: enrollmentsTable.id });
 
 	return adopted.length > 0;
+}
+
+/**
+ * The unfiled request for the same student and course that the roster removals
+ * job took off and whose window has since closed, if there is one.
+ */
+async function closedAfterRemoval(
+	db: Database,
+	enrollment: BoardEnrollment
+): Promise<Enrollment | undefined> {
+	return db.query.enrollmentsTable.findFirst({
+		where: and(
+			eq(enrollmentsTable.cid, enrollment.cid),
+			eq(enrollmentsTable.course, enrollment.course),
+			isNull(enrollmentsTable.jiraIssueKey),
+			isNotNull(enrollmentsTable.rosterRemovedAt),
+			isNotNull(enrollmentsTable.restoreClosedAt)
+		),
+		orderBy: desc(enrollmentsTable.createdAt)
+	});
+}
+
+/** `sync_state` key prefix: a card the training admins were told was left unlinked. */
+const LEFT_UNLINKED_PREFIX = 'import-left-unlinked:';
+
+/**
+ * Tell the training admins once per card that it was left unlinked. A notice
+ * that could not be sent is retried next run.
+ */
+async function reportLeftUnlinked(
+	db: Database,
+	env: Partial<Env> | undefined,
+	enrollment: BoardEnrollment,
+	request: Enrollment,
+	now: Date
+): Promise<void> {
+	const key = `${LEFT_UNLINKED_PREFIX}${enrollment.issueKey}`;
+	const told = await db.query.syncStateTable.findFirst({ where: eq(syncStateTable.key, key) });
+	if (told) return;
+
+	const notice = importLeftUnlinkedNotice({
+		name: request.submittedName,
+		cid: enrollment.cid,
+		course: enrollment.course,
+		teacher: null,
+		examiner: null,
+		issueKey: enrollment.issueKey,
+		issueUrl: issueUrl(env?.JIRA_BASE_URL, enrollment.issueKey)
+	});
+	if ((await notify(env, notice)) !== 'sent') return;
+
+	await db
+		.insert(syncStateTable)
+		.values({ key, cursorAt: now, value: null })
+		.onConflictDoNothing({ target: syncStateTable.key });
 }
 
 async function insertImportedRow(

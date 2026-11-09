@@ -20,6 +20,10 @@ export type SyncState = InferSelectModel<typeof syncStateTable>;
  * over the limit: `cursorAt` is when the hold started, `value` the held CIDs
  * (a record only; each run works out who is held from who is missing).
  * Losing that row restarts the hold's 24 hours.
+ *
+ * The board import keeps one row per card it left unlinked
+ * (`import-left-unlinked:<TRK key>`), so the training admins hear about each
+ * once. Losing one sends that notice again.
  */
 export const syncStateTable = sqliteTable('sync_state', {
 	key: text('key').primaryKey(),
