@@ -62,10 +62,41 @@ export type Roster = {
 	members: RosterMember[];
 };
 
+/**
+ * A set of people who belong together, and the room they share, if any. The
+ * caller decides what that becomes (chat roles, a channel); the training app
+ * says only who and what to call it.
+ *
+ * The shared groups contract: larry's client types publish the same shape.
+ */
+export type Group = {
+	/** Stable within this source: `credential:<code>` or `teacher:<cid>`. */
+	key: string;
+	/** The group's name, as people should see it. */
+	name: string;
+	/** VATSIM CIDs, digit strings, no duplicates. */
+	members: string[];
+	room?: {
+		/** The room's name, as people should see it. */
+		name: string;
+		/** Used instead when two rooms' names collide in the chat system. */
+		fallbackName: string;
+	};
+	/** Keep this group exactly as it is: don't manage its members, rename or delete it. */
+	hold?: true;
+};
+
+export type GroupsAnswer = { groups: Group[] };
+
 /** What a caller's `TrainingRpc` binding can call. */
 export interface TrainingRpc extends Rpc.WorkerEntrypointBranded {
 	/** The whole controller roster and the available credentials, in one call. Read-only. */
 	getRoster(): Promise<Roster>;
+	/**
+	 * The training app's groups: one per credential (its holders, top down) and
+	 * one per teacher (the teacher and their students, with a room). Read-only.
+	 */
+	getGroups(): Promise<GroupsAnswer>;
 }
 
 /**

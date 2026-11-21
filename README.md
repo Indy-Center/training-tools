@@ -238,7 +238,7 @@ scheduled handlers. Another Worker on the account binds to it:
 "services": [{ "binding": "TRAINING", "service": "training-tools", "entrypoint": "TrainingRpc" }]
 ```
 
-It has one read-only method. `getRoster()` returns:
+It has two read-only methods. `getRoster()` returns:
 
 - `credentials`: every available credential, certifications lowest to highest
   and then endorsements. Each has `code`, `kind`, `name`, `order` (from 1) and
@@ -254,6 +254,35 @@ The answer holds only what is held now: no history, revoked credentials or grant
 details. It is two queries whatever the roster's size
 (`src/lib/server/roster/read.ts`).
 
+`getGroups()` returns `{ groups }`, the app's groups in the shared groups
+contract that larry turns into chat roles and rooms without knowing why they
+exist. Each group has a `key` (stable), a `name`, `members` (VATSIM CIDs, each
+once), and optionally a `room` (`name`, and a `fallbackName` for when two rooms'
+names collide in the chat system) and `hold`. There are two kinds:
+
+- **`credential:<code>`**, one per credential in the catalogue, named by its
+  code, with no room. Its members are everyone `getRoster()` says holds it or a
+  credential above it, top down: a credential implies each code in its
+  `requires` that is a plain string, transitively, and an any-one-of group
+  implies nothing. So a T-RC holder is in T-RC, A-LC, S-LC, A-GC and S-GC, and
+  an S-GC holder with S-LC is in S-GC and S-LC only. A group nobody holds is
+  still served.
+- **`teacher:<cid>`**, one per teacher on the teacher roster (LOA included),
+  named by their initials. Its members are the teacher, then by CID their students at
+  In Training, Rating Exam or Needs CATP. The room is named for the teacher
+  (`src/lib/teacher-groups.ts`): their preferred name, else the roster's first
+  and last name; with VATUSA name privacy, the first name and CID, and a
+  preferred name counts only if it isn't just their full name. Its fallback is
+  the first word of the name and the CID; a name that already holds the CID is
+  its own fallback. A teacher who has left isn't served.
+
+`hold: true` means keep the group exactly as it is: don't manage its members,
+rename or delete it. It is set on a teacher with no initials or no usable name,
+so a room they already have is kept and none is made, and on a teacher whose
+identity lookup failed, so an outage doesn't rename their room to the roster
+name and back; its other fields are for reading only. No chat-system IDs are served. The plan is one pure function,
+`src/lib/groups.ts`; `src/lib/server/groups.ts` reads its inputs.
+
 The contract is `rpc/src/index.ts`. Adding a field or a method is made there in
 place. A breaking change (renaming, removing or retyping a field) goes into a new
 entrypoint class, `TrainingRpcV2`, beside the old one, so a caller never breaks
@@ -262,8 +291,8 @@ mid-deploy. The only caller so far is community-website (DEV-116).
 **Types for callers** are published to npm as `@indy-center/training-tools`,
 like `@indy-center/indy-larry-worker`. Install it as a dependency
 (`npm install @indy-center/training-tools`) and type the binding in the
-caller's `Env` as `TRAINING: TrainingBinding`; `Roster`, `RosterMember` and
-`AvailableCredential` are exported too. It is types only, built from `rpc/src/`;
+caller's `Env` as `TRAINING: TrainingBinding`; `Roster`, `RosterMember`,
+`AvailableCredential`, `GroupsAnswer` and `Group` are exported too. It is types only, built from `rpc/src/`;
 callers also need `@cloudflare/workers-types` (or `wrangler types`) for
 `Service` and `Rpc`. It is public, so it installs with no npm login, and it holds
 nothing that isn't already in this repository.
@@ -331,6 +360,8 @@ src/
 │   ├── config.ts              facility id, rating thresholds, consolidation hours
 │   ├── certifications.ts      credential catalogue + the GCAP rating table (client-safe)
 │   ├── teachers.ts            teacher roster rules: evaluators, slots, initials (client-safe)
+│   ├── groups.ts              pure group plan for getGroups(): credential groups top down, then teacher groups
+│   ├── teacher-groups.ts      a teacher's group and how their room is named
 │   ├── activity.ts            activity_log event vocabulary and labels (client-safe)
 │   ├── certification-grant.ts pure arrival-grant logic (DEV-115)
 │   ├── content/               site copy as markdown, compiled at build time (DEV-119)
@@ -365,6 +396,7 @@ src/
 │   │   ├── vatusa.ts          VATUSA roster fetch (no API key needed)
 │   │   ├── vatsim.ts          VATSIM v2 controlling history (no API key needed)
 │   │   ├── roster/            roster lookup, search, the reconciling sync, and the RPC's roster read
+│   │   ├── groups.ts          the RPC's groups read: the group plan's inputs, from D1 and identity
 │   │   ├── certifications/    grant/revoke, and the arrival pass
 │   │   ├── teachers/          teacher roster sync, profiles, qualifications, dropdown check
 │   │   ├── notify/            Discord notices, queued through Larry
@@ -381,7 +413,7 @@ src/
 └── routes/                    plain nested folders, no route groups
 
 rpc/                           the npm package @indy-center/training-tools (its own package.json)
-└── src/index.ts               the TrainingRpc contract: getRoster()'s answer and the binding type (types only)
+└── src/index.ts               the TrainingRpc contract: getRoster()'s and getGroups()'s answers and the binding type (types only)
 ```
 
 ### Roster data
@@ -503,7 +535,8 @@ identity (DEV-5), take them from identity's `operatingInitials` instead.
 Each teacher has a Discord **role named for their initials**, held by them and
 their current students, and a **channel named for them** under Training Center
 that only that role and Training Admin see. The app works out who belongs where
-and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules and
+and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules,
+`$lib/teacher-groups.ts` the naming rules it shares with `getGroups()`, and
 `$lib/server/discord/rooms.ts` the cron job.
 
 - **Who holds a teacher's role:** the teacher, and their students at In Training,

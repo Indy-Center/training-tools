@@ -4,7 +4,8 @@ import { drizzle } from '$lib/server/db';
 import { runScheduledJobs, scheduledJobs } from '$lib/server/scheduled';
 import { recordAndAlert } from '$lib/server/job-health';
 import { readRoster } from '$lib/server/roster';
-import type { Roster, TrainingRpc as Contract } from '$rpc';
+import { readGroups } from '$lib/server/groups';
+import type { GroupsAnswer, Roster, TrainingRpc as Contract } from '$rpc';
 
 /**
  * Custom worker entry.
@@ -36,5 +37,9 @@ export default {
 export class TrainingRpc extends WorkerEntrypoint<Env> implements Contract {
 	getRoster(): Promise<Roster> {
 		return readRoster(drizzle(this.env.DB));
+	}
+
+	getGroups(): Promise<GroupsAnswer> {
+		return readGroups(drizzle(this.env.DB), this.env);
 	}
 }

@@ -35,6 +35,11 @@ export type IdentityLookup = {
 	known: Map<string, IdentityTeacher & { userId: string }>;
 	/** CIDs with no identity user: they have never signed in. */
 	unknown: string[];
+	/**
+	 * CIDs whose lookup threw this time, so identity may know them after all.
+	 * Each is in `unknown` too, for a caller to whom the two are the same.
+	 */
+	failed: string[];
 };
 
 /** Look each CID up. A failed lookup counts as unknown: a name is not worth failing the sync for. */
@@ -43,7 +48,7 @@ export async function lookUpTeachers(
 	cids: readonly string[]
 ): Promise<IdentityLookup> {
 	const binding = identity(env);
-	const lookup: IdentityLookup = { known: new Map(), unknown: [] };
+	const lookup: IdentityLookup = { known: new Map(), unknown: [], failed: [] };
 	if (!binding) return { ...lookup, unknown: [...cids] };
 
 	for (const cid of cids) {
@@ -61,6 +66,7 @@ export async function lookUpTeachers(
 		} catch (err) {
 			console.error('[training-tools] identity lookup failed for', cid, err);
 			lookup.unknown.push(cid);
+			lookup.failed.push(cid);
 		}
 	}
 
