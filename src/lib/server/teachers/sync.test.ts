@@ -18,8 +18,6 @@ function teacher(cid: string, roles: TeacherRole[], overrides: Partial<Teacher> 
 		roles,
 		status: 'active',
 		initials: null,
-		discordRoleId: null,
-		discordChannelId: null,
 		availability: null,
 		studentMessage: null,
 		studentSlots: null,
@@ -361,5 +359,55 @@ describe('planTeacherRoster — six months away', () => {
 		});
 		expect(result.qualifications).toEqual([]);
 		expect(result.summary.returned).toBe(1);
+	});
+});
+
+describe('syncTeacherRoster — initials to identity', () => {
+	it("writes a teacher's changed initials to identity, and only those", async () => {
+		const db = testDb();
+		// Migration 0010 seeds the real teacher roster; start from ours instead.
+		await db.delete(teachersTable);
+		await db.insert(rosterMembersTable).values(
+			['1', '2', '3', '4'].map((cid) => ({
+				cid,
+				firstName: 'Jo',
+				lastName: cid,
+				rating: S3,
+				ratingShort: 'S3',
+				membership: 'home' as const,
+				facility: FACILITY_ID,
+				data: { roles: [{ facility: FACILITY_ID, role: 'MTR' }] } as never
+			}))
+		);
+		await db.insert(teachersTable).values([
+			{ cid: '1', roles: ['MTR'], initials: 'ab' }, // identity has none
+			{ cid: '2', roles: ['MTR'], initials: 'CD' }, // identity already has CD
+			{ cid: '3', roles: ['MTR'], initials: 'EF' }, // never signed in
+			{ cid: '4', roles: ['MTR'], initials: null } // none entered yet
+		]);
+
+		const users: Record<string, { id: string; initials?: string }> = {
+			'1': { id: 'u1' },
+			'2': { id: 'u2', initials: 'CD' },
+			'4': { id: 'u4', initials: 'GH' }
+		};
+		const writes: [string, unknown][] = [];
+		const env = {
+			IDENTITY: {
+				getUserByCid: async (cid: string) =>
+					users[cid]
+						? { id: users[cid].id, cid, attributes: { operatingInitials: users[cid].initials } }
+						: null,
+				setAttributes: async (userId: string, patch: unknown) => {
+					writes.push([userId, patch]);
+					return {};
+				}
+			}
+		} as unknown as Partial<Env>;
+
+		const result = await syncTeacherRoster(db, env, NOW);
+
+		expect(writes).toEqual([['u1', { operatingInitials: 'AB' }]]);
+		expect(result.initialsWritten).toBe(1);
 	});
 });

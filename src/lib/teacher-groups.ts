@@ -58,9 +58,20 @@ export function teacherGroups(teachers: readonly GroupTeacher[]): Group[] {
 				// Students by CID, so the answer doesn't change with the order rows come back in.
 				members: [teacher.cid, ...[...teacher.students].sort()],
 				...(room ? { room } : {}),
-				...(initials && room && !teacher.nameUncertain ? {} : { hold: true as const })
+				...(teacherHold(teacher) ? { hold: true as const } : {})
 			};
 		});
+}
+
+/** Why a teacher's group is served on `hold`: see `teacherGroups()`. */
+export type HoldReason = 'no-initials' | 'no-name' | 'name-uncertain';
+
+/** Why this teacher's group is held, or null when it isn't. */
+export function teacherHold(teacher: GroupTeacher): HoldReason | null {
+	if (!teacher.initials?.trim()) return 'no-initials';
+	if (!teacherRoomName(teacher)) return 'no-name';
+	if (teacher.nameUncertain) return 'name-uncertain';
+	return null;
 }
 
 export type RoomName = {
@@ -105,11 +116,7 @@ function isJustFullName(preferred: string, full: string): boolean {
 	return key !== '' && key === comparable(full);
 }
 
-/**
- * A name with case, accents and punctuation set aside, to tell two spellings of
- * one apart. The same steps as `channelSlug()` in `$lib/discord-rooms.ts` on
- * purpose, so the rooms keep their names; that copy goes with the rooms job.
- */
+/** A name with case, accents and punctuation set aside, to tell two spellings of one apart. */
 function comparable(name: string): string {
 	return name
 		.normalize('NFKD')

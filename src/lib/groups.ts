@@ -10,7 +10,7 @@
  * See decisions/0045-groups-contract.md
  */
 import type { Credential } from './certifications';
-import { teacherGroups, type GroupTeacher } from './teacher-groups';
+import { teacherGroups, teacherHold, type GroupTeacher, type HoldReason } from './teacher-groups';
 import type { Group, GroupsAnswer, RosterMember } from '$rpc';
 
 /** A credential as the plan reads it: its code and what it needs. */
@@ -34,6 +34,35 @@ export function planGroups(input: GroupsInput): GroupsAnswer {
 		...teacherGroups(input.teachers)
 	];
 	return { groups: groups.map((group) => ({ ...group, members: cids(group.members) })) };
+}
+
+/**
+ * The groups as `/admin` shows them: members by name, and each held group with
+ * why. Here rather than under `$lib/server/` because a component uses it.
+ */
+export type GroupsPanel = {
+	key: string;
+	name: string;
+	/** The room's name, for a group that has one. */
+	room: string | null;
+	/** By name, in the group's order. */
+	members: string[];
+	held: HoldReason | null;
+}[];
+
+/** `planGroups()` as `/admin` reads it, with `nameOf` turning a CID into a name. */
+export function groupsPanel(input: GroupsInput, nameOf: (cid: string) => string): GroupsPanel {
+	const why = new Map(
+		input.teachers.map((teacher) => [`teacher:${teacher.cid}`, teacherHold(teacher)])
+	);
+
+	return planGroups(input).groups.map((group) => ({
+		key: group.key,
+		name: group.name,
+		room: group.room?.name ?? null,
+		members: group.members.map(nameOf),
+		held: group.hold ? (why.get(group.key) ?? null) : null
+	}));
 }
 
 /** The contract's members: digit strings, each once, in the order first seen. */

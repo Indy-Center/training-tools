@@ -2,16 +2,14 @@ import { and, asc, eq, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable, type Enrollment } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
-import { discordSyncMode } from '$lib/discord-rooms';
 import { isAssignedTo } from '$lib/teachers';
-import { larryGuild } from '$lib/server/discord/larry';
-import { notifyChannel } from '$lib/server/notify';
+import { GROUP_SOURCE, larryGroups, type GroupPostResult } from '$lib/server/discord/larry';
 import { listTeachers } from '$lib/server/teachers';
 import { buildPairingMessage } from './pairing-message';
 
 /**
  * Tell a student and their teacher that they have been paired, in the
- * teacher's Discord channel.
+ * teacher's room.
  *
  * Keyed on who the card names, like the other passes: a request in training
  * whose `teacher` differs from `announced_teacher` is a pairing nobody has been
@@ -19,16 +17,15 @@ import { buildPairingMessage } from './pairing-message';
  * Each is announced once.
  *
  * Run as soon as a card changes — after a step taken here, and after a Jira
- * webhook delivery — and by the cron, which is what guarantees it. So that it
- * need not wait for the rooms sync, the student is given the teacher's role
- * here first: without it they could not see the channel, and a mention there
- * would not reach them. The sync would have given them the same role.
+ * webhook delivery — and by the cron, which is what guarantees it. larry posts
+ * it in the teacher's group (`teacher:<cid>`, see `$lib/teacher-groups.ts`),
+ * giving the student the room first, so the mention reaches them.
  *
- * A teacher with no channel yet is left for a later pass rather than skipped.
- * Nothing is posted unless `DISCORD_SYNC` is `live`, like every other change
- * this app makes in Discord.
+ * larry answering `no-room` (the room isn't made yet) or `not-live` (its group
+ * sync for this app isn't live) puts it back for a later pass, as does larry
+ * being unreachable.
  *
- * See decisions/0025-teacher-rooms-in-discord.md
+ * See decisions/0025-teacher-rooms-in-discord.md and decisions/0045-groups-contract.md
  */
 
 export type PairingPassResult = {
@@ -60,8 +57,8 @@ export async function announcePairings(
 	env: Partial<Env> | undefined,
 	now = new Date()
 ): Promise<PairingPassResult> {
-	const mode = discordSyncMode((env as { DISCORD_SYNC?: string } | undefined)?.DISCORD_SYNC);
-	if (mode !== 'live') return { pending: 0, announced: 0 };
+	const larry = larryGroups(env);
+	if (!larry) return { pending: 0, announced: 0 };
 
 	const pending = await db
 		.select()
@@ -88,18 +85,14 @@ export async function announcePairings(
 			.select({
 				cid: rosterMembersTable.cid,
 				firstName: rosterMembersTable.firstName,
-				lastName: rosterMembersTable.lastName,
-				discordId: rosterMembersTable.discordId
+				lastName: rosterMembersTable.lastName
 			})
 			.from(rosterMembersTable)
 	]);
 	const people = new Map(roster.map((row) => [row.cid, row]));
-	const person = (cid: string, fallback: string) => {
+	const nameOf = (cid: string, fallback: string) => {
 		const found = people.get(cid);
-		return {
-			name: (found ? `${found.firstName} ${found.lastName}`.trim() : '') || fallback,
-			discordId: found?.discordId ?? null
-		};
+		return (found ? `${found.firstName} ${found.lastName}`.trim() : '') || fallback;
 	};
 
 	let announced = 0;
@@ -108,57 +101,50 @@ export async function announcePairings(
 		const teacher = teachers.find(
 			(candidate) => candidate.removedAt === null && isAssignedTo(enrollment.teacher, candidate)
 		);
-		// No such teacher here, or their channel has not been made yet: nowhere to
-		// post. Left unclaimed, so a later pass finds it once there is.
-		if (!teacher?.discordChannelId) continue;
+		// No such teacher here: no group to post in. Left unclaimed, so a later
+		// pass finds it once there is.
+		if (!teacher) continue;
 
 		// Claim it first, so a concurrent pass does not post it too.
 		const previous = enrollment.announcedTeacher;
 		if (!(await mark(db, enrollment, previous, enrollment.teacher))) continue;
 
-		const student = person(enrollment.cid, enrollment.submittedName);
-
-		// Let them into the channel before they are mentioned in it. Now, not
-		// queued: the message must not overtake it. Someone who is not in the
-		// server cannot be given a role, and is still named in the message.
-		if (teacher.discordRoleId && student.discordId) {
-			try {
-				await larryGuild(env)?.setMemberRole({
-					userId: student.discordId,
-					roleId: teacher.discordRoleId,
-					has: true
-				});
-			} catch (err) {
-				console.warn(
-					'[training-tools] pairing: could not give the teacher role',
-					enrollment.cid,
-					err instanceof Error ? err.message : err
-				);
-			}
-		}
-
-		const outcome = await notifyChannel(
-			env,
-			teacher.discordChannelId,
-			buildPairingMessage(
-				{
-					student,
-					teacher: person(teacher.cid, teacher.initials ?? teacher.cid),
-					teacherMessage: teacher.studentMessage,
-					course: enrollment.course,
-					notificationPreference: enrollment.notificationPreference,
-					availability: enrollment.availability
-				},
-				now
-			)
+		const notice = buildPairingMessage(
+			{
+				student: { name: nameOf(enrollment.cid, enrollment.submittedName) },
+				teacher: { name: nameOf(teacher.cid, teacher.initials ?? teacher.cid) },
+				teacherMessage: teacher.studentMessage,
+				course: enrollment.course,
+				notificationPreference: enrollment.notificationPreference,
+				availability: enrollment.availability
+			},
+			now
 		);
 
-		if (outcome === 'failed') {
-			// Larry refused or could not be reached: put it back for the next pass.
+		let outcome: GroupPostResult | 'failed';
+		try {
+			outcome = await larry.postToGroup({
+				source: GROUP_SOURCE,
+				key: `teacher:${teacher.cid}`,
+				notice,
+				mention: [teacher.cid, enrollment.cid]
+			});
+		} catch (err) {
+			console.error(
+				'[training-tools] pairing: larry could not post it',
+				enrollment.cid,
+				err instanceof Error ? err.message : err
+			);
+			outcome = 'failed';
+		}
+
+		if (outcome !== 'posted') {
+			// No room yet, the group sync not live, or larry unreachable: put it
+			// back for the next pass.
 			await mark(db, enrollment, enrollment.teacher, previous);
 			continue;
 		}
-		if (outcome === 'sent') announced += 1;
+		announced += 1;
 	}
 
 	return { pending: pending.length, announced };
