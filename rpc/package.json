@@ -1,6 +1,6 @@
 {
 	"name": "@indy-center/training-tools",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "Types for calling the Indy Center training app's TrainingRpc entrypoint from another Worker",
 	"type": "module",
 	"repository": {

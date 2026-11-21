@@ -9,12 +9,12 @@
  *
  * See decisions/0025-teacher-rooms-in-discord.md
  */
+import { teacherRoomName, type NamedTeacher, type RoomName } from './teacher-groups';
 
 /** A student currently assigned to a teacher. */
 export type RoomStudent = { cid: string; discordId: string | null };
 
-export type RoomTeacher = {
-	cid: string;
+export type RoomTeacher = NamedTeacher & {
 	/** Null until a training admin has entered them. */
 	initials: string | null;
 	/** When they stopped holding INS or MTR here. Null while they are on the teacher roster. */
@@ -22,12 +22,6 @@ export type RoomTeacher = {
 	/** What Larry found or made last time, if anything. */
 	roleId: string | null;
 	channelId: string | null;
-	/** From identity, for teachers who have signed in and set one. */
-	preferredName: string | null;
-	/** From the VATUSA roster mirror. Null only for a CID the mirror has never held. */
-	rosterName: { first: string; last: string } | null;
-	/** VATUSA's `flag_nameprivacy`: no last name in the channel. False when the mirror lacks them. */
-	namePrivacy: boolean;
 	discordId: string | null;
 	/** Their students at In Training, Rating Exam or Needs CATP — never their own request. */
 	students: RoomStudent[];
@@ -65,33 +59,6 @@ export function channelSlug(name: string): string {
 }
 
 /**
- * A channel name before any clash is settled. One that `includesCid` cannot clash,
- * so it is never rewritten.
- */
-type ChosenName = { name: string; includesCid: boolean };
-
-function channelNameFor(teacher: RoomTeacher): ChosenName | null {
-	const roster = teacher.rosterName;
-	const full = roster ? `${roster.first} ${roster.last}`.trim() : '';
-	const preferred = teacher.preferredName?.trim();
-
-	if (preferred && !(teacher.namePrivacy && isJustFullName(preferred, full))) {
-		return { name: preferred, includesCid: false };
-	}
-	if (teacher.namePrivacy) {
-		const first = roster?.first.trim();
-		return first ? { name: `${first} ${teacher.cid}`, includesCid: true } : null;
-	}
-	return full ? { name: full, includesCid: false } : null;
-}
-
-/** Other apps pre-fill a preferred name with the full name: that is not a choice to show it. */
-function isJustFullName(preferred: string, full: string): boolean {
-	const slug = channelSlug(preferred);
-	return slug !== '' && slug === channelSlug(full);
-}
-
-/**
  * The room each teacher should have.
  *
  * - **No initials, no room.** The role is named for them, so there is nothing
@@ -102,13 +69,10 @@ function isJustFullName(preferred: string, full: string): boolean {
  *   mistake — loses nothing. After that the role and the channel are deleted,
  *   and anyone still assigned to them loses access with it. One who left before
  *   any room existed has nothing to delete and is not given one.
- * - **The channel is named for them:** their preferred name, else the roster's
- *   first and last name. With VATUSA name privacy set it is their first name
- *   and CID instead, and a preferred name counts only if it is not just their
- *   full name.
- * - **Two teachers who would get the same channel** are both named by first
- *   name and CID instead, so neither depends on who was there first. A name
- *   that already holds the CID is left alone.
+ * - **The channel is named for them,** by the rules in `$lib/teacher-groups.ts`.
+ * - **Two teachers who would get the same channel** both take the fallback
+ *   name, first name and CID, so neither depends on who was there first. A
+ *   name that already holds the CID is its own fallback, so it is left alone.
  */
 export function planTeacherRooms(
 	teachers: readonly RoomTeacher[],
@@ -118,7 +82,7 @@ export function planTeacherRooms(
 	const rooms: TeacherRoom[] = [];
 	const skipped: RoomSkip[] = [];
 	const remove: RoomRemoval[] = [];
-	const named: ({ teacher: RoomTeacher } & ChosenName)[] = [];
+	const named: ({ teacher: RoomTeacher } & RoomName)[] = [];
 
 	for (const teacher of teachers) {
 		const hadRoom = teacher.roleId !== null || teacher.channelId !== null;
@@ -138,7 +102,7 @@ export function planTeacherRooms(
 			continue;
 		}
 
-		const chosen = channelNameFor(teacher);
+		const chosen = teacherRoomName(teacher);
 		if (!chosen) {
 			skipped.push({ cid: teacher.cid, reason: 'no-name' });
 			continue;
@@ -153,16 +117,15 @@ export function planTeacherRooms(
 		uses.set(slug, (uses.get(slug) ?? 0) + 1);
 	}
 
-	for (const { teacher, name, includesCid } of named) {
-		const clash = !includesCid && (uses.get(channelSlug(name)) ?? 0) > 1;
-		const first = name.split(/\s+/)[0] ?? name;
+	for (const { teacher, name, fallbackName } of named) {
+		const clash = (uses.get(channelSlug(name)) ?? 0) > 1;
 
 		const people = [{ cid: teacher.cid, discordId: teacher.discordId }, ...teacher.students];
 
 		rooms.push({
 			cid: teacher.cid,
 			roleName: teacher.initials!,
-			channelName: clash ? `${first} ${teacher.cid}` : name,
+			channelName: clash ? fallbackName : name,
 			roleId: teacher.roleId,
 			channelId: teacher.channelId,
 			members: [
