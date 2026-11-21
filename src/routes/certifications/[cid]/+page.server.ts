@@ -97,7 +97,7 @@ export const actions: Actions = {
 	 * `default` sits alongside a named one, which silently breaks every POST to
 	 * the route — exactly how `/enroll` broke in DEV-108.
 	 */
-	setCertification: async ({ locals, params, request }) => {
+	setCertification: async ({ locals, params, platform, request }) => {
 		const session = requireCertificationEditor(locals);
 
 		const data = await request.formData();
@@ -110,7 +110,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			await setCertification(locals.db, params.cid, code, session.user.cid);
+			await setCertification(locals.db, platform?.env, params.cid, code, session.user.cid);
 		} catch (err) {
 			console.error('[training-tools] setCertification failed', err);
 			return fail(500, { formError: 'Could not update the certification.' });
@@ -119,7 +119,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
-	toggleEndorsement: async ({ locals, params, request }) => {
+	toggleEndorsement: async ({ locals, params, platform, request }) => {
 		const session = requireCertificationEditor(locals);
 
 		const data = await request.formData();
@@ -130,7 +130,13 @@ export const actions: Actions = {
 		}
 
 		try {
-			const outcome = await toggleEndorsement(locals.db, params.cid, code, session.user.cid);
+			const outcome = await toggleEndorsement(
+				locals.db,
+				platform?.env,
+				params.cid,
+				code,
+				session.user.cid
+			);
 			if (outcome === 'not-eligible') {
 				return fail(400, {
 					formError: `${code} can only be held with ${requirementText(code)}.`

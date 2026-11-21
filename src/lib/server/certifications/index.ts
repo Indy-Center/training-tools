@@ -12,6 +12,7 @@ import {
 	highestCertification,
 	type CredentialCode
 } from '$lib/certifications';
+import { syncMembers } from '$lib/server/discord/larry';
 
 export { grantArrivalCertifications, type ArrivalGrantResult } from './arrival';
 
@@ -23,6 +24,11 @@ export { grantArrivalCertifications, type ArrivalGrantResult } from './arrival';
  * That is deliberate: a notice about a certification change (through
  * `$lib/server/notify`, when one is wanted) has one producer site to hook, not
  * three call sites to go and find.
+ *
+ * larry is told (`syncMembers`) once a whole change is written, not after each
+ * of these: one change can be several writes, and it reads this app's groups
+ * again on every call. `setCertification()`, `toggleEndorsement()` and the
+ * arrival job do it; a caller of these two directly does it itself.
  */
 
 export type GrantInput = {
@@ -147,6 +153,7 @@ export async function revokeCredential(db: Database, input: RevokeInput): Promis
  */
 export async function setCertification(
 	db: Database,
+	env: Partial<Env> | undefined,
 	cid: string,
 	code: string | null,
 	actorCid: string | null,
@@ -156,6 +163,20 @@ export async function setCertification(
 	const current = highestCertification(held.map((row) => row.code));
 
 	if (current?.code === code) return;
+
+	await writeCertification(db, cid, code, actorCid, grant, held);
+	await syncMembers(env, [cid]);
+}
+
+async function writeCertification(
+	db: Database,
+	cid: string,
+	code: string | null,
+	actorCid: string | null,
+	grant: { basis: GrantBasis; note?: string | null },
+	held: Certification[]
+): Promise<void> {
+	const current = highestCertification(held.map((row) => row.code));
 
 	if (current) {
 		await revokeCredential(db, {
@@ -203,6 +224,18 @@ export async function setCertification(
  * answer says so.
  */
 export async function toggleEndorsement(
+	db: Database,
+	env: Partial<Env> | undefined,
+	cid: string,
+	code: string,
+	actorCid: string
+): Promise<'granted' | 'revoked' | 'not-eligible'> {
+	const outcome = await writeEndorsement(db, cid, code, actorCid);
+	if (outcome !== 'not-eligible') await syncMembers(env, [cid]);
+	return outcome;
+}
+
+async function writeEndorsement(
 	db: Database,
 	cid: string,
 	code: string,

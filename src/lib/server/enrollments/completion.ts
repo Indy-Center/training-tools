@@ -13,6 +13,7 @@ import {
 } from '$lib/course-completion';
 import { findCourse } from '$lib/courses';
 import { getHeldCredentials, grantCredential, setCertification } from '$lib/server/certifications';
+import { syncMembers } from '$lib/server/discord/larry';
 import { issueUrl, JiraError, resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { commentOnIssue, transitionIssueToStatus } from '$lib/server/jira/enrollment';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
@@ -391,9 +392,10 @@ export async function applyCertificationUpdate(
 	};
 
 	if (change.action === 'set-certification') {
-		await setCertification(db, enrollment.cid, change.code, null, grant);
+		await setCertification(db, env, enrollment.cid, change.code, null, grant);
 	} else if (change.action === 'grant-endorsement') {
 		await grantCredential(db, { cid: enrollment.cid, code: change.code, ...grant });
+		await syncMembers(env, [enrollment.cid]);
 	}
 
 	let stamped = false;

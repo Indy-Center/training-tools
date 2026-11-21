@@ -9,6 +9,7 @@ import {
 	processRosterRemovals,
 	syncEnrollmentIssue
 } from '$lib/server/enrollments';
+import { syncMembers } from '$lib/server/discord/larry';
 import { readDelivery, verifyJiraSignature } from '$lib/server/jira/webhook';
 import { JIRA_WEBHOOK_JOB, recordAndAlert, type JobRun } from '$lib/server/job-health';
 import type { RequestHandler } from './$types';
@@ -90,6 +91,8 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 			// A card seen to change status gets the dates the move calls for. Off
 			// the response path, like everything else that calls Jira.
 			platform?.ctx?.waitUntil(dateCardMove(env, delivery.issue, applied.moved));
+			// A new teacher or status can change the student's groups: larry is told now.
+			if (applied.regrouped) platform?.ctx?.waitUntil(syncMembers(env, [applied.regrouped]));
 		} else {
 			const result = await syncEnrollmentIssue(locals.db, env, delivery.key);
 			if (!result.ok) {

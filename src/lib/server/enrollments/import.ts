@@ -6,6 +6,7 @@ import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { boardProblemsNotice, type BoardProblem } from '$lib/server/jira/notices';
 import { resolveStatusUpdate } from '$lib/server/jira/status';
 import { notify } from '$lib/server/notify';
+import { syncMembers } from '$lib/server/discord/larry';
 import { issueUrl, resolveJiraConfig } from '$lib/server/jira/client';
 import { listBoardIssues } from '$lib/server/jira/issues';
 import { parseBoardIssue, type BoardEnrollment } from '$lib/server/jira/board-issue';
@@ -109,6 +110,8 @@ export async function importBoardIssues(
 
 	// Everything on the board the app cannot read, for the tech team.
 	const problems: BoardProblem[] = [];
+	// Students whose groups may have changed, for larry.
+	const regrouped: string[] = [];
 
 	for (const issue of issues) {
 		if (known.has(issue.key)) {
@@ -152,7 +155,8 @@ export async function importBoardIssues(
 			// The row predates the issue, so its status is still our `waitlist`.
 			// Bring it up to what the board says, through the one writer. Catching
 			// up is not a move anyone has just made, so it is not dated.
-			await applyIssueMove(db, issue, parsed.enrollment.updatedAt, now);
+			const applied = await applyIssueMove(db, issue, parsed.enrollment.updatedAt, now);
+			if (applied.regrouped) regrouped.push(applied.regrouped);
 			result.adopted += 1;
 			continue;
 		}
@@ -168,8 +172,14 @@ export async function importBoardIssues(
 			continue;
 		}
 
-		if (await insertImportedRow(db, parsed.enrollment, now)) result.imported += 1;
+		if (await insertImportedRow(db, parsed.enrollment, now)) {
+			result.imported += 1;
+			// A card filed by hand can already name a teacher: the student joins their group.
+			if (parsed.enrollment.teacher) regrouped.push(parsed.enrollment.cid);
+		}
 	}
+
+	await syncMembers(env, regrouped);
 
 	await reportBoardProblems(db, env, problems, now).catch((err) =>
 		console.error('[training-tools] board problems notice failed', err)
