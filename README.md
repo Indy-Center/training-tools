@@ -271,9 +271,10 @@ names collide in the chat system) and `hold`. There are two kinds:
   named by their initials. Its members are the teacher, then by CID their students at
   In Training, Rating Exam or Needs CATP. The room is named for the teacher
   (`src/lib/teacher-groups.ts`): their preferred name, else the roster's first
-  and last name; with VATUSA name privacy, the first name and CID. Its fallback
-  is the first word of the name and the CID. A teacher who has left isn't
-  served.
+  and last name; with VATUSA name privacy, the first name and CID, and a
+  preferred name counts only if it isn't just their full name. Its fallback is
+  the first word of the name and the CID; a name that already holds the CID is
+  its own fallback. A teacher who has left isn't served.
 
 `hold: true` means keep the group exactly as it is: don't manage its members,
 rename or delete it. It is set on a teacher with no initials or no usable name,
