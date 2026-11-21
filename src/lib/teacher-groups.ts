@@ -32,6 +32,8 @@ export type GroupTeacher = NamedTeacher & {
 	leftAt: Date | null;
 	/** CIDs of their students at In Training, Rating Exam or Needs CATP: never their own request. */
 	students: readonly string[];
+	/** Identity couldn't be asked for their preferred name this time, so it may be missing. */
+	nameUncertain: boolean;
 };
 
 /**
@@ -40,8 +42,9 @@ export type GroupTeacher = NamedTeacher & {
  *
  * With no initials or no usable name the group is served on `hold`, so a room
  * they already have is kept exactly as it is and none is made: clearing
- * someone's initials doesn't delete their room. Its other fields are what is
- * known, for reading only.
+ * someone's initials doesn't delete their room. So is one whose name is
+ * uncertain, so an identity outage doesn't rename their room to the roster
+ * name and back. Its other fields are what is known, for reading only.
  */
 export function teacherGroups(teachers: readonly GroupTeacher[]): Group[] {
 	return teachers
@@ -55,7 +58,7 @@ export function teacherGroups(teachers: readonly GroupTeacher[]): Group[] {
 				// Students by CID, so the answer doesn't change with the order rows come back in.
 				members: [teacher.cid, ...[...teacher.students].sort()],
 				...(room ? { room } : {}),
-				...(initials && room ? {} : { hold: true as const })
+				...(initials && room && !teacher.nameUncertain ? {} : { hold: true as const })
 			};
 		});
 }

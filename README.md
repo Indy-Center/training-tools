@@ -278,8 +278,9 @@ names collide in the chat system) and `hold`. There are two kinds:
 
 `hold: true` means keep the group exactly as it is: don't manage its members,
 rename or delete it. It is set on a teacher with no initials or no usable name,
-so a room they already have is kept and none is made; its other fields are for
-reading only. No chat-system IDs are served. The plan is one pure function,
+so a room they already have is kept and none is made, and on a teacher whose
+identity lookup failed, so an outage doesn't rename their room to the roster
+name and back; its other fields are for reading only. No chat-system IDs are served. The plan is one pure function,
 `src/lib/groups.ts`; `src/lib/server/groups.ts` reads its inputs.
 
 The contract is `rpc/src/index.ts`. Adding a field or a method is made there in

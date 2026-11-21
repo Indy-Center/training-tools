@@ -40,6 +40,7 @@ export async function readGroups(
 		onRoster.map((teacher) => teacher.cid)
 	);
 	const people = new Map(names.map((row) => [row.cid, row]));
+	const failed = new Set(identity.failed);
 
 	return planGroups({
 		catalogue: CREDENTIALS,
@@ -53,7 +54,8 @@ export async function readGroups(
 				preferredName: identity.known.get(teacher.cid)?.preferredName ?? null,
 				rosterName: person ? { first: person.firstName, last: person.lastName } : null,
 				namePrivacy: person?.data.flag_nameprivacy === true,
-				students: assignmentsFor(teacher, enrollments).students.map((student) => student.cid)
+				students: assignmentsFor(teacher, enrollments).students.map((student) => student.cid),
+				nameUncertain: failed.has(teacher.cid)
 			};
 		})
 	});

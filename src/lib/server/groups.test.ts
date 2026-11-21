@@ -135,4 +135,21 @@ describe('readGroups', () => {
 			}
 		]);
 	});
+
+	it('holds the group of a teacher whose identity lookup failed, and only theirs', async () => {
+		const down = {
+			IDENTITY: {
+				getUserByCid: async (cid: string) => {
+					if (cid === '1000100') throw new Error('identity unavailable');
+					return null;
+				},
+				setAttributes: async () => ({})
+			}
+		} as unknown as Partial<Env>;
+		const { groups } = await readGroups(db, down);
+		const teacher = (cid: string) => groups.find((group) => group.key === `teacher:${cid}`);
+
+		expect(teacher('1000100')).toMatchObject({ members: ['1000100', '1000201'], hold: true });
+		expect(teacher('1000101')).not.toHaveProperty('hold');
+	});
 });

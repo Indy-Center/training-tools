@@ -96,6 +96,7 @@ describe('planGroups: teacher groups', () => {
 		rosterName: { first: 'Joanna', last: 'Rivera' },
 		namePrivacy: false,
 		students: [],
+		nameUncertain: false,
 		...overrides
 	});
 
@@ -150,6 +151,19 @@ describe('planGroups: teacher groups', () => {
 	it('holds the group of a teacher with no usable name', () => {
 		expect(teacherGroups([teacher({ rosterName: null })])).toEqual([
 			{ key: 'teacher:1000100', name: 'JR', members: ['1000100'], hold: true }
+		]);
+	});
+
+	// Identity was down: the room keeps its name and members rather than taking the roster name.
+	it('holds the group of a teacher whose name is uncertain', () => {
+		expect(teacherGroups([teacher({ nameUncertain: true, students: ['1000201'] })])).toEqual([
+			{
+				key: 'teacher:1000100',
+				name: 'JR',
+				members: ['1000100', '1000201'],
+				room: { name: 'Joanna Rivera', fallbackName: 'Joanna 1000100' },
+				hold: true
+			}
 		]);
 	});
 
