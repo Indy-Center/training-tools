@@ -7,7 +7,7 @@
  * Pure: everything it reads is passed in, the catalogue included, so a later
  * catalogue (Payload) changes only what the caller hands it.
  *
- * See decisions/0045 in the role-sync notes.
+ * See decisions/0045-groups-contract.md
  */
 import type { Credential } from './certifications';
 import { teacherGroups, type GroupTeacher } from './teacher-groups';

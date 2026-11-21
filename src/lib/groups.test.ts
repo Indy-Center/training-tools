@@ -113,6 +113,11 @@ describe('planGroups: teacher groups', () => {
 		]);
 	});
 
+	it('lists the teacher first, then their students by CID', () => {
+		const [group] = teacherGroups([teacher({ students: ['1000203', '1000099', '1000201'] })]);
+		expect(group.members).toEqual(['1000100', '1000099', '1000201', '1000203']);
+	});
+
 	it('lists each member once, as a digit string', () => {
 		const [group] = teacherGroups([
 			teacher({ students: ['1000201', ' 1000201', '1000100', 'nobody'] })

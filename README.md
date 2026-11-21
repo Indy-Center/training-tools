@@ -268,7 +268,7 @@ names collide in the chat system) and `hold`. There are two kinds:
   an S-GC holder with S-LC is in S-GC and S-LC only. A group nobody holds is
   still served.
 - **`teacher:<cid>`**, one per teacher on the teacher roster (LOA included),
-  named by their initials. Its members are the teacher, then their students at
+  named by their initials. Its members are the teacher, then by CID their students at
   In Training, Rating Exam or Needs CATP. The room is named for the teacher
   (`src/lib/teacher-groups.ts`): their preferred name, else the roster's first
   and last name; with VATUSA name privacy, the first name and CID. Its fallback

@@ -32,7 +32,11 @@ const credential = (cid: string, code: 'S-GC' | 'A-GC' | 'S-LC', extra = {}) => 
 	...extra
 });
 
-const enrollment = (cid: string, status: 'in-training' | 'waitlist', teacher: string) => ({
+const enrollment = (
+	cid: string,
+	status: 'in-training' | 'rating-exam' | 'needs-catp' | 'waitlist',
+	teacher: string
+) => ({
 	id: `e${++ids}`,
 	cid,
 	course: 'S-GC' as const,
@@ -98,7 +102,9 @@ describe('readGroups', () => {
 			.insert(enrollmentsTable)
 			.values([
 				enrollment('1000201', 'in-training', 'JR'),
-				enrollment('1000202', 'waitlist', 'JR')
+				enrollment('1000202', 'waitlist', 'JR'),
+				enrollment('1000203', 'rating-exam', 'SW'),
+				enrollment('1000204', 'needs-catp', 'SW')
 			]);
 	});
 
@@ -124,7 +130,7 @@ describe('readGroups', () => {
 			{
 				key: 'teacher:1000101',
 				name: 'SW',
-				members: ['1000101'],
+				members: ['1000101', '1000203', '1000204'],
 				room: { name: 'Sam Wu', fallbackName: 'Sam 1000101' }
 			}
 		]);

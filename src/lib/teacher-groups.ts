@@ -7,8 +7,8 @@
  * training app's choice of how a teacher is shown. Comparing two rooms' names
  * for a clash is not: what collides depends on the chat system.
  *
- * See decisions/0025-teacher-rooms-in-discord.md and decision 0045 in the
- * role-sync notes.
+ * See decisions/0025-teacher-rooms-in-discord.md and
+ * decisions/0045-groups-contract.md
  */
 
 import type { Group } from '$rpc';
@@ -35,7 +35,7 @@ export type GroupTeacher = NamedTeacher & {
 };
 
 /**
- * One group per teacher on the roster: the teacher, then their students, in a
+ * One group per teacher on the roster: the teacher, then their students by CID, in a
  * room named for the teacher. A teacher who has left isn't served.
  *
  * With no initials or no usable name the group is served on `hold`, so a room
@@ -52,7 +52,8 @@ export function teacherGroups(teachers: readonly GroupTeacher[]): Group[] {
 			return {
 				key: `teacher:${teacher.cid}`,
 				name: initials || teacher.cid,
-				members: [teacher.cid, ...teacher.students],
+				// Students by CID, so the answer doesn't change with the order rows come back in.
+				members: [teacher.cid, ...[...teacher.students].sort()],
 				...(room ? { room } : {}),
 				...(initials && room ? {} : { hold: true as const })
 			};
@@ -101,7 +102,11 @@ function isJustFullName(preferred: string, full: string): boolean {
 	return key !== '' && key === comparable(full);
 }
 
-/** A name with case, accents and punctuation set aside, to tell two spellings of one apart. */
+/**
+ * A name with case, accents and punctuation set aside, to tell two spellings of
+ * one apart. The same steps as `channelSlug()` in `$lib/discord-rooms.ts` on
+ * purpose, so the rooms keep their names; that copy goes with the rooms job.
+ */
 function comparable(name: string): string {
 	return name
 		.normalize('NFKD')
