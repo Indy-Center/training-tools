@@ -6,6 +6,7 @@ import { needsVatsimLookup, resolveArrivalGrant } from '$lib/certification-grant
 import { fetchAtcHoursByRating, fetchLastAtcSessionEnd } from '$lib/server/vatsim';
 import { notify } from '$lib/server/notify';
 import { getPeople } from '$lib/server/roster';
+import { syncMembers } from '$lib/server/discord/larry';
 import { grantCredential } from './index';
 import { reviewNeededNotice } from './notices';
 
@@ -166,6 +167,10 @@ export async function grantArrivalCertifications(
 			needsReview: grant.needsReview
 		});
 	}
+	await syncMembers(
+		env,
+		grants.map((grant) => grant.cid)
+	);
 
 	// Flagged grants are only useful if someone hears about them. After the
 	// grants are written, and never a reason for the job to fail.

@@ -18,12 +18,14 @@ import {
 	QUALIFICATION_RETENTION_MONTHS,
 	downgradeFor,
 	automaticLevel,
+	normalizeInitials,
 	qualificationsExpired,
 	teacherRolesFrom,
 	type QualificationLevel,
 	type TeacherRole
 } from '$lib/teachers';
 import type { VatusaRosterMember } from '$lib/types/vatusa';
+import { lookUpTeachers, writeInitials } from '$lib/server/discord/identity';
 import { notify } from '$lib/server/notify';
 import { overLimitError } from '$lib/server/change-limit';
 import { getPeople } from '$lib/server/roster';
@@ -407,7 +409,41 @@ export async function syncTeacherRoster(db: Database, env?: Partial<Env>, now = 
 		console.error('[training-tools] teacher roster notices failed', err)
 	);
 
-	return plan.summary;
+	const initialsWritten = await writeInitialsToIdentity(env, teachers);
+
+	return { ...plan.summary, initialsWritten };
+}
+
+/**
+ * This app is where initials are entered, so identity is told: a teacher on
+ * the roster whose initials identity lacks or has differently. Only for
+ * someone identity already knows. A write that fails is logged and tried
+ * again next run. Returns how many were written.
+ */
+async function writeInitialsToIdentity(
+	env: Partial<Env> | undefined,
+	teachers: readonly Teacher[]
+): Promise<number> {
+	const onRoster = teachers.filter((teacher) => teacher.removedAt === null);
+	const identity = await lookUpTeachers(
+		env,
+		onRoster.map((teacher) => teacher.cid)
+	);
+
+	let written = 0;
+	for (const teacher of onRoster) {
+		const known = identity.known.get(teacher.cid);
+		const initials = normalizeInitials(teacher.initials);
+		if (!known || !initials || known.initials === initials) continue;
+
+		try {
+			await writeInitials(env, known.userId, initials);
+			written += 1;
+		} catch (err) {
+			console.error('[training-tools] could not write initials to identity', teacher.cid, err);
+		}
+	}
+	return written;
 }
 
 /**

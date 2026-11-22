@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { enrollmentsTable } from '$lib/db/schema/enrollments';
 import { syncStateTable } from '$lib/db/schema/sync-state';
+import { syncMembers } from '$lib/server/discord/larry';
 import { resolveJiraConfig, type JiraConfig } from '$lib/server/jira/client';
 import { fetchEnrollmentIssue, searchEnrollmentIssues } from '$lib/server/jira/issues';
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
@@ -48,6 +49,13 @@ export type ApplyOutcome =
 	/** Older than the state already applied — an out-of-order delivery. */
 	| 'stale';
 
+export type AppliedMove = {
+	outcome: ApplyOutcome;
+	moved: CardMove | null;
+	/** The student's CID, when their status or teacher changed. */
+	regrouped: string | null;
+};
+
 /**
  * Write one issue's status onto its enrollment row.
  *
@@ -65,14 +73,18 @@ export type ApplyOutcome =
  * another — so each move is reported once, however many deliveries and sweeps
  * describe it. It is what the card's dates are stamped from: see
  * `dateCardMove()`.
+ *
+ * `regrouped` is the student's CID when this write changed the status or the
+ * teacher, which can change the groups they are in: the caller tells larry
+ * (`syncMembers`), once for everything it applied.
  */
 export async function applyIssueMove(
 	db: Database,
 	issue: JiraStatusIssue,
 	observedAt: Date | null,
 	now = new Date()
-): Promise<{ outcome: ApplyOutcome; moved: CardMove | null }> {
-	const settled = (outcome: ApplyOutcome) => ({ outcome, moved: null });
+): Promise<AppliedMove> {
+	const settled = (outcome: ApplyOutcome) => ({ outcome, moved: null, regrouped: null });
 	const resolution = resolveStatusUpdate(issue);
 
 	if (resolution.action === 'unknown-status') {
@@ -147,7 +159,8 @@ export async function applyIssueMove(
 		if (written.length > 0) {
 			return {
 				outcome: changed ? 'updated' : 'unchanged',
-				moved: row.status !== status ? { from: row.status, to: status } : null
+				moved: row.status !== status ? { from: row.status, to: status } : null,
+				regrouped: row.status !== status || row.teacher !== teacher ? row.cid : null
 			};
 		}
 	}
@@ -216,12 +229,13 @@ export async function syncEnrollmentIssue(
 	const issue = await fetchEnrollmentIssue(config, issueKey);
 	if (!issue) return { ok: true, outcome: 'issue-gone' };
 
-	const { outcome, moved } = await applyIssueMove(
+	const { outcome, moved, regrouped } = await applyIssueMove(
 		db,
 		issue,
 		parseJiraTimestamp(issue.fields?.updated)
 	);
 	await dateCardMove(env, issue, moved);
+	if (regrouped) await syncMembers(env, [regrouped]);
 
 	return { ok: true, outcome };
 }
@@ -294,12 +308,15 @@ export async function sweepEnrollmentStatuses(
 	const { issues, complete } = await searchEnrollmentIssues(config, window);
 
 	let updated = 0;
+	const regrouped: string[] = [];
 	for (const issue of issues) {
 		const observedAt = parseJiraTimestamp(issue.fields?.updated);
-		const { outcome, moved } = await applyIssueMove(db, issue, observedAt, now);
-		if (outcome === 'updated') updated += 1;
-		await dateCardMove(env, issue, moved, now);
+		const applied = await applyIssueMove(db, issue, observedAt, now);
+		if (applied.outcome === 'updated') updated += 1;
+		if (applied.regrouped) regrouped.push(applied.regrouped);
+		await dateCardMove(env, issue, applied.moved, now);
 	}
+	await syncMembers(env, regrouped);
 
 	if (complete) await writeCursor(db, now);
 

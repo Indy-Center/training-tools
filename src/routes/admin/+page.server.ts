@@ -7,7 +7,7 @@ import {
 	MAX_JIRA_SYNC_ATTEMPTS,
 	retryFiling
 } from '$lib/server/enrollments';
-import { getRoomsPanel } from '$lib/server/discord/rooms';
+import { getGroupsPanel } from '$lib/server/groups';
 import {
 	clearRosterRelease,
 	getPeople,
@@ -46,11 +46,11 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	// generated platform type only knows what `wrangler types` saw in .dev.vars.
 	const env: Partial<Env> | undefined = platform?.env;
 
-	const [unfiled, health, auditQueue, discord, hold] = await Promise.all([
+	const [unfiled, health, auditQueue, groups, hold] = await Promise.all([
 		getUnfiledEnrollments(locals.db),
 		getJobHealth(locals.db),
 		getAuditQueue(locals.db),
-		getRoomsPanel(locals.db),
+		getGroupsPanel(locals.db, env),
 		readRosterHold(locals.db)
 	]);
 
@@ -102,9 +102,9 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 						members: hold.cids.map((cid) => ({ cid, name: people.get(cid)?.name ?? cid }))
 					}
 				: null,
-		// What the last Discord sync did to teacher roles and channels, or in a dry
-		// run would do. Null until it has run.
-		discord,
+		// The groups this app serves larry, read-only: what larry made of them is
+		// in its own logs and `getGroupStatus()`.
+		groups,
 		// Finished courses waiting on the TA. The work is done on `/admin/audit`;
 		// this is how many, so the page can point there.
 		awaitingAudit: auditQueue.length,

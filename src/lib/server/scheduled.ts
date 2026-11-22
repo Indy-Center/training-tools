@@ -1,7 +1,6 @@
 import type { Database } from '$lib/server/db';
 import { syncRoster } from '$lib/server/roster';
 import { grantArrivalCertifications } from '$lib/server/certifications';
-import { syncTeacherRooms } from '$lib/server/discord/rooms';
 import { completePassedVatusaCourses } from '$lib/server/enrollments/waitlist';
 import { checkTeacherDropdowns, syncTeacherRoster } from '$lib/server/teachers';
 import {
@@ -46,7 +45,7 @@ export type ScheduledJob = {
  * refreshing, and VATSIM being down must not stop either. They share a
  * schedule, not a fate.
  *
- * Order matters in twelve places, each noted below.
+ * Order matters in eleven places, each noted below.
  */
 export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
@@ -221,22 +220,8 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 			}
 		},
 		{
-			// After the sweep, which is what says who is with which teacher now, and
-			// before the announcements: a student told about their teacher should
-			// already be able to see the channel.
-			name: 'discord teacher rooms',
-			description: "Keeps each teacher's Discord role and channel in step with their students.",
-			run: async () => {
-				const result = await syncTeacherRooms(db, env);
-				if (!result) return null;
-				const changed =
-					result.created + result.added + result.removed + result.deleted + result.initialsWritten;
-				return changed > 0 || result.errors > 0 ? result : null;
-			}
-		},
-		{
-			// After the teacher rooms, so the student already holds the role that
-			// lets them see the channel they are about to be mentioned in.
+			// After the sweep, which is what says who is with which teacher now.
+			// larry gives the student the teacher's room before posting.
 			name: 'teacher pairings',
 			description:
 				"Tells a student and their teacher they have been paired, in the teacher's channel.",

@@ -27,7 +27,6 @@ describe('scheduledJobs', () => {
 			'certification updates',
 			'vatusa course completions',
 			'vatusa course reminders',
-			'discord teacher rooms',
 			'teacher pairings',
 			'announcements'
 		]);

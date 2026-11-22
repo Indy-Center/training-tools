@@ -9,6 +9,8 @@
  * `TrainingRpcV2`, beside the old one, so no caller breaks mid-deploy.
  */
 
+import type { GroupSource, GroupsAnswer } from '@indy-center/indy-larry-worker';
+
 /** One credential this ARTCC issues, as the training app defines it. */
 export type AvailableCredential = {
 	/** Short code, e.g. `T-RC`. What `certification` and `endorsements` hold. */
@@ -63,33 +65,14 @@ export type Roster = {
 };
 
 /**
- * A set of people who belong together, and the room they share, if any. The
- * caller decides what that becomes (chat roles, a channel); the training app
- * says only who and what to call it.
- *
- * The shared groups contract: larry's client types publish the same shape.
+ * The shared groups contract, as larry publishes it: a set of people who
+ * belong together, and the room they share, if any. The training app's keys
+ * are `credential:<code>` and `teacher:<cid>`.
  */
-export type Group = {
-	/** Stable within this source: `credential:<code>` or `teacher:<cid>`. */
-	key: string;
-	/** The group's name, as people should see it. */
-	name: string;
-	/** VATSIM CIDs, digit strings, no duplicates. */
-	members: string[];
-	room?: {
-		/** The room's name, as people should see it. */
-		name: string;
-		/** Used instead when two rooms' names collide in the chat system. */
-		fallbackName: string;
-	};
-	/** Keep this group exactly as it is: don't manage its members, rename or delete it. */
-	hold?: true;
-};
-
-export type GroupsAnswer = { groups: Group[] };
+export type { Group, GroupsAnswer, GroupSource } from '@indy-center/indy-larry-worker';
 
 /** What a caller's `TrainingRpc` binding can call. */
-export interface TrainingRpc extends Rpc.WorkerEntrypointBranded {
+export interface TrainingRpc extends Rpc.WorkerEntrypointBranded, GroupSource {
 	/** The whole controller roster and the available credentials, in one call. Read-only. */
 	getRoster(): Promise<Roster>;
 	/**

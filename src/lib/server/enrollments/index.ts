@@ -17,6 +17,7 @@ import {
 import { JIRA_FIELDS } from '$lib/server/jira/fields';
 import { toFacilityDate, updateIssueFields } from '$lib/server/jira/progress';
 import { notify } from '$lib/server/notify';
+import { syncMembers } from '$lib/server/discord/larry';
 import { stuckRequestNotice, withdrawnNotice } from './notices';
 import { inRestoreWindow } from './restore-window';
 
@@ -420,6 +421,9 @@ export async function withdrawEnrollment(
 		.returning();
 
 	if (!withdrawn) return false;
+
+	// Out of their teacher's group now, not when Jira's card follows.
+	await syncMembers(env, [cid]);
 
 	const config = resolveJiraConfig(env);
 	if (config && withdrawn.jiraIssueKey) {

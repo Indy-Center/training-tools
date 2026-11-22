@@ -8,8 +8,6 @@ const teacher: Teacher = {
 	roles: ['MTR'],
 	status: 'active',
 	initials: 'JR',
-	discordRoleId: null,
-	discordChannelId: null,
 	availability: 'Weeknights',
 	studentMessage: null,
 	studentSlots: 2,

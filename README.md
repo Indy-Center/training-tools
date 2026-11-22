@@ -30,8 +30,9 @@ repository, or reach the Indy Center staff through
   straight into VATUSA's CTRS and can end the training or record an exam result.
 - **Certifications and endorsements** as the facility's system of record, granted
   automatically when a course is finished and on arrival by rating.
-- **Discord, kept in step**: a role and a private channel per teacher, the
-  pairing message, rating exams for evaluators to claim, and alerts to staff.
+- **Groups for Discord**: one per credential and one per teacher, which larry
+  turns into roles and private rooms; the pairing message, rating exams for
+  evaluators to claim, and alerts to staff.
 - **A background job every 10 minutes** that keeps all of it honest, with a
   page showing each job's last run.
 
@@ -43,7 +44,7 @@ repository, or reach the Indy Center staff through
 | Sign-in              | Indy Center's `identity` Worker, over a service binding        | Your own VATSIM Connect sign-in. The seam is `getSessionContext()` in `src/lib/server/identity.ts`: anything that returns a CID, a rating and a list of roles                                             |
 | Roster               | VATUSA's public roster for `FACILITY_ID`                       | Change `FACILITY_ID` in `src/lib/config.ts`                                                                                                                                                               |
 | The queue staff work | A Jira project (`TRK`) the app files cards into and reads back | Your own Jira project. Field ids are in `src/lib/server/jira/fields.ts`, course options in `src/lib/courses.ts`, statuses are matched by name. A different tracker means replacing `src/lib/server/jira/` |
-| Discord              | "Larry", our bot's send Worker, over a service binding         | Optional. Without the binding every notice is logged and skipped; set `DISCORD_SYNC` to `off` to leave roles and channels alone. The seam is `src/lib/server/notify/`                                     |
+| Discord              | "Larry", our bot's Worker, over a service binding              | Optional. Without the binding every notice is logged and skipped. Roles and rooms are larry's, made from `getGroups()`. The seams are `src/lib/server/notify/` and `src/lib/server/discord/larry.ts`      |
 | VATUSA               | A facility API key, for Academy courses, transcripts and CTRS  | Your facility's key. `CTRS_SUBMIT` set to `test` makes VATUSA check a report and save nothing                                                                                                             |
 
 **What is yours to rewrite**
@@ -188,8 +189,7 @@ Every 10 minutes (`*/10 * * * *`), in this order:
 | certification updates     | Applies what a finished course earns (`applyPendingCertificationUpdates`)                                                                              |
 | vatusa course completions | Dates the card when a VATUSA written exam is passed (`completePassedVatusaCourses`)                                                                    |
 | vatusa course reminders   | Messages students about an assigned VATUSA course (`sendVatusaReminders`)                                                                              |
-| discord teacher rooms     | Teacher roles and channels in Discord, through Larry (`syncTeacherRooms`)                                                                              |
-| teacher pairings          | Tells a student and teacher they are paired, in the teacher's channel (`announcePairings`)                                                             |
+| teacher pairings          | Tells a student and teacher they are paired, in the teacher's room, through larry (`announcePairings`)                                                 |
 | announcements             | Tells evaluators and training admins what has arrived (`announceArrivals`)                                                                             |
 
 The list lives in `src/lib/server/scheduled.ts`; `src/worker.ts` only runs it.
@@ -292,7 +292,9 @@ mid-deploy. The only caller so far is community-website (DEV-116).
 like `@indy-center/indy-larry-worker`. Install it as a dependency
 (`npm install @indy-center/training-tools`) and type the binding in the
 caller's `Env` as `TRAINING: TrainingBinding`; `Roster`, `RosterMember`,
-`AvailableCredential`, `GroupsAnswer` and `Group` are exported too. It is types only, built from `rpc/src/`;
+`AvailableCredential`, `GroupsAnswer` and `Group` are exported too. `Group`,
+`GroupsAnswer` and `GroupSource` (which `TrainingRpc` extends) are larry's, from
+`@indy-center/indy-larry-worker` 1.3.0, a dependency of the package. It is types only, built from `rpc/src/`;
 callers also need `@cloudflare/workers-types` (or `wrangler types`) for
 `Service` and `Rpc`. It is public, so it installs with no npm login, and it holds
 nothing that isn't already in this repository.
@@ -315,22 +317,20 @@ set to ignore scripts, and would then publish nothing but `package.json`.
 
 ## Bindings
 
-| Binding    | Type                     | What it's for                                                |
-| ---------- | ------------------------ | ------------------------------------------------------------ |
-| `IDENTITY` | Service (→ `identity`)   | Validates the `fic_session` cookie via `getSessionContext()` |
-| `LARRY`    | Service (→ `indy-larry`) | Queues Discord notices through Larry; see Notifications      |
-| `DB`       | D1 (`training-db`)       | Roster mirror, and the training data this app owns           |
-| `ASSETS`   | Static assets            | SvelteKit client build                                       |
+| Binding    | Type                     | What it's for                                                      |
+| ---------- | ------------------------ | ------------------------------------------------------------------ |
+| `IDENTITY` | Service (→ `identity`)   | Validates the `fic_session` cookie via `getSessionContext()`       |
+| `LARRY`    | Service (→ `indy-larry`) | Discord notices, and the group calls; see Notifications and Groups |
+| `DB`       | D1 (`training-db`)       | Roster mirror, and the training data this app owns                 |
+| `ASSETS`   | Static assets            | SvelteKit client build                                             |
 
-| Var                              | Value                                                              |
-| -------------------------------- | ------------------------------------------------------------------ |
-| `PUBLIC_IDENTITY_URL`            | `https://auth.flyindycenter.com` (override locally in `.dev.vars`) |
-| `JIRA_BASE_URL`                  | `https://zidartcc.atlassian.net`                                   |
-| `JIRA_PROJECT_KEY`               | `TRK` — the Student Tracking waitlist                              |
-| `DISCORD_SYNC`                   | `off`, `dry-run` or `live` — see Discord roles and channels        |
-| `DISCORD_TRAINING_ADMIN_ROLE_ID` | The Discord role that sees every teacher channel                   |
-| `CTRS_SUBMIT`                    | `live` files training reports; anything else only checks them      |
-| `CMS_URL`                        | `https://cms.flyindycenter.com` — payload; see Teacher resources   |
+| Var                   | Value                                                              |
+| --------------------- | ------------------------------------------------------------------ |
+| `PUBLIC_IDENTITY_URL` | `https://auth.flyindycenter.com` (override locally in `.dev.vars`) |
+| `JIRA_BASE_URL`       | `https://zidartcc.atlassian.net`                                   |
+| `JIRA_PROJECT_KEY`    | `TRK` — the Student Tracking waitlist                              |
+| `CTRS_SUBMIT`         | `live` files training reports; anything else only checks them      |
+| `CMS_URL`             | `https://cms.flyindycenter.com` — payload; see Teacher resources   |
 
 | Secret                | What it is                                                       |
 | --------------------- | ---------------------------------------------------------------- |
@@ -383,7 +383,7 @@ src/
 │   │   ├── enrollment/        a request's status badge and its TRK card link
 │   │   ├── teachers/          a teacher's status badge, and the teacher dropdown
 │   │   ├── controller/        Timeline, one controller's history
-│   │   ├── admin/             DiscordRoomsPanel
+│   │   ├── admin/             GroupsPanel, the groups served to larry
 │   │   └── header/            the site header, navigation and logo
 │   ├── format.ts              date formatting, pinned to one locale
 │   ├── job-health.ts          pure "is this job healthy" rules for /admin
@@ -530,47 +530,40 @@ teacher, `RE Instructor` every active teacher who evaluates anything.
 Initials are entered by training admins for now. Once community-website is on
 identity (DEV-5), take them from identity's `operatingInitials` instead.
 
-### Discord roles and channels
+### Groups, and Discord through larry
 
-Each teacher has a Discord **role named for their initials**, held by them and
-their current students, and a **channel named for them** under Training Center
-that only that role and Training Admin see. The app works out who belongs where
-and asks Larry to make Discord match; `$lib/discord-rooms.ts` is the rules,
-`$lib/teacher-groups.ts` the naming rules it shares with `getGroups()`, and
-`$lib/server/discord/rooms.ts` the cron job.
+**This app serves groups; larry does the chat system** (decisions 0044 and
+0045). The app says who belongs together and what to call it — one group per
+credential, held top down, and one per teacher with their students and a room
+(see `getGroups()` under RPC for other Workers). larry turns them into Discord
+roles and private channels, adopts existing ones by name, keeps their IDs,
+renames them, deletes a teacher's a grace period after they stop being served,
+and puts the roles on each member's account. The app holds no Discord role or
+channel IDs, and never makes or changes a role or channel itself. Where the
+rooms go, who else sees them, the grace period, and whether it is live
+(`GROUP_SYNC_TRAINING`: `off`, `dry-run` or `live`) are larry's settings for
+the `training` source.
 
-- **Who holds a teacher's role:** the teacher, and their students at In Training,
-  Rating Exam or Needs CATP. It comes off on the next run after they finish,
-  withdraw, are removed or are reassigned. **Anyone else holding it loses it**,
-  however they got it.
-- **No initials, no role or channel.** A teacher on LOA keeps theirs.
-- **A teacher who leaves the teacher roster loses both 48 hours later**
-  (`DISCORD_ROOM_GRACE_HOURS`). The role and the channel are **deleted**, with
-  the channel's messages, and anyone still assigned to them loses access. Inside
-  those 48 hours nothing changes, so a role removed on VATUSA by mistake and put back
-  costs nothing. A teacher who returns later starts again with a new channel.
-- **Channel name:** their preferred name from identity when they have one,
-  otherwise their roster name; kept in step if either changes. With VATUSA name
-  privacy set it is their first name and CID instead, unless they have a
-  preferred name that is not just their full name. Two teachers who would
-  collide are both named by first name and CID.
-- **Existing roles and channels are adopted by name**, then remembered by ID
-  (`teachers.discord_role_id`, `discord_channel_id`). An adopted channel keeps
-  the permissions it has; only one Larry creates is set to "role + Training
-  Admin".
-- **Someone with no Discord ID, or not in the server,** is picked up on a later
-  run once that changes. Nothing listens for joins.
-- **Initials are written to identity** (`operatingInitials`) for any teacher
-  identity knows, which means anyone who has signed in to an identity app.
+Two calls go the other way, through `$lib/server/discord/larry.ts`:
 
-`DISCORD_SYNC` in `wrangler.jsonc` switches it: `off`, `dry-run` or `live`.
-**Dry run changes nothing** and shows at the bottom of `/admin` exactly what live would
-do — which roles and channels would be adopted or created, and who would gain
-or lose a role. Read it before going live. `DISCORD_TRAINING_ADMIN_ROLE_ID`
-must be set for any channel to be made.
+- **`syncMembers(cids)`**, after a change that can move someone between
+  groups: a credential granted or revoked (`setCertification()`,
+  `toggleEndorsement()`, the arrival job, a finished course), and an
+  enrollment's teacher or status changing (the Jira read-back in
+  `applyIssueMove()`, a withdrawal, a card imported from the board). larry
+  reads the groups again and syncs those members within a minute, instead of on
+  its next run. Once per change, never per write: larry reads every group on
+  each call. A failed call is logged and left to larry's next run; it never
+  fails the write.
+- **`postToGroup()`**, for the pairing message: see Notifications.
 
-Live, a role or channel that cannot be synced fails the job, so the tech team
-hears through the job alert; the others are still done.
+**Initials are written to identity** (`operatingInitials`) by the teacher
+roster sync, for any teacher identity knows, which means anyone who has signed
+in to an identity app.
+
+`teachers.discord_role_id` and `discord_channel_id` are left from when this app
+made the rooms. Nothing reads them; they stay only so larry can be backed out,
+and go once it has run live for a week.
 
 One thing here is a stand-in: `$lib/server/discord/identity.ts` calls two
 identity methods that exist but are not in its published interface.
@@ -617,7 +610,7 @@ Rating Exam; staff can also move one there from In Training.
 
 Only the people a notice names are pinged; nothing typed into a field can mention
 anyone. **Students and teachers are messaged by the app in three cases**: a
-pairing, posted in the teacher's own channel (see [The waitlist, for
+pairing, posted in the teacher's room by larry (see [The waitlist, for
 staff](#the-waitlist-for-staff)), reminders about an assigned VATUSA course,
 sent privately, and a roster removal or restore, sent privately to the student,
 their teacher and their examiner (see [Enrollments](#enrollments)). Those do not use
@@ -808,11 +801,15 @@ What staff do from a row:
   Training. It is refused until the written course is passed, where there is one.
 - **Change the teacher**, for someone who already has one. Only `Teacher`
   changes; the card stays where it is.
-- **Either way the pair is told, straight away.** Once the teacher's Discord
-  channel exists the student is given its role and both are pinged there with who they are paired with, the
-  course, how the student prefers to be reached (never an email address) and
-  when they can train, with the teacher's own message to their students if they
-  have written one on `/teachers/{cid}` (`announcePairings`, `pairing-message.ts`).
+- **Either way the pair is told, straight away.** larry posts in the teacher's
+  room (`postToGroup()`, the group `teacher:<cid>`), giving the student the room
+  first, and mentions both, with who they are paired with, the course, how the
+  student prefers to be reached (never an email address) and when they can
+  train, with the teacher's own message to their students if they have written
+  one on `/teachers/{cid}` (`announcePairings`, `pairing-message.ts`). It is a
+  plain notice: larry escapes it, so nothing the student typed can ping anyone.
+  If larry says the room doesn't exist yet (`no-room`) or its group sync isn't
+  live (`not-live`), the pairing waits unannounced for a later pass.
 - **Withdraw** (the student is giving it up) or **Remove** (staff are ending
   it). The card moves to Withdrawn or Removed, kept apart so a report can tell
   the two; either closes the request. Either way the card's `Removed` date is
@@ -1082,9 +1079,11 @@ behind the scenes is seen before a student has to report it.
   fires when staff change an issue, so a quiet board is not a fault.
 - **Configuration.** Whether the Jira credentials, the webhook secret and the
   Larry binding are set — never their values.
-- **Discord roles and channels.** At the bottom: what the last Discord sync did
-  to each teacher's role and channel, or in a dry run would do. Absent until the
-  sync has run once.
+- **Groups.** At the bottom, read-only: each group this app serves larry, by
+  name, with its members named and counted, its room's name if it has one, and
+  each held group with why (no initials, no usable name, or identity couldn't be
+  asked for the teacher's name). Only this app's side: what larry made of them
+  in Discord is in larry's role-sync logs and its `getGroupStatus('training')`.
 
 Recording a job's outcome is bookkeeping: if the write fails it is logged, and
 neither fails the job nor stops the next one. Training admins are told in

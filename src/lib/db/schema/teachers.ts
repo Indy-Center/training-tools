@@ -4,8 +4,11 @@ import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import { CREDENTIAL_CODES } from '$lib/certifications';
 import { QUALIFICATION_LEVELS, TEACHER_STATUSES, type TeacherRole } from '$lib/teachers';
 
-export type Teacher = InferSelectModel<typeof teachersTable>;
-export type InsertTeacher = InferInsertModel<typeof teachersTable>;
+/** Unread columns, on their way out: see `discordRoleId` below. */
+type RetiredColumns = 'discordRoleId' | 'discordChannelId';
+
+export type Teacher = Omit<InferSelectModel<typeof teachersTable>, RetiredColumns>;
+export type InsertTeacher = Omit<InferInsertModel<typeof teachersTable>, RetiredColumns>;
 export type TeacherQualification = InferSelectModel<typeof teacherQualificationsTable>;
 
 /**
@@ -50,9 +53,10 @@ export const teachersTable = sqliteTable(
 		initials: text('initials'),
 
 		/**
-		 * Their Discord role and channel, as Larry last found or made them. Kept so
-		 * a rename in Discord is followed rather than answered with a second one.
-		 * Null until the sync has run for real. See `$lib/discord-rooms.ts`.
+		 * Their Discord role and channel, from when this app made teacher rooms.
+		 * Nothing reads them: larry keeps its own IDs now (decisions/0044). Kept
+		 * only so larry can be backed out, and dropped once it has run live for a
+		 * week. Left out of `Teacher`.
 		 */
 		discordRoleId: text('discord_role_id'),
 		discordChannelId: text('discord_channel_id'),

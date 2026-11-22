@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { buildPairingMessage, greeting, type Pairing } from './pairing-message';
 
-const STUDENT = '123456789012345678';
-const TEACHER = '234567890123456789';
 /** 2pm in Indianapolis. */
 const AFTERNOON = new Date('2026-10-07T18:00:00Z');
 
 const pairing: Pairing = {
-	student: { name: 'Nick Bottoms', discordId: STUDENT },
-	teacher: { name: 'Jim Reburn', discordId: TEACHER },
+	student: { name: 'Nick Bottoms' },
+	teacher: { name: 'Jim Reburn' },
 	teacherMessage: null,
 	course: 'S-GC',
 	notificationPreference: 'discord',
 	availability: 'Most days after 11pm Eastern.'
 };
+
+const field = (name: string, value: Pairing) =>
+	buildPairingMessage(value, AFTERNOON).fields?.find((entry) => entry.name === name)?.value;
 
 describe('greeting', () => {
 	it('goes by the facility’s clock, not UTC', () => {
@@ -25,88 +26,74 @@ describe('greeting', () => {
 });
 
 describe('buildPairingMessage', () => {
-	it('greets and pings the student and the teacher, and nobody else', () => {
-		const message = buildPairingMessage(pairing, AFTERNOON);
+	it('greets the student and the teacher by name', () => {
+		const notice = buildPairingMessage(pairing, AFTERNOON);
 
-		expect(message.content).toMatch(
-			new RegExp(`^Good afternoon <@${STUDENT}> and <@${TEACHER}>,\\n\\nYou’ve been paired`)
-		);
-		expect(message.allowedMentions).toEqual({ parse: [], users: [STUDENT, TEACHER] });
+		expect(notice.title).toBe('Good afternoon Nick Bottoms and Jim Reburn');
+		expect(notice.body).toMatch(/^You’ve been paired together to continue training for S-GC!/);
 	});
 
 	it('lists who, which course, how to reach the student and when they can train', () => {
-		const { content } = buildPairingMessage(pairing, AFTERNOON);
+		const notice = buildPairingMessage(pairing, AFTERNOON);
 
-		expect(content).toContain('continue training for S-GC!');
-		expect(content).toContain(
-			'[Indy Center Training Policy](<https://wiki.flyindycenter.com/en/policies/training>)'
+		expect(notice.body).toContain('https://wiki.flyindycenter.com/en/policies/training');
+		expect(notice.body).toContain(
+			'https://wiki.flyindycenter.com/en/training/facility-teacher-guide'
 		);
-		expect(content).toContain(
-			'[Facility Teacher Guide](<https://wiki.flyindycenter.com/en/training/facility-teacher-guide>)'
-		);
-		expect(content).toContain('**Student:** Nick Bottoms');
-		expect(content).toContain('**Teacher:** Jim Reburn');
-		expect(content).toContain('**Course:** Simple Ground Control (S-GC)');
-		expect(content).toContain('**Preferred Student Contact:** Discord');
-		expect(content).toContain('**Student Availability:** Most days after 11pm Eastern.');
+		expect(notice.fields).toEqual([
+			{ name: 'Student', value: 'Nick Bottoms' },
+			{ name: 'Teacher', value: 'Jim Reburn' },
+			{ name: 'Course', value: 'Simple Ground Control (S-GC)' },
+			{ name: 'Preferred Student Contact', value: 'Discord' },
+			{ name: 'Student Availability', value: 'Most days after 11pm Eastern.' }
+		]);
+	});
+
+	it('has no chat markup or mentions of its own', () => {
+		const { title, body } = buildPairingMessage(pairing, AFTERNOON);
+
+		expect(`${title}\n${body}`).not.toMatch(/<@|\*\*|\]\(/);
 	});
 
 	// The teacher can look the address up; it is never posted.
 	it('says Email for a student who prefers it, without an address', () => {
-		const { content } = buildPairingMessage(
-			{ ...pairing, notificationPreference: 'email' },
-			AFTERNOON
-		);
+		const notice = buildPairingMessage({ ...pairing, notificationPreference: 'email' }, AFTERNOON);
 
-		expect(content).toContain('**Preferred Student Contact:** Email');
-		expect(content).not.toContain('@gmail');
-		expect(content).not.toMatch(/[\w.]+@[\w.]+\.\w+/);
+		expect(
+			field('Preferred Student Contact', { ...pairing, notificationPreference: 'email' })
+		).toBe('Email');
+		expect(JSON.stringify(notice)).not.toMatch(/[\w.]+@[\w.]+\.\w+/);
 	});
 
-	it('names someone we hold no Discord ID for, and does not ping them', () => {
-		const message = buildPairingMessage(
-			{ ...pairing, student: { name: 'Nick Bottoms', discordId: null } },
-			AFTERNOON
-		);
+	it('fits Discord’s field limit once larry has escaped it, however much the student wrote', () => {
+		// Each `*` is escaped to two characters.
+		const value = field('Student Availability', { ...pairing, availability: '*'.repeat(5000) })!;
 
-		expect(message.content).toContain(`Good afternoon **Nick Bottoms** and <@${TEACHER}>,`);
-		expect(message.allowedMentions).toEqual({ parse: [], users: [TEACHER] });
+		expect(value.endsWith('…')).toBe(true);
+		expect(value.replace(/\*/g, '\\*').length).toBeLessThanOrEqual(1024);
+		expect(value.length).toBe(512);
 	});
 
-	it('cannot be made to ping by what the student typed', () => {
-		const message = buildPairingMessage(
-			{ ...pairing, availability: '@everyone weekends <@999999999999999999>' },
-			AFTERNOON
-		);
+	// larry measures in UTF-16 units, as JavaScript does: each emoji is two.
+	it('fits the limit with characters outside the basic plane', () => {
+		const value = field('Student Availability', { ...pairing, availability: '😀'.repeat(1000) })!;
 
-		expect(message.allowedMentions?.users).toEqual([STUDENT, TEACHER]);
-		expect(message.allowedMentions?.parse).toEqual([]);
-	});
-
-	it('stays within Discord’s limit however much the student wrote', () => {
-		const message = buildPairingMessage({ ...pairing, availability: 'x'.repeat(5000) }, AFTERNOON);
-
-		expect(message.content?.length).toBe(2000);
-		expect(message.content?.endsWith('…')).toBe(true);
+		expect(value.endsWith('…')).toBe(true);
+		expect(value.length).toBeLessThanOrEqual(1024);
+		expect(value.length).toBe(1023);
 	});
 
 	it('passes on what the teacher wrote for their students', () => {
-		const { content } = buildPairingMessage(
-			{ ...pairing, teacherMessage: ' Book with me at https://example.com/jim ' },
-			AFTERNOON
-		);
+		const withMessage = { ...pairing, teacherMessage: ' Book with me at https://example.com/jim ' };
 
-		expect(content).toContain('**From Jim Reburn:** Book with me at https://example.com/jim\n');
-		expect(buildPairingMessage(pairing, AFTERNOON).content).not.toContain('**From ');
+		expect(field('From Jim Reburn', withMessage)).toBe('Book with me at https://example.com/jim');
+		expect(field('From Jim Reburn', pairing)).toBeUndefined();
 	});
 
 	it('says so when nothing was given', () => {
-		const { content } = buildPairingMessage(
-			{ ...pairing, notificationPreference: null, availability: null },
-			AFTERNOON
-		);
+		const nothing = { ...pairing, notificationPreference: null, availability: null };
 
-		expect(content).toContain('**Preferred Student Contact:** Not given');
-		expect(content).toContain('**Student Availability:** Not given');
+		expect(field('Preferred Student Contact', nothing)).toBe('Not given');
+		expect(field('Student Availability', nothing)).toBe('Not given');
 	});
 });
