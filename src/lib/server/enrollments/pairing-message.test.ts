@@ -74,6 +74,15 @@ describe('buildPairingMessage', () => {
 		expect(value.length).toBe(512);
 	});
 
+	// larry measures in UTF-16 units, as JavaScript does: each emoji is two.
+	it('fits the limit with characters outside the basic plane', () => {
+		const value = field('Student Availability', { ...pairing, availability: '😀'.repeat(1000) })!;
+
+		expect(value.endsWith('…')).toBe(true);
+		expect(value.length).toBeLessThanOrEqual(1024);
+		expect(value.length).toBe(1023);
+	});
+
 	it('passes on what the teacher wrote for their students', () => {
 		const withMessage = { ...pairing, teacherMessage: ' Book with me at https://example.com/jim ' };
 

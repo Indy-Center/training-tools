@@ -24,9 +24,12 @@ const TEACHER_GUIDE_URL = 'https://wiki.flyindycenter.com/en/training/facility-t
 const FIELD_LIMIT = 1024;
 const ESCAPED = /[\\`*_~|>#[\]()<@-]/;
 
-/** `text`, cut with an ellipsis so that escaped it fits in `limit`. */
+/**
+ * `text`, cut with an ellipsis so that escaped it fits in `limit`. Measured in
+ * UTF-16 units, as larry measures it, never cutting a character in half.
+ */
 function clip(text: string, limit: number): string {
-	const cost = (char: string) => (ESCAPED.test(char) ? 2 : 1);
+	const cost = (char: string) => (ESCAPED.test(char) ? 2 : char.length);
 	const chars = [...text];
 	if (chars.reduce((sum, char) => sum + cost(char), 0) <= limit) return text;
 
