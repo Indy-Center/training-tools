@@ -7,7 +7,7 @@ import { enrollmentsTable } from '$lib/db/schema/enrollments';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { teachersTable } from '$lib/db/schema/teachers';
 import { FACILITY_ID } from '$lib/config';
-import type { GroupsPanel } from '$lib/groups';
+import type { PanelGroup } from '$lib/groups';
 import { load } from './+page.server';
 
 // Made-up people; nothing here is a real controller.
@@ -71,7 +71,7 @@ describe('/admin groups', () => {
 			locals: { ...admin, db },
 			platform: { env: {} }
 		} as unknown as Parameters<typeof load>[0];
-		const data = (await load(event)) as { groups: GroupsPanel };
+		const data = (await load(event)) as { groups: PanelGroup[] };
 		return data.groups;
 	}
 

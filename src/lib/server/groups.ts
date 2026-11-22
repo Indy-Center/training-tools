@@ -1,7 +1,7 @@
 import type { Database } from '$lib/server/db';
 import { rosterMembersTable } from '$lib/db/schema/roster';
 import { CREDENTIALS } from '$lib/certifications';
-import { groupsPanel, planGroups, type GroupsInput, type GroupsPanel } from '$lib/groups';
+import { groupsPanel, planGroups, type GroupsInput, type PanelGroup } from '$lib/groups';
 import { getPeople, readRoster } from '$lib/server/roster';
 import { assignmentsFor, getAssignedEnrollments, listTeachers } from '$lib/server/teachers';
 import { lookUpTeachers } from '$lib/server/discord/identity';
@@ -27,7 +27,7 @@ export async function readGroups(
 export async function getGroupsPanel(
 	db: Database,
 	env: Partial<Env> | undefined
-): Promise<GroupsPanel> {
+): Promise<PanelGroup[]> {
 	const [input, people] = await Promise.all([readGroupsInput(db, env), getPeople(db)]);
 	return groupsPanel(input, (cid) => people.get(cid)?.name || cid);
 }
@@ -35,7 +35,7 @@ export async function getGroupsPanel(
 /**
  * Whole tables, never an `IN (...)` over CIDs (D1 allows 100 bound
  * parameters). Roster names come from the whole mirror, removed members
- * included, as the teacher rooms have them today.
+ * included, so a teacher's room keeps the name it was given.
  */
 async function readGroupsInput(db: Database, env: Partial<Env> | undefined): Promise<GroupsInput> {
 	const [roster, teachers, enrollments, names] = await Promise.all([

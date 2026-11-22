@@ -37,10 +37,10 @@ export function planGroups(input: GroupsInput): GroupsAnswer {
 }
 
 /**
- * The groups as `/admin` shows them: members by name, and each held group with
- * why. Here rather than under `$lib/server/` because a component uses it.
+ * A group as `/admin` shows it: members by name, and if it is held, why. Here
+ * rather than under `$lib/server/` because a component uses it.
  */
-export type GroupsPanel = {
+export type PanelGroup = {
 	key: string;
 	name: string;
 	/** The room's name, for a group that has one. */
@@ -48,10 +48,10 @@ export type GroupsPanel = {
 	/** By name, in the group's order. */
 	members: string[];
 	held: HoldReason | null;
-}[];
+};
 
 /** `planGroups()` as `/admin` reads it, with `nameOf` turning a CID into a name. */
-export function groupsPanel(input: GroupsInput, nameOf: (cid: string) => string): GroupsPanel {
+export function groupsPanel(input: GroupsInput, nameOf: (cid: string) => string): PanelGroup[] {
 	const why = new Map(
 		input.teachers.map((teacher) => [`teacher:${teacher.cid}`, teacherHold(teacher)])
 	);

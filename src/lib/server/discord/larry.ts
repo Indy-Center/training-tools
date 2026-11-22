@@ -30,7 +30,8 @@ const SYNC_MEMBERS_MAX = 100;
 /**
  * Tell larry these members' groups have just changed, so Discord catches up
  * within a minute instead of on its next run. Never throws: a failed call is
- * logged and left to that run, so it is never why a write here fails.
+ * logged and left to that run, so it is never why a write here fails, and a
+ * CID larry declines is logged too.
  */
 export async function syncMembers(
 	env: Partial<Env> | undefined,
@@ -45,7 +46,13 @@ export async function syncMembers(
 	for (let start = 0; start < wanted.length; start += SYNC_MEMBERS_MAX) {
 		const batch = wanted.slice(start, start + SYNC_MEMBERS_MAX);
 		try {
-			await larry.syncMembers(batch.map(Number));
+			const answers = await larry.syncMembers(batch.map(Number));
+			// Declined: synced moments ago, or nothing known to sync. larry has
+			// still read the groups again, so a job of theirs not yet run sees it.
+			const declined = (answers ?? []).filter((answer) => !answer.queued);
+			if (declined.length > 0) {
+				console.log('[training-tools] larry declined to sync', JSON.stringify(declined));
+			}
 		} catch (err) {
 			console.error(
 				'[training-tools] larry syncMembers failed; its next run catches up',

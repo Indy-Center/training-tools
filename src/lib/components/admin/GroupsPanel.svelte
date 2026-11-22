@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import Panel from '$lib/components/ui/Panel.svelte';
-	import type { GroupsPanel } from '$lib/groups';
+	import type { PanelGroup } from '$lib/groups';
 	import type { HoldReason } from '$lib/teacher-groups';
 	import IconAccountGroup from '~icons/mdi/account-group-outline';
 
@@ -11,7 +11,7 @@
 	 * larry made of them in Discord is in larry's logs. Shown at the bottom of
 	 * `/admin`.
 	 */
-	let { groups }: { groups: GroupsPanel } = $props();
+	let { groups }: { groups: PanelGroup[] } = $props();
 
 	const WHY: Record<HoldReason, string> = {
 		'no-initials': 'no initials entered',

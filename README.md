@@ -383,7 +383,7 @@ src/
 │   │   ├── enrollment/        a request's status badge and its TRK card link
 │   │   ├── teachers/          a teacher's status badge, and the teacher dropdown
 │   │   ├── controller/        Timeline, one controller's history
-│   │   ├── admin/             DiscordRoomsPanel
+│   │   ├── admin/             GroupsPanel, the groups served to larry
 │   │   └── header/            the site header, navigation and logo
 │   ├── format.ts              date formatting, pinned to one locale
 │   ├── job-health.ts          pure "is this job healthy" rules for /admin

@@ -164,7 +164,7 @@ export async function setCertification(
 
 	if (current?.code === code) return;
 
-	await writeCertification(db, cid, code, actorCid, grant, held);
+	await writeCertification(db, cid, code, actorCid, grant, held, current?.code ?? null);
 	await syncMembers(env, [cid]);
 }
 
@@ -174,14 +174,13 @@ async function writeCertification(
 	code: string | null,
 	actorCid: string | null,
 	grant: { basis: GrantBasis; note?: string | null },
-	held: Certification[]
+	held: Certification[],
+	current: CredentialCode | null
 ): Promise<void> {
-	const current = highestCertification(held.map((row) => row.code));
-
 	if (current) {
 		await revokeCredential(db, {
 			cid,
-			code: current.code,
+			code: current,
 			revokedBy: actorCid,
 			reason: code ? `Replaced by ${code}` : 'Removed by training staff'
 		});
