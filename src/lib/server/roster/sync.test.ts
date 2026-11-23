@@ -513,4 +513,14 @@ describe('syncRoster — telling larry', () => {
 		const rows = await db.select({ cid: rosterMembersTable.cid }).from(rosterMembersTable);
 		expect(rows.map((row) => row.cid)).toContain('5000007');
 	});
+
+	it('still sends an arrival when removals are held, but not the held members', async () => {
+		const larry = fakeLarry();
+		// All six missing is over the limit of five, so the removals wait.
+		vatusaAnswers([member({ cid: 5000007 })]);
+
+		await expect(syncRoster(db, day(1), larry.env)).rejects.toThrow(RosterHoldError);
+
+		expect(larry.calls).toEqual([[5000007]]);
+	});
 });
