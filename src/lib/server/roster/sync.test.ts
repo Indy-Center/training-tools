@@ -424,3 +424,93 @@ describe('syncRoster — leftHomeAt', () => {
 		expect(await leftHomeAt()).toEqual(day(2));
 	});
 });
+
+describe('syncRoster — telling larry', () => {
+	const DAY = 24 * 60 * 60 * 1000;
+	const day = (n: number) => new Date(NOW.getTime() + n * DAY);
+	// Made-up CIDs; nothing here is a real controller.
+	const ROSTER = [5000001, 5000002, 5000003, 5000004, 5000005, 5000006];
+	let db: Database;
+
+	/** A stand-in for larry that records every `syncMembers()` call. */
+	function fakeLarry(fail = false) {
+		const calls: number[][] = [];
+		const env = {
+			LARRY: {
+				syncMembers: async (cids: number[]) => {
+					calls.push(cids);
+					if (fail) throw new Error('larry is down');
+					return cids.map((cid) => ({ cid, queued: true }));
+				}
+			}
+		} as unknown as Partial<Env>;
+		return { env, calls };
+	}
+
+	function vatusaAnswers(list: VatusaRosterMember[]) {
+		vi.mocked(fetchRoster).mockResolvedValueOnce(list);
+	}
+
+	beforeEach(async () => {
+		vi.mocked(fetchRoster).mockReset();
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		db = testDb();
+		vatusaAnswers(ROSTER.map((cid) => member({ cid })));
+		await syncRoster(db, day(0));
+	});
+
+	it('sends exactly the member whose rating changed', async () => {
+		const larry = fakeLarry();
+		vatusaAnswers(
+			ROSTER.map((cid) =>
+				cid === 5000002 ? member({ cid, rating: 3, rating_short: 'S2' }) : member({ cid })
+			)
+		);
+
+		await syncRoster(db, day(1), larry.env);
+
+		expect(larry.calls).toEqual([[5000002]]);
+	});
+
+	it('sends a member who joined and one who left, and nobody unchanged', async () => {
+		const larry = fakeLarry();
+		vatusaAnswers([...ROSTER.slice(0, 5), 5000007].map((cid) => member({ cid })));
+
+		await syncRoster(db, day(1), larry.env);
+
+		expect(larry.calls.flat().sort()).toEqual([5000006, 5000007]);
+	});
+
+	it('sends nothing on a first run into an empty table', async () => {
+		const larry = fakeLarry();
+		const empty = testDb();
+		vatusaAnswers(ROSTER.map((cid) => member({ cid })));
+
+		const result = await syncRoster(empty, day(1), larry.env);
+
+		expect(result.added).toBe(ROSTER.length);
+		expect(larry.calls).toEqual([]);
+	});
+
+	it('does not call larry when nothing changed', async () => {
+		const larry = fakeLarry();
+		vatusaAnswers(ROSTER.map((cid) => member({ cid })));
+
+		await syncRoster(db, day(1), larry.env);
+
+		expect(larry.calls).toEqual([]);
+	});
+
+	it('still refreshes the roster when larry throws', async () => {
+		const larry = fakeLarry(true);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vatusaAnswers([...ROSTER, 5000007].map((cid) => member({ cid })));
+
+		const result = await syncRoster(db, day(1), larry.env);
+
+		expect(larry.calls).toEqual([[5000007]]);
+		expect(result.addedCids).toEqual(['5000007']);
+		const rows = await db.select({ cid: rosterMembersTable.cid }).from(rosterMembersTable);
+		expect(rows.map((row) => row.cid)).toContain('5000007');
+	});
+});
