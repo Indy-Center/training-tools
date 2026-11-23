@@ -196,7 +196,7 @@ export const actions: Actions = {
 	 * Lets a held roster removal (0039) apply now. Posts the CIDs the page
 	 * showed; the sync applies it only if they cover everyone missing now.
 	 */
-	applyRosterHold: async ({ locals, request }) => {
+	applyRosterHold: async ({ locals, request, platform }) => {
 		const session = requireRole(locals, isTrainingAdmin);
 
 		const data = await request.formData();
@@ -209,7 +209,7 @@ export const actions: Actions = {
 		await writeRosterRelease(locals.db, shown);
 
 		try {
-			const result = await syncRoster(locals.db);
+			const result = await syncRoster(locals.db, new Date(), platform?.env);
 			console.log(
 				'[training-tools] admin applied a held roster change',
 				JSON.stringify({ by: session.user.cid, name: displayName(session.user), ...result })

@@ -10,6 +10,7 @@ import {
 import type { VatusaRosterMember } from '$lib/types/vatusa';
 import { activityInsert, runInBatches } from '$lib/server/activity';
 import { overLimitError } from '$lib/server/change-limit';
+import { syncMembers } from '$lib/server/discord/larry';
 
 export type RosterSyncResult = {
 	fetched: number;
@@ -219,8 +220,16 @@ function formatUtc(date: Date): string {
  * and the run throws so the job shows as failing. The hold applies to whoever
  * is still missing 24 hours after it started, or as soon as it shrinks to the
  * limit, so a real mass departure lands a day late rather than never.
+ *
+ * Once its writes are done it tells larry (`env.LARRY`) about everyone whose
+ * rating changed and everyone added, restored or removed, so their Discord
+ * roles follow within minutes.
  */
-export async function syncRoster(db: Database, now = new Date()): Promise<RosterSyncResult> {
+export async function syncRoster(
+	db: Database,
+	now = new Date(),
+	env?: Partial<Env>
+): Promise<RosterSyncResult> {
 	const members = await fetchRoster();
 
 	if (members.length === 0) {
@@ -237,7 +246,8 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 		.select({
 			cid: rosterMembersTable.cid,
 			removedAt: rosterMembersTable.removedAt,
-			membership: rosterMembersTable.membership
+			membership: rosterMembersTable.membership,
+			rating: rosterMembersTable.rating
 		})
 		.from(rosterMembersTable);
 
@@ -252,6 +262,10 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 		.filter((row) => previousRemovedAt.get(row.cid) != null)
 		.map((row) => row.cid);
 	const restoredCidSet = new Set(restoredCids);
+	const previousRating = new Map(existing.map((row) => [row.cid, row.rating]));
+	const ratingChangedCids = rows
+		.filter((row) => previousRating.has(row.cid) && previousRating.get(row.cid) !== row.rating)
+		.map((row) => row.cid);
 
 	const present = new Set(rows.map((row) => row.cid));
 	const activeCids = existing.filter((row) => row.removedAt === null).map((row) => row.cid);
@@ -349,6 +363,21 @@ export async function syncRoster(db: Database, now = new Date()): Promise<Roster
 				.returning({ cid: rosterMembersTable.cid });
 
 	const removedCids = removedRows.map((row) => row.cid);
+
+	// Tell larry whose groups may have moved, so their Discord roles catch up
+	// in minutes rather than on its own cron. After the mirror's writes, and
+	// before the activity log, so a failed log entry can't keep larry from
+	// hearing. Never a reason for the run to fail: `syncMembers` logs and
+	// swallows its errors. A first population into an empty table is everyone
+	// "added"; larry's cron already covers them, so that run sends nothing
+	// rather than the whole facility.
+	if (existing.length === 0) {
+		console.log(
+			`[training-tools] roster sync: first population of ${addedCids.length} members; not telling larry`
+		);
+	} else {
+		await syncMembers(env, [...ratingChangedCids, ...addedCids, ...restoredCids, ...removedCids]);
+	}
 
 	// Every controller's timeline. Written after the mirror so a failure here
 	// never stops the roster refreshing; a missed entry is a gap in a log, not

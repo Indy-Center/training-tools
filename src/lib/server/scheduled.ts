@@ -51,9 +51,10 @@ export function scheduledJobs(db: Database, env: Env): ScheduledJob[] {
 	return [
 		{
 			name: 'roster sync',
-			description: 'Refreshes the mirror of the VATUSA roster.',
+			description:
+				'Refreshes the mirror of the VATUSA roster, and tells larry who changed rating, joined, returned or left.',
 			run: async () => {
-				const result = await syncRoster(db);
+				const result = await syncRoster(db, new Date(), env);
 				// Counts only. The CID lists the sync also returns are for the
 				// certification job; logging them would be 157 lines of noise on a
 				// first population. Always logged: it is the heartbeat.
