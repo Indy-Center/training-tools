@@ -176,7 +176,7 @@ Every 10 minutes (`*/10 * * * *`), in this order:
 
 | Job                       | Does                                                                                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| roster sync               | Refreshes the VATUSA roster mirror (`syncRoster`)                                                                                                      |
+| roster sync               | Refreshes the VATUSA roster mirror, and tells larry who changed rating, joined or left so their roles catch up (`syncRoster`)                          |
 | arrival certifications    | Grants arrivals what GCAP entitles them to (`grantArrivalCertifications`)                                                                              |
 | teacher roster sync       | ZID INS/MTR → teacher roster; qualification rules (`syncTeacherRoster`)                                                                                |
 | jira teacher dropdowns    | Compares TRK's Teacher/RE Instructor options with it (`checkTeacherDropdowns`)                                                                         |
